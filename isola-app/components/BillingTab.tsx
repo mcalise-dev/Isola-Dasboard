@@ -64,6 +64,14 @@ export default function BillingTab() {
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
+  // Deep link from Reports: /billing?job=<id> opens straight into that job.
+  useEffect(() => {
+    if (loading || openId) return;
+    const id = new URLSearchParams(window.location.search).get("job");
+    if (id && fin.some((f) => f.job_id === id)) openJob(id);
+    /* eslint-disable-next-line */
+  }, [loading, fin]);
+
   async function openJob(id: string) {
     setOpenId(id); setEditJob(null); setAddPay(null); setAddCo(null);
     const [p, c] = await Promise.all([
