@@ -9,6 +9,11 @@ const GROUPS: { title: string; items: { href: string; label: string; icon: strin
     items: [
       { href: "/build", label: "Build", icon: "🧱" },
       { href: "/", label: "Jobs", icon: "🗂️" },
+      { href: "/log", label: "Daily log", icon: "📓" },
+      { href: "/billing", label: "Billing", icon: "💳" },
+      { href: "/docs", label: "Documents", icon: "🛡️" },
+      { href: "/reports", label: "Reports", icon: "📊" },
+      { href: "/snow", label: "Recurring", icon: "❄️" },
       { href: "/leads", label: "Leads", icon: "🔎" },
       { href: "/proposals", label: "Proposals", icon: "📤" },
       { href: "/schedule", label: "Schedule", icon: "📅" },

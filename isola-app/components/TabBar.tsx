@@ -6,6 +6,11 @@ import { usePathname, useRouter } from "next/navigation";
 const OPS = [
   { href: "/build", label: "Build", icon: "🧱" },
   { href: "/", label: "Jobs", icon: "🗂️" },
+  { href: "/log", label: "Daily log", icon: "📓" },
+  { href: "/billing", label: "Billing", icon: "💳" },
+  { href: "/docs", label: "Documents", icon: "🛡️" },
+  { href: "/reports", label: "Reports", icon: "📊" },
+  { href: "/snow", label: "Recurring", icon: "❄️" },
   { href: "/leads", label: "Leads", icon: "🔎" },
   { href: "/proposals", label: "Proposals", icon: "📤" },
   { href: "/schedule", label: "Schedule", icon: "📅" },
@@ -25,6 +30,8 @@ const MKT = [
 ];
 const QUICK = [
   { href: "/build", label: "Start a build", sub: "Walk → Price → Send", icon: "🧱" },
+  { href: "/log", label: "Log the day", sub: "What got done on site", icon: "📓" },
+  { href: "/billing", label: "Record a payment", sub: "Deposit, midpoint, balance", icon: "💳" },
   { href: "/costs", label: "Add a cost", sub: "Receipt or labor", icon: "🧾" },
   { href: "/leads", label: "Add a lead", sub: "Job to go look at", icon: "🔎" },
   { href: "/tasks", label: "Add a task", sub: "Job to-do", icon: "✅" },

@@ -109,6 +109,19 @@ export default function BuildTab() {
     setOpenId(data.id);
   }
 
+  // Deleting a build removes its lines and photos (FK cascade). If the build
+  // already created a job, the JOB IS LEFT ALONE — only the estimate goes.
+  async function deleteBuild(e: Est) {
+    const warn = e.job_id
+      ? `Delete the build "${e.title || "Untitled"}"?\n\nThe job it created stays — only the estimate and its line items are removed.`
+      : `Delete the build "${e.title || "Untitled"}"? This can't be undone.`;
+    if (!confirm(warn)) return;
+    const { error } = await supabase.from("estimates").delete().eq("id", e.id);
+    if (error) return alert("Delete failed: " + error.message);
+    setEsts((xs) => xs.filter((x) => x.id !== e.id));
+    if (openId === e.id) setOpenId(null);
+  }
+
   if (loading) return <div className="p-4 text-sm text-neutral-500">Loading…</div>;
 
   if (open) {
@@ -147,8 +160,9 @@ export default function BuildTab() {
     const cost = Number(e.cost_total ?? 0);
     const sell = Number(e.sell_price ?? 0);
     return (
-      <button key={e.id} onClick={() => setOpenId(e.id)}
-        className="w-full text-left rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-3 hover:border-neutral-600">
+      <div key={e.id} role="button" tabIndex={0} onClick={() => setOpenId(e.id)}
+        onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") setOpenId(e.id); }}
+        className="w-full text-left rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-3 hover:border-neutral-600 cursor-pointer">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-semibold text-white truncate">{e.title || "Untitled build"}</div>
@@ -156,15 +170,20 @@ export default function BuildTab() {
               {[e.customer, e.location].filter(Boolean).join(" — ") || "No customer yet"}
             </div>
           </div>
-          <div className="text-right shrink-0">
-            {sell > 0 ? <div className="text-sm font-bold text-white">{fmt$(sell)}</div> : null}
-            {cost > 0 && !sell ? <div className="text-xs text-neutral-500">cost {fmt$(cost)}</div> : null}
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
-              {e.status === "draft" ? e.step : e.status}
+          <div className="flex items-start gap-2 shrink-0">
+            <div className="text-right">
+              {sell > 0 ? <div className="text-sm font-bold text-white">{fmt$(sell)}</div> : null}
+              {cost > 0 && !sell ? <div className="text-xs text-neutral-500">cost {fmt$(cost)}</div> : null}
+              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                {e.status === "draft" ? e.step : e.status}
+              </div>
             </div>
+            <button onClick={(ev) => { ev.stopPropagation(); deleteBuild(e); }}
+              aria-label="Delete build"
+              className="text-neutral-700 hover:text-red-400 text-sm px-1 leading-none">✕</button>
           </div>
         </div>
-      </button>
+      </div>
     );
   }
 
