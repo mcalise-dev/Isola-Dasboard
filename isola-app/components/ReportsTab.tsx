@@ -22,16 +22,19 @@ export default function ReportsTab() {
   const [fin, setFin] = useState<any[]>([]);
   const [ests, setEsts] = useState<any[]>([]);
   const [custs, setCusts] = useState<any[]>([]);
+  const [qbo, setQbo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [f, e, c] = await Promise.all([
+      const [f, e, c, m] = await Promise.all([
         supabase.from("job_financials").select("*"),
         supabase.from("estimates").select("id,status,sell_price,cost_total,customer_id,job_type"),
         supabase.from("customers").select("id,name,client_type"),
+        supabase.from("money_snapshot").select("data,updated_at").eq("id", 1).maybeSingle(),
       ]);
       setFin(f.data ?? []); setEsts(e.data ?? []); setCusts(c.data ?? []);
+      setQbo(m.data ?? null);
       setLoading(false);
     })();
     /* eslint-disable-next-line */
@@ -47,7 +50,19 @@ export default function ReportsTab() {
   const totCost = priced.reduce((s, f) => s + Number(f.actual_cost || 0), 0);
   const totPaid = priced.reduce((s, f) => s + Number(f.paid_to_date || 0), 0);
   const totOwed = priced.reduce((s, f) => s + Number(f.balance_due || 0), 0);
-  const backlog = priced.filter((f) => f.status !== "complete").reduce((s, f) => s + Number(f.contract_total || 0), 0);
+
+  // A quoted job and an invoiced one are not the same money. Only work that
+  // carries a QuickBooks invoice reference is a real receivable; everything
+  // else priced is pipeline. Mixing them overstates what Mike is owed.
+  const invoiced = priced.filter((f) => f.qbo_invoice_ref);
+  const quoted = priced.filter((f) => !f.qbo_invoice_ref);
+  const owedReal = invoiced.reduce((s, f) => s + Math.max(0, Number(f.balance_due || 0)), 0);
+  const quotedTotal = quoted.reduce((s, f) => s + Number(f.contract_total || 0), 0);
+
+  // Everything QuickBooks is owed that has no job behind it in the app —
+  // the THM tab, and any invoice raised outside a job record.
+  const qboAR = Number(qbo?.data?.total_ar ?? 0);
+  const unlinkedAR = qboAR > 0 ? qboAR - owedReal : 0;
 
   // margin by work type — only jobs with real costs, else it's fiction
   const byType: Record<string, { rev: number; cost: number; n: number }> = {};
@@ -94,11 +109,39 @@ export default function ReportsTab() {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
+        {tile("Collected", fmt0(totPaid), `${invoiced.length} invoiced jobs`, "text-emerald-400")}
+        {tile("Invoiced — owed", fmt0(owedReal), "billed, not paid", owedReal > 0 ? "text-amber-300" : "text-white")}
+        {tile("Quoted pipeline", fmt0(quotedTotal), `${quoted.length} priced, no invoice`)}
         {tile("Contracted", fmt0(totContract), `${priced.length} priced jobs`)}
-        {tile("Backlog", fmt0(backlog), "booked, not finished")}
-        {tile("Collected", fmt0(totPaid), `${complete.length} complete`)}
-        {tile("Outstanding", fmt0(totOwed), "still owed", totOwed > 0 ? "text-amber-300" : "text-white")}
       </div>
+
+      {qboAR > 0 ? (
+        <div className={card + " space-y-1.5"}>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Against QuickBooks</div>
+          <div className="flex justify-between text-sm">
+            <span className="text-neutral-400">QuickBooks A/R</span>
+            <span className="text-neutral-200 tabular-nums">{fmt0(qboAR)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-neutral-400">Owed on jobs in this app</span>
+            <span className="text-neutral-200 tabular-nums">{fmt0(owedReal)}</span>
+          </div>
+          <div className="flex justify-between border-t border-neutral-800 pt-1.5 text-sm">
+            <span className="text-neutral-400">Invoiced with no job here</span>
+            <span className="text-neutral-200 tabular-nums">{fmt0(unlinkedAR)}</span>
+          </div>
+          <p className="text-[11px] text-neutral-600 leading-relaxed">
+            That last line is mostly the THM tab, which is a ledger rather than a job. If it grows,
+            it means invoices are being raised in QuickBooks without a job here to carry the costs —
+            which is exactly the work whose margin nobody can see.
+          </p>
+          {qbo?.updated_at ? (
+            <p className="text-[10px] text-neutral-700">
+              QuickBooks figures as of {new Date(qbo.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* ---- data-quality reality check ---- */}
       {missing.length ? (

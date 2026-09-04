@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/client";
 import { todayISO, fmtDate } from "@/lib/format";
 
 /* ============================================================
-   BILLING — payments and change orders, per job.
+   BILLING — payments and change orders, per job, plus the job's
+   own money fields.
 
    The app could previously record exactly ONE payment per job
    (jobs.paid_date / paid_amount / paid_method). Mike's terms are
@@ -13,6 +14,10 @@ import { todayISO, fmtDate } from "@/lib/format";
 
    Change orders: scope added mid-job. Only an APPROVED change order
    moves the contract total, which is what job_financials sums.
+
+   Partner share: on a THM joint job, net profit splits 50/50 and the
+   partner's reimbursements come off the top too. "You keep" is the
+   number that actually matters and it is not the same as net profit.
    ============================================================ */
 
 const fmt2 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -35,6 +40,10 @@ const STAGES = [
   { key: "other", label: "Other", pct: 0 },
 ];
 
+const STATUSES = ["lead", "awaiting", "booked", "progress", "complete"];
+
+type Filter = "all" | "collected" | "outstanding";
+
 export default function BillingTab() {
   const supabase = useMemo(() => createClient(), []);
   const [fin, setFin] = useState<any[]>([]);
@@ -44,7 +53,9 @@ export default function BillingTab() {
   const [loading, setLoading] = useState(true);
   const [addPay, setAddPay] = useState<any>(null);
   const [addCo, setAddCo] = useState<any>(null);
+  const [editJob, setEditJob] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all");
 
   async function load() {
     const { data } = await supabase.from("job_financials").select("*").order("contract_total", { ascending: false });
@@ -54,7 +65,7 @@ export default function BillingTab() {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   async function openJob(id: string) {
-    setOpenId(id);
+    setOpenId(id); setEditJob(null); setAddPay(null); setAddCo(null);
     const [p, c] = await Promise.all([
       supabase.from("payments").select("*").eq("job_id", id).order("payment_date"),
       supabase.from("change_orders").select("*").eq("job_id", id).order("co_number"),
@@ -65,10 +76,9 @@ export default function BillingTab() {
 
   const job = fin.find((f) => f.job_id === openId) || null;
 
-  /* ---------- totals across all jobs ---------- */
   const totContract = fin.reduce((s, f) => s + Number(f.contract_total || 0), 0);
   const totPaid = fin.reduce((s, f) => s + Number(f.paid_to_date || 0), 0);
-  const totOwed = fin.reduce((s, f) => s + Number(f.balance_due || 0), 0);
+  const totOwed = fin.reduce((s, f) => s + Math.max(0, Number(f.balance_due || 0)), 0);
 
   /* ---------- payments ---------- */
   async function savePayment() {
@@ -85,8 +95,7 @@ export default function BillingTab() {
     });
     setBusy(false);
     if (error) return alert(error.message);
-    setAddPay(null);
-    openJob(openId!); load();
+    setAddPay(null); openJob(openId!); load();
   }
   async function delPayment(id: string) {
     if (!confirm("Delete this payment?")) return;
@@ -110,8 +119,7 @@ export default function BillingTab() {
     });
     setBusy(false);
     if (error) return alert(error.message);
-    setAddCo(null);
-    openJob(openId!); load();
+    setAddCo(null); openJob(openId!); load();
   }
   async function setCoStatus(c: any, status: string) {
     const patch: any = { status, updated_at: new Date().toISOString() };
@@ -127,6 +135,42 @@ export default function BillingTab() {
     openJob(openId!); load();
   }
 
+  /* ---------- the job itself ---------- */
+  function startEdit() {
+    setEditJob({
+      price: Number(job.contract_base) || "",
+      job: job.work_type ?? "",
+      status: job.status ?? "awaiting",
+      qbo_invoice_ref: job.qbo_invoice_ref ?? "",
+      invoiced_date: job.invoiced_date ?? "",
+      completed_date: job.completed_date ?? "",
+      partner: job.partner ?? "",
+      partner_share: Number(job.partner_share) || "",
+    });
+  }
+
+  async function saveJob() {
+    setBusy(true);
+    // jobs.price is free text by design — price_amount is a generated column
+    // that parses it — so write a clean, parseable currency string.
+    const n = editJob.price === "" ? null : Number(editJob.price);
+    const patch: any = {
+      price: n == null ? null : "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      job: editJob.job?.trim() || null,
+      status: editJob.status,
+      qbo_invoice_ref: editJob.qbo_invoice_ref?.trim() || null,
+      invoiced_date: editJob.invoiced_date || null,
+      completed_date: editJob.completed_date || null,
+      partner: editJob.partner?.trim() || null,
+      partner_share: editJob.partner_share === "" ? null : Number(editJob.partner_share),
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from("jobs").update(patch).eq("id", openId);
+    setBusy(false);
+    if (error) return alert("Save failed: " + error.message);
+    setEditJob(null); await load();
+  }
+
   if (loading) return <div className="p-4 text-sm text-neutral-500">Loading…</div>;
 
   /* ================= DETAIL ================= */
@@ -136,16 +180,97 @@ export default function BillingTab() {
     const owed = Number(job.balance_due || 0);
     const pctPaid = contract > 0 ? Math.min(100, (paid / contract) * 100) : 0;
     const paidByStage = (k: string) => payments.filter((p) => p.stage === k).reduce((s, p) => s + Number(p.amount), 0);
+    const cost = Number(job.actual_cost || 0);
+    const share = Number(job.partner_share || 0);
 
     return (
       <div className="pb-28 space-y-4">
         <div className="flex items-center gap-2">
-          <button onClick={() => { setOpenId(null); setAddPay(null); setAddCo(null); }} className={btn}>← Billing</button>
-          <div className="min-w-0">
+          <button onClick={() => { setOpenId(null); setEditJob(null); }} className={btn}>← Billing</button>
+          <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-white truncate">{job.job_name || "—"}</div>
-            <div className="text-[11px] text-neutral-500 truncate">{job.customer}</div>
+            <div className="text-[11px] text-neutral-500 truncate">
+              {job.customer}{job.qbo_invoice_ref ? ` · QB ${job.qbo_invoice_ref}` : ""}
+            </div>
           </div>
+          <button onClick={() => (editJob ? setEditJob(null) : startEdit())} className={btn}>
+            {editJob ? "Close" : "Edit job"}
+          </button>
         </div>
+
+        {/* ---- edit the job's own fields ---- */}
+        {editJob ? (
+          <div className={card + " space-y-3"}>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Edit job</div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className={lbl}>Contract price</label>
+                <input type="number" inputMode="decimal" className={inp} value={editJob.price}
+                  onChange={(e) => setEditJob({ ...editJob, price: e.target.value })} />
+              </div>
+              <div>
+                <label className={lbl}>Work type</label>
+                <input className={inp} value={editJob.job} placeholder="Concrete, asphalt…"
+                  onChange={(e) => setEditJob({ ...editJob, job: e.target.value })} />
+              </div>
+            </div>
+
+            <div>
+              <label className={lbl}>Status</label>
+              <div className="flex flex-wrap gap-1.5">
+                {STATUSES.map((s) => (
+                  <button key={s} onClick={() => setEditJob({ ...editJob, status: s })}
+                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold capitalize ${editJob.status === s ? "border-neutral-300 bg-neutral-800 text-white" : "border-neutral-700 bg-neutral-900 text-neutral-400"}`}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className={lbl}>QuickBooks invoice</label>
+              <input className={inp} value={editJob.qbo_invoice_ref} placeholder="2026-ISOLA-060, or several separated by commas"
+                onChange={(e) => setEditJob({ ...editJob, qbo_invoice_ref: e.target.value })} />
+              <p className="mt-1 text-[11px] text-neutral-600">
+                Linking the invoice is what moves this job from quoted pipeline into real receivables.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className={lbl}>Invoiced</label>
+                <input type="date" className={inp} value={editJob.invoiced_date}
+                  onChange={(e) => setEditJob({ ...editJob, invoiced_date: e.target.value })} />
+              </div>
+              <div>
+                <label className={lbl}>Completed</label>
+                <input type="date" className={inp} value={editJob.completed_date}
+                  onChange={(e) => setEditJob({ ...editJob, completed_date: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className={lbl}>Partner</label>
+                <input className={inp} value={editJob.partner} placeholder="THM, or blank"
+                  onChange={(e) => setEditJob({ ...editJob, partner: e.target.value })} />
+              </div>
+              <div>
+                <label className={lbl}>Owed to partner</label>
+                <input type="number" inputMode="decimal" className={inp} value={editJob.partner_share}
+                  onChange={(e) => setEditJob({ ...editJob, partner_share: e.target.value })} />
+              </div>
+            </div>
+            <p className="text-[11px] text-neutral-600">
+              Their 50% of net profit plus anything they fronted — the whole amount due to them, off the top.
+            </p>
+
+            <div className="flex gap-2">
+              <button onClick={saveJob} disabled={busy} className={btnPrimary + " flex-1"}>{busy ? "Saving…" : "Save job"}</button>
+              <button onClick={() => setEditJob(null)} className={btn}>Cancel</button>
+            </div>
+          </div>
+        ) : null}
 
         <div className={card + " space-y-2"}>
           <div className="flex justify-between text-sm">
@@ -175,7 +300,32 @@ export default function BillingTab() {
           </div>
         </div>
 
-        {/* draw schedule */}
+        {/* ---- what's actually left after costs and the partner ---- */}
+        {cost > 0 || share > 0 ? (
+          <div className={card + " space-y-2"}>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">What's left</div>
+            <div className="flex justify-between text-sm">
+              <span className="text-neutral-400">Job costs</span>
+              <span className="text-neutral-200 tabular-nums">−{fmt2(cost)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-neutral-400">Net profit</span>
+              <span className="text-neutral-200 tabular-nums">{fmt2(Number(job.net_profit))}</span>
+            </div>
+            {share > 0 ? (
+              <div className="flex justify-between text-sm">
+                <span className="text-neutral-400">To {job.partner || "partner"}</span>
+                <span className="text-amber-300 tabular-nums">−{fmt2(share)}</span>
+              </div>
+            ) : null}
+            <div className="flex justify-between border-t border-neutral-800 pt-2">
+              <span className="text-sm font-bold text-white">You keep</span>
+              <span className="text-lg font-bold text-emerald-400 tabular-nums">{fmt2(Number(job.net_to_isola))}</span>
+            </div>
+          </div>
+        ) : null}
+
+        {/* ---- draw schedule ---- */}
         <div className={card + " space-y-2"}>
           <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Draw schedule — 33 / 33 / balance</div>
           {STAGES.slice(0, 3).map((s) => {
@@ -196,7 +346,7 @@ export default function BillingTab() {
           })}
         </div>
 
-        {/* payments */}
+        {/* ---- payments ---- */}
         <div className={card + " space-y-2"}>
           <div className="flex items-center justify-between">
             <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Payments ({payments.length})</div>
@@ -242,7 +392,7 @@ export default function BillingTab() {
           {payments.length === 0 && !addPay ? <p className="text-[11px] text-neutral-600">Nothing recorded yet.</p> : null}
         </div>
 
-        {/* change orders */}
+        {/* ---- change orders ---- */}
         <div className={card + " space-y-2"}>
           <div className="flex items-center justify-between">
             <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Change orders ({cos.length})</div>
@@ -295,24 +445,44 @@ export default function BillingTab() {
   }
 
   /* ================= LIST ================= */
+  const shown =
+    filter === "collected"   ? fin.filter((f) => Number(f.paid_to_date) > 0)
+    : filter === "outstanding" ? fin.filter((f) => Number(f.balance_due) > 0)
+    : fin;
+
+  const tile = (key: Filter, label: string, value: string, sub: string) => (
+    <button key={key} onClick={() => setFilter(key)}
+      className={`rounded-xl border px-3 py-2.5 text-left ${filter === key ? "border-neutral-300 bg-neutral-900" : "border-neutral-800 bg-neutral-950 hover:border-neutral-600"}`}>
+      <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{label}</div>
+      <div className="text-lg font-bold text-white leading-tight tabular-nums">{value}</div>
+      <div className="text-[10px] text-neutral-600">{sub}</div>
+    </button>
+  );
+
   return (
     <div className="pb-28 space-y-4">
       <div>
         <h1 className="text-lg font-bold text-white">Billing</h1>
-        <p className="text-xs text-neutral-500">Payments and change orders, job by job</p>
+        <p className="text-xs text-neutral-500">Tap a number to see what's behind it</p>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        {[["Contracted", fmt0(totContract)], ["Collected", fmt0(totPaid)], ["Outstanding", fmt0(totOwed)]].map(([k, v]) => (
-          <div key={k} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2.5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{k}</div>
-            <div className="text-lg font-bold text-white leading-tight tabular-nums">{v}</div>
-          </div>
-        ))}
+        {tile("all", "Contracted", fmt0(totContract), `${fin.length} jobs`)}
+        {tile("collected", "Collected", fmt0(totPaid), `${fin.filter((f) => Number(f.paid_to_date) > 0).length} paid`)}
+        {tile("outstanding", "Outstanding", fmt0(totOwed), `${fin.filter((f) => Number(f.balance_due) > 0).length} owing`)}
       </div>
 
+      {filter !== "all" ? (
+        <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
+          <span className="text-xs text-neutral-400">
+            Showing {shown.length} {filter === "collected" ? "jobs with money in" : "jobs still owing"}
+          </span>
+          <button onClick={() => setFilter("all")} className="text-xs font-semibold text-neutral-300 underline">Show all</button>
+        </div>
+      ) : null}
+
       <div className="space-y-2">
-        {fin.map((f) => {
+        {shown.map((f) => {
           const owed = Number(f.balance_due || 0);
           const pct = Number(f.contract_total) > 0 ? (Number(f.paid_to_date) / Number(f.contract_total)) * 100 : 0;
           return (
@@ -321,7 +491,9 @@ export default function BillingTab() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-white truncate">{f.job_name || "—"}</div>
-                  <div className="text-[11px] text-neutral-500 truncate">{f.customer}</div>
+                  <div className="text-[11px] text-neutral-500 truncate">
+                    {f.customer}{f.qbo_invoice_ref ? ` · QB ${f.qbo_invoice_ref}` : " · not invoiced"}
+                  </div>
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-sm font-bold text-white tabular-nums">{fmt0(Number(f.contract_total))}</div>
@@ -333,12 +505,15 @@ export default function BillingTab() {
               <div className="h-1.5 rounded-full bg-neutral-800 overflow-hidden">
                 <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, pct)}%` }} />
               </div>
-              {Number(f.open_change_orders) > 0 ? (
-                <div className="text-[11px] text-amber-300">{f.open_change_orders} change order{Number(f.open_change_orders) === 1 ? "" : "s"} not approved yet</div>
-              ) : null}
+              <div className="flex flex-wrap gap-2 text-[11px] text-neutral-600">
+                {Number(f.partner_share) > 0 ? <span className="text-amber-300/80">{f.partner} {fmt0(Number(f.partner_share))}</span> : null}
+                {Number(f.actual_cost) > 0 ? <span>you keep {fmt0(Number(f.net_to_isola))}</span> : <span>no costs logged</span>}
+                {Number(f.open_change_orders) > 0 ? <span className="text-amber-300">{f.open_change_orders} CO pending</span> : null}
+              </div>
             </button>
           );
         })}
+        {shown.length === 0 ? <p className="text-xs text-neutral-600">Nothing in this view.</p> : null}
       </div>
     </div>
   );
