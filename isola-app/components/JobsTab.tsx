@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Job, STATUS_META, fmtDate, parsePrice } from "@/lib/format";
 import JobChecklist from "@/components/JobChecklist";
 import MyClock from "@/components/MyClock";import PunchList from "@/components/PunchList";
-const STATUSES = ["lead", "booked", "progress", "awaiting", "complete"] as const;
+import PunchList from "@/components/PunchList";const STATUSES = ["lead", "booked", "progress", "awaiting", "complete"] as const;
 const COST_CATEGORIES = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Subcontractor", "Permits", "Other"];
 const PATH: { key: string; label: string }[] = [
   { key: "lead", label: "Lead" },
