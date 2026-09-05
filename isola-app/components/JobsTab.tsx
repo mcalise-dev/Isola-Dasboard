@@ -767,8 +767,7 @@ export default function JobsTab() {
                     <input className={input} placeholder="Add a task for this job…" value={tTitle} onChange={(e) => setTTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addTask(); }} />
                     <button onClick={addTask} disabled={tBusy} className="shrink-0 rounded-lg bg-white text-neutral-900 px-3 text-xs font-bold disabled:opacity-60">{tBusy ? "…" : "+ Add"}</button>
                   </div>
-                  <p className="text-[10px] text-neutral-600 mt-1.5">Tasks added here also show on the main Tasks tab.</p><PunchList jobId={v.id} />
-                </div>
+                  <p className="text-[10px] text-neutral-600 mt-1.5">Tasks added here also show on the main Tasks tab.</p><PunchList jobId={v.id} />                </div>
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Correspondence</div>
                   {jcomms.length ? (
