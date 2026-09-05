@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import MoneyInput from "@/components/MoneyInput";
 import { fmtDate, todayISO } from "@/lib/format";
 
 /* ============================================================
@@ -195,7 +196,7 @@ export default function DocsTab() {
             </div>
           </div>
 
-          <div><label className={lbl}>Amount — coverage limit or fee</label><input type="number" inputMode="decimal" className={inp} value={editing.amount ?? ""} onChange={(e) => setEditing({ ...editing, amount: e.target.value })} /></div>
+          <div><label className={lbl}>Amount — coverage limit or fee</label><MoneyInput className={inp} value={editing.amount ?? ""} onChange={(v) => setEditing({ ...editing, amount: v })} /></div>
 
           <div className="flex items-center gap-2">
             <label className={btn + " cursor-pointer"}>

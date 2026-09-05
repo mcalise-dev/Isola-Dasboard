@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import MoneyInput from "@/components/MoneyInput";
 import { fmtDate, todayISO } from "@/lib/format";
 
 /* ============================================================
@@ -194,7 +195,7 @@ export default function SnowTab() {
                 {RATE_TYPES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
               </select>
             </div>
-            <div><label className={lbl}>Rate</label><input type="number" inputMode="decimal" className={inp} value={editC.rate ?? ""} onChange={(e) => setEditC({ ...editC, rate: e.target.value })} /></div>
+            <div><label className={lbl}>Rate</label><MoneyInput className={inp} value={editC.rate ?? ""} onChange={(v) => setEditC({ ...editC, rate: v })} /></div>
             <div><label className={lbl}>Your %</label><input type="number" inputMode="decimal" className={inp} value={editC.commission_pct ?? 10} onChange={(e) => setEditC({ ...editC, commission_pct: e.target.value })} /></div>
           </div>
           <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-[11px] text-neutral-400">
@@ -242,7 +243,7 @@ export default function SnowTab() {
                   <div><label className={lbl}>Date</label><input type="date" className={inp} value={addE.event_date} onChange={(e) => setAddE({ ...addE, event_date: e.target.value })} /></div>
                   <div><label className={lbl}>Inches</label><input type="number" inputMode="decimal" className={inp} value={addE.inches ?? ""} onChange={(e) => setAddE({ ...addE, inches: e.target.value })} /></div>
                 </div>
-                <div><label className={lbl}>Billed to the account (gross)</label><input type="number" inputMode="decimal" className={inp} value={addE.billed_amount} onChange={(e) => setAddE({ ...addE, billed_amount: e.target.value })} /></div>
+                <div><label className={lbl}>Billed to the account (gross)</label><MoneyInput className={inp} value={addE.billed_amount} onChange={(v) => setAddE({ ...addE, billed_amount: v })} /></div>
                 {addE.billed_amount ? (
                   <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] text-emerald-200">
                     Your {c.commission_pct}%: <span className="font-bold">{fmt2(Number(addE.billed_amount) * (Number(c.commission_pct) / 100))}</span>

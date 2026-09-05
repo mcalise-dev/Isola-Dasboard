@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import MoneyInput from "@/components/MoneyInput";
 import { todayISO } from "@/lib/format";
 
 /* ============================================================
@@ -695,9 +696,9 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
 
             <div>
               <label className={lbl}>Contract price</label>
-              <input type="number" inputMode="decimal" className={inp + " text-lg font-bold"} value={e.sell_price ?? ""}
-                placeholder="0.00" onChange={(ev) => setE({ ...e, sell_price: ev.target.value })}
-                onBlur={(ev) => patch({ sell_price: ev.target.value === "" ? null : Number(ev.target.value) })} />
+              <MoneyInput className={inp + " text-lg font-bold"} value={e.sell_price ?? ""}
+                onChange={(v) => setE({ ...e, sell_price: v })}
+                onBlur={(v) => patch({ sell_price: v === "" ? null : Number(v) })} />
             </div>
 
             {sell > 0 ? (
@@ -882,9 +883,9 @@ function LineRow({ l, book, workers, onSave, onLearn, onDelete }: any) {
         <input className="w-14 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-2 text-xs text-center text-neutral-300"
           value={d.unit ?? ""} onChange={(ev) => setD({ ...d, unit: ev.target.value })}
           onBlur={(ev) => onSave({ unit: ev.target.value })} />
-        <input type="number" inputMode="decimal" className={inp + " text-right"} value={d.unit_cost ?? 0}
-          onChange={(ev) => setD({ ...d, unit_cost: ev.target.value })}
-          onBlur={(ev) => { onSave({ unit_cost: Number(ev.target.value || 0) }); setTimeout(onLearn, 150); }} />
+        <MoneyInput className={inp + " text-right"} value={d.unit_cost ?? 0}
+          onChange={(v) => setD({ ...d, unit_cost: v })}
+          onBlur={(v) => { onSave({ unit_cost: Number(v || 0) }); setTimeout(onLearn, 150); }} />
         <button onClick={() => setCalc(!calc)} className="px-1.5 text-lg" title="Quantity calculator">🧮</button>
       </div>
 

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import MoneyInput from "@/components/MoneyInput";
 import { todayISO, fmtDate } from "@/lib/format";
 
 /* ============================================================
@@ -213,8 +214,8 @@ export default function BillingTab() {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className={lbl}>Contract price</label>
-                <input type="number" inputMode="decimal" className={inp} value={editJob.price}
-                  onChange={(e) => setEditJob({ ...editJob, price: e.target.value })} />
+                <MoneyInput className={inp} value={editJob.price}
+                  onChange={(v) => setEditJob({ ...editJob, price: v })} />
               </div>
               <div>
                 <label className={lbl}>Work type</label>
@@ -265,8 +266,8 @@ export default function BillingTab() {
               </div>
               <div>
                 <label className={lbl}>Owed to partner</label>
-                <input type="number" inputMode="decimal" className={inp} value={editJob.partner_share}
-                  onChange={(e) => setEditJob({ ...editJob, partner_share: e.target.value })} />
+                <MoneyInput className={inp} value={editJob.partner_share}
+                  onChange={(v) => setEditJob({ ...editJob, partner_share: v })} />
               </div>
             </div>
             <p className="text-[11px] text-neutral-600">
@@ -365,7 +366,7 @@ export default function BillingTab() {
             <div className="rounded-lg border border-neutral-700 bg-neutral-900/60 p-2.5 space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <div><label className={lbl}>Date</label><input type="date" className={inp} value={addPay.payment_date} onChange={(e) => setAddPay({ ...addPay, payment_date: e.target.value })} /></div>
-                <div><label className={lbl}>Amount</label><input type="number" inputMode="decimal" className={inp} value={addPay.amount} onChange={(e) => setAddPay({ ...addPay, amount: e.target.value })} /></div>
+                <div><label className={lbl}>Amount</label><MoneyInput className={inp} value={addPay.amount} onChange={(v) => setAddPay({ ...addPay, amount: v })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -412,7 +413,7 @@ export default function BillingTab() {
               <div><label className={lbl}>Title</label><input className={inp} value={addCo.title ?? ""} placeholder="Added area drain at low corner" onChange={(e) => setAddCo({ ...addCo, title: e.target.value })} /></div>
               <div><label className={lbl}>Why the scope changed</label><input className={inp} value={addCo.reason ?? ""} placeholder="Discovered on excavation — not visible at the walk-through" onChange={(e) => setAddCo({ ...addCo, reason: e.target.value })} /></div>
               <div><label className={lbl}>Scope added — the client reads this</label><textarea rows={3} className={inp} value={addCo.scope_text} onChange={(e) => setAddCo({ ...addCo, scope_text: e.target.value })} /></div>
-              <div><label className={lbl}>Amount</label><input type="number" inputMode="decimal" className={inp} value={addCo.amount} onChange={(e) => setAddCo({ ...addCo, amount: e.target.value })} /></div>
+              <div><label className={lbl}>Amount</label><MoneyInput className={inp} value={addCo.amount} onChange={(v) => setAddCo({ ...addCo, amount: v })} /></div>
               <div className="flex gap-2">
                 <button onClick={saveCo} disabled={busy} className={btnPrimary + " flex-1"}>{busy ? "Saving…" : "Create change order"}</button>
                 <button onClick={() => setAddCo(null)} className={btn}>Cancel</button>
