@@ -22,7 +22,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </header>
       <SideNav />
       <div className="md:pl-56 flex-1 flex flex-col">
-        <main className="relative z-10 mx-auto w-full max-w-2xl md:max-w-3xl flex-1 px-4 pt-4 pb-28 md:pb-10">{children}</main>
+        <main className="relative z-10 mx-auto w-full max-w-2xl md:max-w-3xl flex-1 px-4 pt-4 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-10">{children}</main>
       </div>
       <div className="md:hidden">
         <TabBar />
