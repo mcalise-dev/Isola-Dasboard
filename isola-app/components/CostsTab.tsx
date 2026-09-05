@@ -6,6 +6,26 @@ import { Job, jobLabel, money, fmtDate, todayISO } from "@/lib/format";
 const CATS = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Subcontractor", "Labor", "Permits", "Other"];
 const OVERHEAD = "__overhead__";
 
+// Downscale + JPEG-compress a picked image so a receipt stays well under the row limit.
+function shrink(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1100;
+      let w = img.width, h = img.height;
+      if (Math.max(w, h) > MAX) { const r = MAX / Math.max(w, h); w = Math.round(w * r); h = Math.round(h * r); }
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      cv.getContext("2d")!.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(cv.toDataURL("image/jpeg", 0.72));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("unreadable image")); };
+    img.src = url;
+  });
+}
+
 type Cost = {
   id: string;
   job_id: string | null;
@@ -31,11 +51,13 @@ export default function CostsTab() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [owedOnly, setOwedOnly] = useState(false);
+  const [pendingOnly, setPendingOnly] = useState(false);
   const [sheet, setSheet] = useState<Cost | "new" | null>(null);
   const [viewer, setViewer] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<any>({});
-  const fileRef = useRef<HTMLInputElement>(null);
+  const camRef = useRef<HTMLInputElement>(null);
+  const libRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     const [j, c] = await Promise.all([
@@ -60,12 +82,13 @@ export default function CostsTab() {
     return { list, hasOverhead: ids.has(OVERHEAD) };
   }, [costs, jobs]);
 
-  const shown = costs.filter((c) => (filter === "all" ? true : (c.job_id ?? OVERHEAD) === filter)).filter((c) => !owedOnly || c.paid === false);
+  const base = costs.filter((c) => (filter === "all" ? true : (c.job_id ?? OVERHEAD) === filter));
+  const shown = base.filter((c) => !owedOnly || c.paid === false).filter((c) => !pendingOnly || c.status === "pending");
   const owed = costs.filter((c) => c.paid === false).reduce((s, c) => s + (Number(c.amount) || 0), 0);
   const monthNow = todayISO().slice(0, 7);
   const total = shown.reduce((s, c) => s + (Number(c.amount) || 0), 0);
   const month = shown.filter((c) => (c.entry_date ?? "").slice(0, 7) === monthNow).reduce((s, c) => s + (Number(c.amount) || 0), 0);
-  const pending = shown.filter((c) => c.status === "pending").length;
+  const pending = base.filter((c) => c.status === "pending").length;
 
   const byCat = useMemo(() => {
     if (filter === "all") return null;
@@ -81,23 +104,32 @@ export default function CostsTab() {
       : { kind: c.hours != null || c.worker ? "labor" : "receipt", job_id: c.job_id ?? OVERHEAD, entry_date: c.entry_date, vendor: c.vendor ?? "", category: c.category ?? "", amount: c.amount ?? "", notes: c.notes ?? "", receipt_b64: c.receipt_b64, worker: c.worker ?? "", hours: c.hours ?? "", rate: c.rate ?? "", paid: c.paid !== false });
   }
 
-  function pickPhoto(ev: React.ChangeEvent<HTMLInputElement>) {
-    const f = ev.target.files?.[0];
-    if (!f) return;
-    const url = URL.createObjectURL(f);
-    const img = new Image();
-    img.onload = () => {
-      const MAX = 1100;
-      let w = img.width, h = img.height;
-      if (Math.max(w, h) > MAX) { const r = MAX / Math.max(w, h); w = Math.round(w * r); h = Math.round(h * r); }
-      const cv = document.createElement("canvas");
-      cv.width = w; cv.height = h;
-      cv.getContext("2d")!.drawImage(img, 0, 0, w, h);
-      setForm((s: any) => ({ ...s, receipt_b64: cv.toDataURL("image/jpeg", 0.72) }));
-      URL.revokeObjectURL(url);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); alert("Couldn't read that image — try again."); };
-    img.src = url;
+  // One handler for both inputs. One photo fills the open form; several from the
+  // library each become their own pending cost row, so a roll of receipts lands in one go.
+  async function pickPhotos(ev: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(ev.target.files ?? []);
+    ev.target.value = "";
+    if (!files.length) return;
+    setBusy(true);
+    let imgs: string[];
+    try { imgs = await Promise.all(files.map(shrink)); }
+    catch { setBusy(false); alert("Couldn't read one of those images — try again."); return; }
+    if (imgs.length === 1) { setForm((s: any) => ({ ...s, receipt_b64: imgs[0] })); setBusy(false); return; }
+    const rows = imgs.map((b64) => ({
+      job_id: form.job_id === OVERHEAD ? null : form.job_id,
+      entry_date: form.entry_date || todayISO(),
+      receipt_b64: b64,
+      status: "pending",
+      paid: true,
+      updated_at: new Date().toISOString(),
+    }));
+    const { error } = await supabase.from("job_costs").insert(rows);
+    setBusy(false);
+    if (error) { alert("Save failed: " + error.message); return; }
+    setSheet(null);
+    setPendingOnly(true);
+    load();
+    alert(rows.length + " receipts saved as pending. Ask Claude to read them and it'll fill in vendor, amount and category.");
   }
 
   async function save() {
@@ -179,10 +211,11 @@ export default function CostsTab() {
           <div className={`text-base font-bold leading-none tabular-nums ${owed > 0 ? "text-red-300" : "text-white"}`}>{money(owed)}</div>
           <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">You owe{owedOnly ? " ✓" : " →"}</div>
         </button>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-2.5">
+        <button onClick={() => setPendingOnly(!pendingOnly)}
+          className={`rounded-xl border p-2.5 text-left ${pendingOnly ? "border-amber-400 bg-neutral-800" : pending > 0 ? "border-amber-500/50 bg-neutral-900" : "border-neutral-800 bg-neutral-900"}`}>
           <div className={`text-base font-bold leading-none tabular-nums ${pending ? "text-amber-300" : "text-white"}`}>{pending}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">Claude to fill</div>
-        </div>
+          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">Claude to fill{pendingOnly ? " ✓" : " →"}</div>
+        </button>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-3 -mx-1 px-1 [scrollbar-width:none]">
@@ -226,7 +259,7 @@ export default function CostsTab() {
       {!loading && shown.length === 0 ? (
         <div className="rounded-xl border border-dashed border-neutral-700 p-7 text-center text-sm text-neutral-500">
           No costs yet{filter !== "all" ? " on this job" : ""}.<br />
-          Hit <b className="text-neutral-300">Add cost</b>, snap the receipt, and you're done — Claude reads the rest.
+          Hit <b className="text-neutral-300">Add cost</b>, shoot the receipt or pick photos from your roll, and you're done — Claude reads the rest.
         </div>
       ) : null}
 
@@ -305,15 +338,22 @@ export default function CostsTab() {
                   className="absolute top-2 right-2 rounded-lg bg-black/70 text-white text-xs px-2.5 py-1">Remove</button>
               </div>
             ) : form.kind !== "labor" ? (
-              <button onClick={() => fileRef.current?.click()}
-                className="w-full mb-3 rounded-xl border-2 border-dashed border-neutral-700 bg-neutral-950 py-3.5 text-sm font-semibold text-neutral-400">
-                📸 Snap / attach receipt photo
-              </button>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <button onClick={() => camRef.current?.click()} disabled={busy}
+                  className="rounded-xl border-2 border-dashed border-neutral-700 bg-neutral-950 py-3.5 text-sm font-semibold text-neutral-400 disabled:opacity-50">
+                  📸 Camera
+                </button>
+                <button onClick={() => libRef.current?.click()} disabled={busy}
+                  className="rounded-xl border-2 border-dashed border-neutral-700 bg-neutral-950 py-3.5 text-sm font-semibold text-neutral-400 disabled:opacity-50">
+                  🖼 Photos
+                </button>
+              </div>
             ) : null}
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={pickPhoto} />
+            <input ref={camRef} type="file" accept="image/*" capture="environment" hidden onChange={pickPhotos} />
+            <input ref={libRef} type="file" accept="image/*" multiple hidden onChange={pickPhotos} />
             {form.kind !== "labor" ? (
               <p className="text-xs text-neutral-500 mb-4 leading-relaxed">
-                Snap the receipt and save — leave the rest blank and <b className="text-amber-300">Claude fills in vendor, amount, and category</b> from the photo.
+                Shoot it or pull it from your roll — leave the rest blank and <b className="text-amber-300">Claude fills in vendor, amount, and category</b>. Pick several photos at once and each one saves as its own pending receipt.
               </p>
             ) : null}
             {form.kind === "labor" ? (

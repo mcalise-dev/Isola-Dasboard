@@ -368,6 +368,37 @@ export default function JobsTab() {
     setCReceipt(dataUrl);
   }
 
+  // Several photos at once: each becomes its own pending cost row on this job.
+  async function pickReceipts(files: File[]) {
+    if (files.length === 1) { await pickReceipt(files[0]); return; }
+    setCBusy(true);
+    const shrinkOne = (file: File): Promise<string> => new Promise((res, rej) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, 1100 / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        res(c.toDataURL("image/jpeg", 0.72));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("unreadable image")); };
+      img.src = url;
+    });
+    let imgs: string[];
+    try { imgs = await Promise.all(files.map(shrinkOne)); }
+    catch { setCBusy(false); alert("Couldn't read one of those images — try again."); return; }
+    const { error } = await supabase.from("job_costs").insert(imgs.map((b64) => ({
+      job_id: viewing!.id, entry_date: cForm.entry_date, receipt_b64: b64, status: "pending",
+    })));
+    setCBusy(false);
+    if (error) { alert("Save failed: " + error.message); return; }
+    await reloadJcosts();
+    load();
+    alert(imgs.length + " receipts saved as pending. Ask Claude to read them and it'll fill in vendor, amount and category.");
+  }
+
   async function addJobCost() {
     const amt = Number(cForm.amount);
     if (!cReceipt && (!cForm.vendor.trim() || !amt)) { alert("Add a receipt photo, or fill in vendor and amount."); return; }
@@ -672,13 +703,20 @@ export default function JobsTab() {
                     <input className={input} placeholder="Notes (optional)" value={cForm.notes} onChange={(e) => setCForm({ ...cForm, notes: e.target.value })} />
                     <div className="grid grid-cols-2 gap-2">
                       <label className={`rounded-lg border py-2 text-center text-xs font-semibold cursor-pointer ${cReceipt ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-neutral-600 text-white"}`}>
-                        {cReceipt ? "✓ Receipt attached" : "📷 Receipt"}
+                        {cReceipt ? "✓ Receipt attached" : "📷 Camera"}
                         <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) pickReceipt(f); e.target.value = ""; }} />
                       </label>
-                      {cReceipt ? <button onClick={() => setCReceipt("")} className="rounded-lg border border-neutral-700 py-2 text-xs font-semibold text-neutral-400">Remove photo</button> : <span />}
+                      {cReceipt ? (
+                        <button onClick={() => setCReceipt("")} className="rounded-lg border border-neutral-700 py-2 text-xs font-semibold text-neutral-400">Remove photo</button>
+                      ) : (
+                        <label className="rounded-lg border border-neutral-600 py-2 text-center text-xs font-semibold text-white cursor-pointer">
+                          🖼 Photos
+                          <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) pickReceipts(fs); e.target.value = ""; }} />
+                        </label>
+                      )}
                     </div>
                     <button onClick={addJobCost} disabled={cBusy} className="w-full rounded-lg bg-white text-neutral-900 py-2 text-xs font-bold disabled:opacity-60">{cBusy ? "Saving…" : "+ Log cost"}</button>
-                    <p className="text-[10px] text-neutral-600">Snap the receipt and leave vendor/amount blank — it saves as pending and Claude fills it in. Tax stays in the total.</p>
+                    <p className="text-[10px] text-neutral-600">Shoot it or pick from your roll, leave vendor/amount blank — it saves as pending and Claude fills it in. Several photos at once each save separately. Tax stays in the total.</p>
                   </div>
                 </div>
                 <div>
