@@ -52,6 +52,8 @@ export default function CostsTab() {
   const [filter, setFilter] = useState<string>("all");
   const [owedOnly, setOwedOnly] = useState(false);
   const [pendingOnly, setPendingOnly] = useState(false);
+  const [monthOnly, setMonthOnly] = useState(false);
+  const [workerFilter, setWorkerFilter] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Cost | "new" | null>(null);
   const [viewer, setViewer] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -83,12 +85,38 @@ export default function CostsTab() {
   }, [costs, jobs]);
 
   const base = costs.filter((c) => (filter === "all" ? true : (c.job_id ?? OVERHEAD) === filter));
-  const shown = base.filter((c) => !owedOnly || c.paid === false).filter((c) => !pendingOnly || c.status === "pending");
-  const owed = costs.filter((c) => c.paid === false).reduce((s, c) => s + (Number(c.amount) || 0), 0);
   const monthNow = todayISO().slice(0, 7);
+  const shown = base
+    .filter((c) => !owedOnly || c.paid === false)
+    .filter((c) => !pendingOnly || c.status === "pending")
+    .filter((c) => !monthOnly || (c.entry_date ?? "").slice(0, 7) === monthNow)
+    .filter((c) => !workerFilter || (c.worker || c.vendor || "Unknown").trim() === workerFilter);
+  const owed = base.filter((c) => c.paid === false).reduce((s, c) => s + (Number(c.amount) || 0), 0);
   const total = shown.reduce((s, c) => s + (Number(c.amount) || 0), 0);
-  const month = shown.filter((c) => (c.entry_date ?? "").slice(0, 7) === monthNow).reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const month = base.filter((c) => (c.entry_date ?? "").slice(0, 7) === monthNow).reduce((s, c) => s + (Number(c.amount) || 0), 0);
   const pending = base.filter((c) => c.status === "pending").length;
+  const noToggles = !owedOnly && !pendingOnly && !monthOnly && !workerFilter;
+
+  // What you owe your workers — unpaid Labor grouped by name (respects job filter).
+  const owedWorkers: Record<string, { amt: number; hours: number; n: number }> = {};
+  base.filter((c) => c.paid === false && c.category === "Labor").forEach((c) => {
+    const k = (c.worker || c.vendor || "Unknown").trim();
+    if (!owedWorkers[k]) owedWorkers[k] = { amt: 0, hours: 0, n: 0 };
+    owedWorkers[k].amt += Number(c.amount) || 0;
+    owedWorkers[k].hours += Number(c.hours) || 0;
+    owedWorkers[k].n += 1;
+  });
+  const owedOther = base.filter((c) => c.paid === false && c.category !== "Labor").reduce((s, c) => s + (Number(c.amount) || 0), 0);
+
+  async function markWorkerPaid(name: string) {
+    const w = owedWorkers[name];
+    if (!w) return;
+    if (!confirm(`Mark ${name} PAID — ${money(w.amt)} (${w.n} entr${w.n === 1 ? "y" : "ies"})?`)) return;
+    const ids = base.filter((c) => c.paid === false && c.category === "Labor" && (c.worker || c.vendor || "Unknown").trim() === name).map((c) => c.id);
+    const { error } = await supabase.from("job_costs").update({ paid: true, updated_at: new Date().toISOString() }).in("id", ids);
+    if (error) alert("Update failed: " + error.message);
+    else { if (workerFilter === name) setWorkerFilter(null); load(); }
+  }
 
   const byCat = useMemo(() => {
     if (filter === "all") return null;
@@ -199,15 +227,17 @@ export default function CostsTab() {
   return (
     <div>
       <div className="grid grid-cols-4 gap-2 mb-4">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-2.5">
+        <button onClick={() => { setOwedOnly(false); setPendingOnly(false); setMonthOnly(false); setWorkerFilter(null); }}
+          className={`rounded-xl border p-2.5 text-left ${noToggles ? "border-neutral-500 bg-neutral-800" : "border-neutral-800 bg-neutral-900"}`}>
           <div className="text-base font-bold text-white leading-none tabular-nums">{money(total)}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">{filter === "all" ? "All costs" : "Job total"}</div>
-        </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-2.5">
+          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">{filter === "all" ? "All costs" : "Job total"}{noToggles ? " ✓" : ""}</div>
+        </button>
+        <button onClick={() => setMonthOnly(!monthOnly)}
+          className={`rounded-xl border p-2.5 text-left ${monthOnly ? "border-sky-400 bg-neutral-800" : "border-neutral-800 bg-neutral-900"}`}>
           <div className="text-base font-bold text-white leading-none tabular-nums">{money(month)}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">This month</div>
-        </div>
-        <button onClick={() => setOwedOnly(!owedOnly)} className={`rounded-xl border p-2.5 text-left ${owedOnly ? "border-red-400 bg-neutral-800" : owed > 0 ? "border-red-500/50 bg-neutral-900" : "border-neutral-800 bg-neutral-900"}`}>
+          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">This month{monthOnly ? " ✓" : ""}</div>
+        </button>
+        <button onClick={() => { const next = !owedOnly; setOwedOnly(next); if (!next) setWorkerFilter(null); }} className={`rounded-xl border p-2.5 text-left ${owedOnly ? "border-red-400 bg-neutral-800" : owed > 0 ? "border-red-500/50 bg-neutral-900" : "border-neutral-800 bg-neutral-900"}`}>
           <div className={`text-base font-bold leading-none tabular-nums ${owed > 0 ? "text-red-300" : "text-white"}`}>{money(owed)}</div>
           <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">You owe{owedOnly ? " ✓" : " →"}</div>
         </button>
@@ -217,6 +247,35 @@ export default function CostsTab() {
           <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">Claude to fill{pendingOnly ? " ✓" : " →"}</div>
         </button>
       </div>
+
+      {owedOnly && (Object.keys(owedWorkers).length > 0 || owedOther > 0) ? (
+        <div className="rounded-xl border border-red-500/40 bg-neutral-900 p-4 mb-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-red-300 mb-2.5">You owe your workers</h3>
+          {Object.entries(owedWorkers).sort((a, b) => b[1].amt - a[1].amt).map(([name, w]) => (
+            <div key={name} className={`flex items-center gap-2.5 py-1.5 rounded-lg px-2 -mx-2 ${workerFilter === name ? "bg-neutral-800" : ""}`}>
+              <button onClick={() => setWorkerFilter(workerFilter === name ? null : name)} className="flex-1 min-w-0 flex items-center gap-2.5 text-left">
+                <span className="w-8 h-8 shrink-0 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-sm">👷</span>
+                <span className="min-w-0">
+                  <span className="block font-semibold text-white truncate">{name}</span>
+                  <span className="block text-xs text-neutral-500">{w.hours > 0 ? `${w.hours} hr · ` : ""}{w.n} entr{w.n === 1 ? "y" : "ies"}</span>
+                </span>
+              </button>
+              <span className="shrink-0 font-bold tabular-nums text-red-300">{money(w.amt)}</span>
+              <button onClick={() => markWorkerPaid(name)}
+                className="shrink-0 rounded-lg border border-emerald-500/60 text-emerald-300 text-xs font-bold px-2.5 py-1.5">
+                ✓ Pay
+              </button>
+            </div>
+          ))}
+          {owedOther > 0 ? (
+            <div className="flex items-center gap-2.5 py-1.5 px-2 -mx-2 border-t border-neutral-800 mt-1 pt-2">
+              <span className="flex-1 text-xs text-neutral-500">Other unpaid (materials, subs, etc.)</span>
+              <span className="shrink-0 font-semibold tabular-nums text-red-300/80 text-sm">{money(owedOther)}</span>
+            </div>
+          ) : null}
+          <p className="mt-2 text-[11px] text-neutral-600">Tap a name to see their entries · ✓ Pay marks all their unpaid labor paid</p>
+        </div>
+      ) : null}
 
       <div className="flex gap-2 overflow-x-auto pb-3 -mx-1 px-1 [scrollbar-width:none]">
         <button onClick={() => setFilter("all")}
