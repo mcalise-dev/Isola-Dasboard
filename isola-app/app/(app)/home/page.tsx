@@ -11,7 +11,7 @@ export default async function HomePage() {
   const greeting = now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening";
   const dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
-  const [{ count: activeJobs }, { count: openTasks }, { data: dueTasks }, { count: contacts }, { data: due }, { data: mktDueRows }, { data: sched }, { data: agingProps }, { data: moneyRow }, { data: thmRows }] = await Promise.all([
+  const [{ count: activeJobs }, { count: openTasks }, { data: dueTasks }, { count: contacts }, { data: due }, { data: mktDueRows }, { data: sched }, { data: agingProps }, { data: moneyRow }, { data: thmRows }, { data: gpRows }] = await Promise.all([
     supabase.from("jobs").select("id", { count: "exact", head: true }).neq("status", "complete"),
     supabase.from("tasks").select("id", { count: "exact", head: true }).eq("done", false),
     supabase.from("tasks").select("id").eq("done", false).lte("due_date", today),
@@ -22,6 +22,7 @@ export default async function HomePage() {
     supabase.from("jobs").select("id,customer,location,quoted_date").eq("proposal_status", "sent").neq("status", "complete").lte("quoted_date", agingCut),
     supabase.from("money_snapshot").select("data,updated_at").eq("id", 1),
     supabase.from("thm_ledger").select("side,amount,bucket,is_open"),
+    supabase.from("game_plans").select("id,headline,game_plan_items(id,body,done,sort_order)").eq("plan_date", today),
   ]);
   const snap: any = (moneyRow ?? [])[0]?.data ?? null;
   const snapDate: string | null = (moneyRow ?? [])[0]?.updated_at ?? null;
@@ -31,6 +32,10 @@ export default async function HomePage() {
   const tasksDue = (dueTasks ?? []).length;
   const todaySched = (sched ?? []) as any[];
   const agingList = (agingProps ?? []) as any[];
+  const gamePlan: any = (gpRows ?? [])[0] ?? null;
+  const gpItems: any[] = [...((gamePlan?.game_plan_items ?? []) as any[])].sort((a, b) => a.sort_order - b.sort_order);
+  const gpOpen = gpItems.filter((i) => !i.done);
+  const gpPct = gpItems.length ? Math.round(((gpItems.length - gpOpen.length) / gpItems.length) * 100) : 0;
 
   const tile = "rounded-xl border p-3 text-center";
   const appIcon = "flex flex-col items-center gap-1.5 rounded-xl border border-neutral-800 bg-neutral-950 py-3.5 hover:border-neutral-500";
@@ -63,6 +68,36 @@ export default async function HomePage() {
           </Link>
         </div>
       </div>
+
+      <Link href="/gameplan" className="block rounded-2xl border border-neutral-800 bg-neutral-900/95 p-4 hover:border-neutral-600">
+        <div className="flex items-baseline justify-between mb-2">
+          <h2 className="text-sm font-extrabold tracking-widest text-white uppercase">📝 Today's Game Plan</h2>
+          <span className="text-xs text-blue-300 font-semibold">{gamePlan ? "Open →" : "Write it →"}</span>
+        </div>
+        {!gamePlan || gpItems.length === 0 ? (
+          <p className="text-sm text-neutral-500">Nothing written for today — tap to lay out the day.</p>
+        ) : (
+          <>
+            {gamePlan.headline ? <p className="text-sm font-semibold text-neutral-200 mb-2">{gamePlan.headline}</p> : null}
+            <div className="flex items-baseline justify-between text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">
+              <span>{gpItems.length - gpOpen.length} of {gpItems.length} done</span><span className="tabular-nums">{gpPct}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-neutral-800 overflow-hidden mb-2.5">
+              <div className="h-full bg-emerald-400" style={{ width: gpPct + "%" }} />
+            </div>
+            <div className="space-y-1.5">
+              {gpOpen.slice(0, 4).map((i: any) => (
+                <div key={i.id} className="flex items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2">
+                  <span className="w-3.5 h-3.5 shrink-0 rounded border border-neutral-600" />
+                  <span className="text-sm text-white truncate">{i.body}</span>
+                </div>
+              ))}
+              {gpOpen.length > 4 ? <p className="text-xs text-neutral-500">+ {gpOpen.length - 4} more</p> : null}
+              {gpOpen.length === 0 ? <p className="text-sm text-emerald-300">Whole plan is checked off. 🎉</p> : null}
+            </div>
+          </>
+        )}
+      </Link>
 
       <Link href="/schedule" className="block rounded-2xl border border-neutral-800 bg-neutral-900/95 p-4 hover:border-neutral-600">
         <div className="flex items-baseline justify-between mb-2">
@@ -143,12 +178,13 @@ export default async function HomePage() {
           <span className="text-xs text-neutral-500">{openTasks ?? 0} open tasks</span>
         </div>
         <div className="grid grid-cols-4 gap-2">
+          <Link href="/gameplan" className={appIcon}><span className={iconTxt}>📝</span><span className={iconLbl}>Game plan</span></Link>
           <Link href="/" className={appIcon}><span className={iconTxt}>🗂️</span><span className={iconLbl}>Jobs</span></Link>
           <Link href="/schedule" className={appIcon}><span className={iconTxt}>📅</span><span className={iconLbl}>Schedule</span></Link>
           <Link href="/costs" className={appIcon}><span className={iconTxt}>🧾</span><span className={iconLbl}>Costs</span></Link>
-          <Link href="/tasks" className={appIcon}><span className={iconTxt}>✅</span><span className={iconLbl}>Tasks</span></Link>
         </div>
         <div className="grid grid-cols-4 gap-2 mt-2">
+          <Link href="/tasks" className={appIcon}><span className={iconTxt}>✅</span><span className={iconLbl}>Tasks</span></Link>
           <Link href="/proposals" className={appIcon}><span className={iconTxt}>📤</span><span className={iconLbl}>Proposals</span></Link>
           <Link href="/money" className={appIcon}><span className={iconTxt}>💵</span><span className={iconLbl}>Money</span></Link>
           <Link href="/visits" className={appIcon}><span className={iconTxt}>📍</span><span className={iconLbl}>Visits</span></Link>

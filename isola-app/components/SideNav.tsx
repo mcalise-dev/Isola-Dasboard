@@ -7,6 +7,7 @@ const GROUPS: { title: string; items: { href: string; label: string; icon: strin
   {
     title: "Operations",
     items: [
+      { href: "/gameplan", label: "Game plan", icon: "📝" },
       { href: "/build", label: "Build", icon: "🧱" },
       { href: "/", label: "Jobs", icon: "🗂️" },
       { href: "/log", label: "Daily log", icon: "📓" },

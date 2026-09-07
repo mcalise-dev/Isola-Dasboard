@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 const OPS = [
+  { href: "/gameplan", label: "Game plan", icon: "📝" },
   { href: "/build", label: "Build", icon: "🧱" },
   { href: "/", label: "Jobs", icon: "🗂️" },
   { href: "/log", label: "Daily log", icon: "📓" },
@@ -29,6 +30,7 @@ const MKT = [
   { href: "/marketing/tasks", label: "Marketing tasks", icon: "📋" },
 ];
 const QUICK = [
+  { href: "/gameplan", label: "Write the game plan", sub: "Everything that has to happen today", icon: "📝" },
   { href: "/build", label: "Start a build", sub: "Walk → Price → Send", icon: "🧱" },
   { href: "/log", label: "Log the day", sub: "What got done on site", icon: "📓" },
   { href: "/billing", label: "Record a payment", sub: "Deposit, midpoint, balance", icon: "💳" },
