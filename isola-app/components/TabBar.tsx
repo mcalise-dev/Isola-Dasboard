@@ -3,26 +3,30 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
+// Every day = the screens used daily; Other = everything else (v4.1 menu cleanup)
+const DAILY = [
+  { href: "/home", label: "Today", icon: "☀️" },
+  { href: "/", label: "Jobs", icon: "🗂️" },
+  { href: "/schedule", label: "Schedule", icon: "📅" },
+  { href: "/tasks", label: "Tasks", icon: "✅" },
+  { href: "/leads", label: "To Quote", icon: "🔎" },
+  { href: "/costs", label: "Costs", icon: "🧾" },
+  { href: "/money", label: "Money", icon: "💵" },
+  { href: "/log", label: "Daily log", icon: "📓" },
+];
 const OPS = [
   { href: "/gameplan", label: "Game plan", icon: "📝" },
   { href: "/build", label: "Build", icon: "🧱" },
-  { href: "/", label: "Jobs", icon: "🗂️" },
-  { href: "/log", label: "Daily log", icon: "📓" },
-  { href: "/billing", label: "Billing", icon: "💳" },
-  { href: "/docs", label: "Documents", icon: "🛡️" },
-  { href: "/reports", label: "Reports", icon: "📊" },
-  { href: "/snow", label: "Recurring", icon: "❄️" },
-  { href: "/leads", label: "To Quote", icon: "🔎" },
   { href: "/proposals", label: "Proposals", icon: "📤" },
-  { href: "/schedule", label: "Schedule", icon: "📅" },
-  { href: "/costs", label: "Costs", icon: "🧾" },
-  { href: "/money", label: "Money", icon: "💵" },
-  { href: "/tasks", label: "Tasks", icon: "✅" },
   { href: "/visits", label: "Site visits", icon: "📍" },
-  { href: "/mail", label: "Mail", icon: "✉️" },
+  { href: "/billing", label: "Billing", icon: "💳" },
   { href: "/customers", label: "Customers", icon: "👥" },
   { href: "/crew", label: "Crew & time", icon: "⏱️" },
   { href: "/thm", label: "THM ledger", icon: "🤝" },
+  { href: "/mail", label: "Mail", icon: "✉️" },
+  { href: "/snow", label: "Recurring", icon: "❄️" },
+  { href: "/reports", label: "Reports", icon: "📊" },
+  { href: "/docs", label: "Documents", icon: "🛡️" },
 ];
 const MKT = [
   { href: "/marketing", label: "CRM", icon: "📇" },
@@ -56,7 +60,7 @@ export default function TabBar() {
   const inMkt = path.startsWith("/marketing");
 
   const tabs = [
-    { key: "home", label: "Home", icon: "🏠", active: path === "/home", go: () => router.push("/home") },
+    { key: "home", label: "Today", icon: "☀️", active: path === "/home", go: () => router.push("/home") },
     inMkt
       ? { key: "crm", label: "CRM", icon: "📇", active: path === "/marketing", go: () => router.push("/marketing") }
       : { key: "jobs", label: "Jobs", icon: "🗂️", active: path === "/", go: () => router.push("/") },
@@ -71,10 +75,10 @@ export default function TabBar() {
     const active = isActive(path, t.href);
     return (
       <Link key={t.href} href={t.href} onClick={() => setSheet("")}
-        className={`flex items-center gap-3 rounded-xl px-3.5 py-3 border ${active ? "border-neutral-400 bg-neutral-800" : "border-neutral-800 bg-neutral-950 hover:border-neutral-600"}`}>
+        className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 border min-w-0 ${active ? "border-neutral-400 bg-neutral-800" : "border-neutral-800 bg-neutral-950 hover:border-neutral-600"}`}>
         <span className="text-xl leading-none">{t.icon}</span>
-        <span className={`text-sm font-semibold ${active ? "text-white" : "text-neutral-200"}`}>{t.label}</span>
-        {active ? <span className="ml-auto text-[10px] font-bold uppercase text-neutral-400">You're here</span> : null}
+        <span className={`text-sm font-semibold truncate ${active ? "text-white" : "text-neutral-200"}`}>{t.label}</span>
+
       </Link>
     );
   }
@@ -89,12 +93,16 @@ export default function TabBar() {
               {sheet === "more" ? (
                 <div className="space-y-4">
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Operations</div>
-                    <div className="space-y-1.5">{OPS.map(navRow)}</div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Every day</div>
+                    <div className="grid grid-cols-2 gap-1.5">{DAILY.map(navRow)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Other</div>
+                    <div className="grid grid-cols-2 gap-1.5">{OPS.map(navRow)}</div>
                   </div>
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Marketing</div>
-                    <div className="space-y-1.5">{MKT.map(navRow)}</div>
+                    <div className="grid grid-cols-2 gap-1.5">{MKT.map(navRow)}</div>
                   </div>
                 </div>
               ) : (

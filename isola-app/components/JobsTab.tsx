@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Job, STATUS_META, PIPELINE, LOST_REASONS, stageTag, fmtDate, parsePrice } from "@/lib/format";
 import JobChecklist from "@/components/JobChecklist";
+import PipelineNumbers from "@/components/PipelineNumbers";
 import MyClock from "@/components/MyClock";import PunchList from "@/components/PunchList";
 const STATUSES = ["lead", "awaiting", "booked", "progress", "complete", "lost"] as const;const COST_CATEGORIES = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Subcontractor", "Permits", "Other"];
 const PATH: { key: string; label: string }[] = PIPELINE.map((k) => ({ key: k, label: STATUS_META[k].label }));
@@ -111,6 +112,12 @@ export default function JobsTab() {
   const [jcomms, setJcomms] = useState<any[]>([]);
   const [ctx, setCtx] = useState<{ walked: Set<string>; drafting: Set<string>; scheduled: Set<string>; next: Record<string, any> }>({ walked: new Set(), drafting: new Set(), scheduled: new Set(), next: {} });
   const [lostPick, setLostPick] = useState(false);
+  // schedule-from-the-job-file
+  const [jsched, setJsched] = useState<any[]>([]);
+  const [crewList, setCrewList] = useState<string[]>([]);
+  const tomorrowISO = () => { const d = new Date(); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const [sForm, setSForm] = useState<{ date: string; days: number; who: string; skipWknd: boolean }>({ date: tomorrowISO(), days: 1, who: "", skipWknd: true });
+  const [sBusy, setSBusy] = useState(false);
   const [punchStat, setPunchStat] = useState<{ open: number; overdue: number }>({ open: 0, overdue: 0 });
 
   async function load() {
@@ -235,12 +242,55 @@ export default function JobsTab() {
     supabase.from("job_costs").select("id,entry_date,vendor,category,amount,notes,status,receipt_b64").eq("job_id", viewing.id).neq("category", "Labor").order("entry_date", { ascending: false }).then(({ data }) => setJcosts(data ?? []));
     supabase.from("jobbooks").select("job_id,updated_at,summary,file_name").eq("job_id", viewing.id).maybeSingle().then(({ data }) => setJobbook(data ?? null));
     supabase.from("tasks").select("id,title,done,due_date,priority").eq("job_id", viewing.id).order("done").order("created_at", { ascending: false }).then(({ data }) => setJtasks(data ?? []));
+    supabase.from("schedule_entries").select("id,entry_date,assignee").eq("job_id", viewing.id).order("entry_date").then(({ data }: any) => setJsched(data ?? []));
     supabase.from("communications").select("id,kind,direction,body,occurred_at").eq("job_id", viewing.id).order("occurred_at").then(({ data }: any) => setJcomms(data ?? []));
     supabase.from("punch_list").select("due_date").eq("job_id", viewing.id).eq("done", false).then(({ data }: any) => {
       const t = new Date().toISOString().slice(0, 10);
       setPunchStat({ open: (data ?? []).length, overdue: (data ?? []).filter((r: any) => r.due_date && r.due_date < t).length });
     });
   }, [viewing?.id]);
+
+  useEffect(() => {
+    supabase.from("workers").select("name").eq("active", true).order("name").then(({ data }: any) => setCrewList((data ?? []).map((w: any) => w.name)));
+  }, []);
+
+  async function reloadSched() {
+    const { data } = await supabase.from("schedule_entries").select("id,entry_date,assignee").eq("job_id", viewing!.id).order("entry_date");
+    setJsched(data ?? []);
+  }
+
+  // Put this job on the calendar for N working days starting on the picked date.
+  // First time a booked job lands on the calendar, that day becomes its start date
+  // (the database then closes the "Set a start date" task).
+  async function addToSchedule() {
+    if (!viewing || !sForm.date) return;
+    setSBusy(true);
+    const dates: string[] = [];
+    const d = new Date(sForm.date + "T12:00:00");
+    while (dates.length < Math.max(1, sForm.days)) {
+      const dow = d.getDay();
+      if (!(sForm.skipWknd && (dow === 0 || dow === 6))) dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+      d.setDate(d.getDate() + 1);
+    }
+    const have = new Set(jsched.map((e: any) => e.entry_date));
+    const rows = dates.filter((x) => !have.has(x)).map((x) => ({ entry_date: x, job_id: viewing.id, assignee: sForm.who || null }));
+    if (rows.length) {
+      const { error } = await supabase.from("schedule_entries").insert(rows);
+      if (error) { setSBusy(false); alert("Could not schedule: " + error.message); return; }
+    }
+    if (!viewing.start_date && ["booked", "progress"].includes(viewing.status)) {
+      await supabase.from("jobs").update({ start_date: dates[0], updated_at: new Date().toISOString() }).eq("id", viewing.id);
+    }
+    setSBusy(false);
+    await reloadSched();
+    await load();
+    reloadTasks();
+  }
+
+  async function unschedule(e: any) {
+    await supabase.from("schedule_entries").delete().eq("id", e.id);
+    reloadSched();
+  }
 
   function setMoney(j: Job, field: "invoiced_date" | "paid_date", value: string | null) {
     setDraft({ ...draft, [field]: value });
@@ -532,6 +582,8 @@ export default function JobsTab() {
         })}
       </div>
 
+      <PipelineNumbers jobs={jobs} />
+
       <div className="flex gap-2 mb-4">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search jobs…" className={input} />
         <button onClick={() => setStatusFilter(statusFilter === "all" ? "active" : "all")} className={`shrink-0 rounded-lg border px-2.5 text-xs font-semibold ${statusFilter === "all" ? "border-neutral-400 text-white" : "border-neutral-700 text-neutral-400"}`}>
@@ -685,6 +737,37 @@ export default function JobsTab() {
                     <button onClick={() => setLostPick(true)} className="mt-1.5 text-[11px] font-semibold text-neutral-500 hover:text-red-300">✕ Mark lost / declined</button>
                   )}
                 </div>
+                <Section id="schedule" title="📅 Schedule"
+                  summary={<>{jsched.length ? `${jsched.length} day${jsched.length === 1 ? "" : "s"} · next ${fmtDate((jsched.find((e: any) => e.entry_date >= new Date().toISOString().slice(0, 10)) ?? jsched[jsched.length - 1]).entry_date).replace(/^\w+, /, "")}` : (v.status === "booked" ? "not on the calendar" : "none")}</>}
+                  defaultOpen={v.status === "booked" || v.status === "progress"}>
+                  {jsched.length ? (
+                    <div className="flex flex-wrap gap-1.5 mb-2.5">
+                      {jsched.map((e: any) => (
+                        <span key={e.id} className="inline-flex items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200">
+                          {fmtDate(e.entry_date)}{e.assignee ? ` · ${e.assignee}` : ""}
+                          <button onClick={() => unschedule(e)} className="text-neutral-500 hover:text-red-400" aria-label="Remove day">✕</button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : <p className="text-xs text-neutral-500 mb-2">Not on the calendar yet.</p>}
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-2">
+                    <input type="date" className={input} value={sForm.date} onChange={(e) => setSForm({ ...sForm, date: e.target.value })} />
+                    <select className="rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-2 text-sm" value={sForm.days} onChange={(e) => setSForm({ ...sForm, days: Number(e.target.value) })}>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} day{n === 1 ? "" : "s"}</option>)}
+                    </select>
+                    <select className="rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-2 text-sm" value={sForm.who} onChange={(e) => setSForm({ ...sForm, who: e.target.value })}>
+                      <option value="">Who?</option>
+                      {crewList.map((w) => <option key={w} value={w}>{w}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <label className="flex items-center gap-1.5 text-[11px] text-neutral-400">
+                      <input type="checkbox" checked={sForm.skipWknd} onChange={(e) => setSForm({ ...sForm, skipWknd: e.target.checked })} /> skip weekends
+                    </label>
+                    <button disabled={sBusy} onClick={addToSchedule} className="rounded-lg bg-white text-neutral-900 px-4 py-1.5 text-xs font-bold disabled:opacity-50">{sBusy ? "Adding…" : "📅 Add to schedule"}</button>
+                  </div>
+                  <a href="/schedule" className="block mt-2 text-[11px] text-blue-300">Open the calendar →</a>
+                </Section>
                 <Section id="proposal" title="Proposal" summary={<>{(v as any).proposal_status ? String((v as any).proposal_status) : "not sent"}</>} defaultOpen={!!(v as any).proposal_status}>
                   <div className="flex gap-1.5 flex-wrap">
                     {["sent", "signed", "declined"].map((p) => (
