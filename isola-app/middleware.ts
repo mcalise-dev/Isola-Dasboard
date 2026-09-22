@@ -2,8 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_URL, SUPABASE_KEY } from "./lib/supabase/client";
 
-// Routes that must work with NO login: the client hub and the crew time clock.
-const PUBLIC_PREFIXES = ["/p/", "/clock"];
+// Routes that must work with NO login: the client hub, the crew time clock, and the
+// private calendar feed (its token is checked in the database).
+const PUBLIC_PREFIXES = ["/p/", "/clock", "/cal/"];
 const isPublic = (path: string) =>
   PUBLIC_PREFIXES.some((p) => path === p.replace(/\/$/, "") || path.startsWith(p));
 

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Job, STATUS_META, todayISO } from "@/lib/format";
 import JobPicker from "@/components/JobPicker";
+import CalendarLinkCard from "@/components/CalendarLinkCard";
 
 type Entry = {
   id: string;
@@ -238,6 +239,8 @@ export default function ScheduleTab() {
 
   return (
     <div className="pt-1">
+      <CalendarLinkCard />
+
       {/* month header */}
       <div className="flex items-center justify-between mb-3">
         <button onClick={() => shift(-1)} className="w-9 h-9 rounded-lg border border-neutral-700 text-neutral-300 text-lg">‹</button>

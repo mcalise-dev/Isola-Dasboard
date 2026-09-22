@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import MyClock from "@/components/MyClock";
 import PipelineNumbers from "@/components/PipelineNumbers";
 import { daysSince, fmtDate, parsePrice } from "@/lib/format";
-import { proposalFollowup, invoiceReminder, followupStage, invoiceStage, mailto, isThmInvoice, money$ } from "@/lib/emails";
+import { proposalFollowup, invoiceReminder, reviewRequest, followupStage, invoiceStage, mailto, isThmInvoice, money$ } from "@/lib/emails";
 
 // TODAY (v4.1, 9/22/26) — one screen for the day, replacing the old Home.
 //   1. Where you're going   (today's calendar, in order, with the route)
@@ -36,9 +36,11 @@ export default function TodayTab() {
   const [mktDue, setMktDue] = useState(0);
   const [thmBal, setThmBal] = useState<number | null>(null);
   const [nextUp, setNextUp] = useState<any[]>([]);
+  const [reviewUrl, setReviewUrl] = useState<string>("");
+  const [reviewDraft, setReviewDraft] = useState("");
 
   async function load() {
-    const [j, t, s, gp, ms, cu, cc, pl, ed, ct, mt, th, nx] = await Promise.all([
+    const [j, t, s, gp, ms, cu, cc, pl, ed, ct, mt, th, nx, rs] = await Promise.all([
       supabase.from("jobs").select("*"),
       supabase.from("tasks").select("id,title,job_id,due_date,priority,auto_key,done").eq("done", false).lte("due_date", today).order("due_date"),
       supabase.from("schedule_entries").select("id,label,job_id,assignee,sort").eq("entry_date", today).order("sort").order("created_at"),
@@ -52,7 +54,9 @@ export default function TodayTab() {
       supabase.from("mkt_tasks").select("id").eq("done", false).lte("due_date", today),
       supabase.from("thm_ledger").select("side,amount,bucket,is_open"),
       supabase.from("schedule_entries").select("id,entry_date,job_id,label").gt("entry_date", today).order("entry_date").limit(3),
+      supabase.from("app_settings").select("value").eq("key", "google_review_url").maybeSingle(),
     ]);
+    setReviewUrl((rs.data as any)?.value ?? "");
     setJobs(j.data ?? []);
     setTasks(t.data ?? []);
     setSched(s.data ?? []);
@@ -121,10 +125,26 @@ export default function TodayTab() {
     return { href: mailto(who.to, e), to: who.to };
   }
 
+  async function saveReviewUrl() {
+    const v = reviewDraft.trim();
+    if (!/^https?:\/\//i.test(v)) { alert("Paste the full link — it starts with https://"); return; }
+    await supabase.from("app_settings").upsert({ key: "google_review_url", value: v, updated_at: new Date().toISOString() });
+    setReviewUrl(v); setReviewDraft("");
+  }
+
+  function reviewMail(t: any) {
+    const j = t.job_id ? jobById[t.job_id] : null;
+    if (!j) return null;
+    const who = emailFor(j.customer_id, j.customer);
+    const e = reviewRequest({ contact: who.name ?? j.contact_name, job: j.job_name || j.customer, url: reviewUrl || null });
+    return { href: mailto(who.to, e), to: who.to };
+  }
+
   function taskRow(t: any, late: boolean) {
     const j = t.job_id ? jobById[t.job_id] : null;
     const isFollow = (t.auto_key ?? "").startsWith("awaiting:followup");
-    const m = isFollow ? followupMail(t) : null;
+    const isReview = t.auto_key === "complete:review";
+    const m = isFollow ? followupMail(t) : isReview ? reviewMail(t) : null;
     const d = draftByTask[t.id];
     return (
       <div key={t.id} className="flex items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2.5">
@@ -139,7 +159,7 @@ export default function TodayTab() {
         {d && d.status === "drafted" ? (
           <a href={GMAIL_DRAFTS} target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-emerald-500/40 px-2 py-1 text-[10px] font-bold text-emerald-300">📝 Draft ready</a>
         ) : m ? (
-          <a href={m.href} className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-bold ${m.to ? "border-neutral-600 text-white" : "border-amber-500/40 text-amber-300"}`} title={m.to ?? "No email on file for this customer"}>✉️ {m.to ? "Email" : "No email"}</a>
+          <a href={m.href} className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-bold ${m.to ? "border-neutral-600 text-white" : "border-amber-500/40 text-amber-300"}`} title={m.to ?? "No email on file for this customer"}>{isReview ? "⭐ " : "✉️ "}{m.to ? (isReview ? "Ask" : "Email") : "No email"}</a>
         ) : null}
       </div>
     );
@@ -255,6 +275,16 @@ export default function TodayTab() {
                   <span className="text-sm text-white truncate">{i.body}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        ) : null}
+        {!reviewUrl && tasks.some((t) => t.auto_key === "complete:review") ? (
+          <div className="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-2.5">
+            <div className="text-[11px] text-amber-200 mb-1.5">⭐ Paste your Google review link once and every review ask includes it. (Google Business Profile → "Ask for reviews" → copy link)</div>
+            <div className="flex gap-2">
+              <input value={reviewDraft} onChange={(e) => setReviewDraft(e.target.value)} placeholder="https://g.page/r/…/review"
+                className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-2.5 py-1.5 text-xs" />
+              <button onClick={saveReviewUrl} className="shrink-0 rounded-lg bg-white text-neutral-900 px-3 text-xs font-bold">Save</button>
             </div>
           </div>
         ) : null}

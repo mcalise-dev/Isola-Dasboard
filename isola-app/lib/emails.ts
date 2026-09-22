@@ -57,6 +57,13 @@ export function invoiceReminder(stage: 1 | 2 | 3, o: { contact?: string | null; 
   };
 }
 
+export function reviewRequest(o: { contact?: string | null; job: string; url?: string | null }) {
+  return {
+    subject: `Thank you — ${o.job}`,
+    body: `Hi ${firstName(o.contact)},\n\nThanks again for having us out for ${o.job}. If you were happy with the work, would you mind leaving us a quick Google review? It takes a minute and makes a real difference for a small business like ours.${o.url ? `\n\n${o.url}` : ""}\n\nAnd if anything isn't right, just reply here and I'll take care of it.\n\n${SIGN}`,
+  };
+}
+
 export const followupStage = (autoKey?: string | null): 1 | 2 | 3 =>
   autoKey === "awaiting:followup3" ? 3 : autoKey === "awaiting:followup2" ? 2 : 1;
 export const invoiceStage = (daysOverdue: number): 1 | 2 | 3 | 0 =>
