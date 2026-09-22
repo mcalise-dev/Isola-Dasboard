@@ -60,7 +60,7 @@ export default function MoneyTab() {
   // tie an invoice to a job: an explicit link first, then customer + matching amount
   const jobFor = (i: Inv) => {
     if (i.ref) {
-      const exact = jobs.find((j) => j.qbo_invoice_ref && j.qbo_invoice_ref === i.ref);
+      const exact = jobs.find((j) => j.qbo_invoice_ref && String(j.qbo_invoice_ref).split(/[,\s]+/).includes(String(i.ref)));
       if (exact) return exact;
     }
     const c = custFor(i.customer);
@@ -104,7 +104,11 @@ export default function MoneyTab() {
   // Once a job is marked collected its invoice drops off the money list entirely —
   // the QuickBooks snapshot is a cache and still carries it until the next refresh.
   const allInvoices = snap?.invoices ?? [];
-  const invoices = allInvoices.filter((i) => { const j = jobFor(i); return !(j && j.paid_date); });
+  // v4.2: invoices written ahead in QuickBooks for jobs that aren't Complete yet are "billed ahead" —
+  // not owed yet, so they stay out of the tiles, the aging bar and the overdue list.
+  const openInv = allInvoices.filter((i) => { const j = jobFor(i); return !(j && j.paid_date); });
+  const billedAhead = openInv.filter((i) => { const j = i.ref ? jobs.find((x) => String(x.qbo_invoice_ref ?? "").split(/[,\s]+/).includes(String(i.ref))) : null; return j && j.status !== "complete"; });
+  const invoices = openInv.filter((i) => !billedAhead.includes(i));
   const overdueList = invoices.filter((i) => i.days_overdue > 0).sort((a, b) => b.days_overdue - a.days_overdue);
   const currentList = invoices.filter((i) => i.days_overdue <= 0).sort((a, b) => (a.due < b.due ? -1 : 1));
 
@@ -207,6 +211,16 @@ export default function MoneyTab() {
         <div>
           <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Not yet due</div>
           <div className="space-y-1.5">{currentList.map(invoiceRow)}</div>
+        </div>
+      ) : null}
+
+      {billedAhead.length ? (
+        <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">In QuickBooks, job not done yet · {billedAhead.length}</div>
+          {billedAhead.map((i, idx) => (
+            <div key={idx} className="flex justify-between text-xs text-neutral-400"><span className="truncate">#{i.ref} · {i.customer}</span><span className="shrink-0 tabular-nums">{fmt$(Number(i.amount))}</span></div>
+          ))}
+          <p className="text-[10px] text-neutral-600 mt-1">Not counted as owed or overdue until the job is marked Complete.</p>
         </div>
       ) : null}
 

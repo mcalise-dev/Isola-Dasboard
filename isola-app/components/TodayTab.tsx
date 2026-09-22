@@ -166,8 +166,13 @@ export default function TodayTab() {
   }
 
   // ---------- 3. money ----------
-  const paidRefs = new Set(jobs.filter((j) => j.paid_date && j.qbo_invoice_ref).map((j) => String(j.qbo_invoice_ref)));
-  const invoices: any[] = ((snap?.invoices ?? []) as any[]).filter((i) => !paidRefs.has(String(i.ref)) && !isThmInvoice(i));
+  // qbo_invoice_ref can hold several refs ("113, 119")
+  const jobForRef = (ref: any) => jobs.find((j) => String(j.qbo_invoice_ref ?? "").split(/[,\s]+/).includes(String(ref))) ?? null;
+  const allOpen: any[] = ((snap?.invoices ?? []) as any[]).filter((i) => !isThmInvoice(i) && !jobForRef(i.ref)?.paid_date);
+  // Mike writes some invoices in QuickBooks ahead of time and sends them once the job is done.
+  // An invoice on a job that isn't Complete yet is "billed ahead" — never chased, not counted as overdue.
+  const billedAhead = allOpen.filter((i) => { const j = jobForRef(i.ref); return j && j.status !== "complete"; });
+  const invoices = allOpen.filter((i) => !billedAhead.includes(i));
   const lateInv = invoices.filter((i) => i.days_overdue > 0).sort((a, b) => b.days_overdue - a.days_overdue);
   const owed = invoices.reduce((a, i) => a + Number(i.amount), 0);
   const late$ = lateInv.reduce((a, i) => a + Number(i.amount), 0);
@@ -177,7 +182,7 @@ export default function TodayTab() {
   function invoiceMail(i: any) {
     const stage = invoiceStage(i.days_overdue);
     if (!stage) return null;
-    const j = jobs.find((x) => String(x.qbo_invoice_ref ?? "") === String(i.ref)) ?? null;
+    const j = jobForRef(i.ref);
     const who = emailFor(j?.customer_id, i.customer);
     const e = invoiceReminder(stage, { contact: who.name, ref: String(i.ref), amount: Number(i.amount), due: i.due, job: j?.job_name ?? null });
     return { href: mailto(who.to, e), to: who.to, stage };
@@ -344,6 +349,20 @@ export default function TodayTab() {
             </div>
           </div>
         ) : (!loading && !toInvoice.length ? <p className="text-sm text-neutral-500">Nothing overdue.</p> : null)}
+        {billedAhead.length ? (
+          <div className="mt-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">In QuickBooks, job not done yet · {billedAhead.length}</div>
+            <div className="space-y-1">
+              {billedAhead.map((i, idx) => { const j = jobForRef(i.ref); return (
+                <Link key={idx} href={j ? `/?job=${j.id}` : "/money"} className="flex justify-between text-xs text-neutral-400 hover:text-neutral-200">
+                  <span className="truncate">#{i.ref} · {j?.job_name || i.customer}</span>
+                  <span className="shrink-0 tabular-nums">{money$(Number(i.amount))}</span>
+                </Link>
+              ); })}
+            </div>
+            <p className="text-[10px] text-neutral-600 mt-1">Not chased and not counted as overdue. When the job's marked Complete it moves up to "Send the invoice" — update the invoice date in QuickBooks before sending.</p>
+          </div>
+        ) : null}
         {thmBal != null ? (
           <Link href="/thm" className="mt-3 flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 hover:border-neutral-600">
             <span className="text-xs font-semibold text-white">🤝 THM tab — Invoice #94</span>
