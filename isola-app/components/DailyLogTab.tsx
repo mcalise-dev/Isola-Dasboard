@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { todayISO, fmtDate, jobLabel } from "@/lib/format";
+import JobPicker from "@/components/JobPicker";
 
 /* ============================================================
    DAILY LOG — the most standard document in construction, and the
@@ -36,7 +37,7 @@ export default function DailyLogTab() {
   async function load() {
     const [l, j, w] = await Promise.all([
       supabase.from("daily_logs").select("*").order("log_date", { ascending: false }).limit(120),
-      supabase.from("jobs").select("id,job_name,customer,location,job,status").neq("status", "complete").order("customer"),
+      supabase.from("jobs").select("id,job_name,customer,location,job,status,paid_date,priority").neq("status", "complete").order("customer"),
       supabase.from("workers").select("id,name,active").order("name"),
     ]);
     setLogs(l.data ?? []);
@@ -153,10 +154,7 @@ export default function DailyLogTab() {
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className={lbl}>Job</label>
-              <select className={inp} value={editing.job_id ?? ""} onChange={(e) => setEditing({ ...editing, job_id: e.target.value })}>
-                <option value="">Pick a job…</option>
-                {jobs.map((j) => <option key={j.id} value={j.id}>{jobLabel(j)}</option>)}
-              </select>
+              <JobPicker jobs={jobs} value={editing.job_id ?? ""} onChange={(id) => setEditing({ ...editing, job_id: id })} placeholder="Type to find the job…" />
             </div>
             <div>
               <label className={lbl}>Date</label>

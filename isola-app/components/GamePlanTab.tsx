@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Job, jobLabel, todayISO } from "@/lib/format";
+import JobPicker from "@/components/JobPicker";
 
 type Plan = {
   id: string;
@@ -71,10 +72,10 @@ export default function GamePlanTab() {
 
   const loadSide = useCallback(async () => {
     const [j, r] = await Promise.all([
-      supabase.from("jobs").select("id,job_name,customer,location,job,status").order("customer"),
+      supabase.from("jobs").select("id,job_name,customer,location,job,status,paid_date,priority").order("customer"),
       supabase.from("game_plans").select("plan_date").order("plan_date", { ascending: false }).limit(14),
     ]);
-    setJobs((j.data as Job[]) ?? []);
+    setJobs((j.data as unknown as Job[]) ?? []);
     setRecent((r.data as { plan_date: string }[]) ?? []);
   }, [supabase]);
 
@@ -222,10 +223,7 @@ export default function GamePlanTab() {
           value={draft} onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addItems(); }} />
         <div className="flex gap-2">
-          <select className={`${input} flex-1 min-w-0`} value={draftJob} onChange={(e) => setDraftJob(e.target.value)}>
-            <option value="">No job</option>
-            {openJobs.map((j) => <option key={j.id} value={j.id}>{jobLabel(j)}</option>)}
-          </select>
+          <JobPicker jobs={jobs} value={draftJob} onChange={setDraftJob} className="flex-1 min-w-0" />
           <button onClick={addItems} className="rounded-lg bg-white text-neutral-900 px-4 text-sm font-semibold">Add</button>
         </div>
         <div className="flex flex-wrap gap-2">

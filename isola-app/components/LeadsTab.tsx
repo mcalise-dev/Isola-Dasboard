@@ -64,8 +64,9 @@ export default function LeadsTab() {
     load();
   }
 
-  async function move(l: any, status: string) {
+  async function move(l: any, status: string, lost_reason?: string) {
     const patch: any = { status, updated_at: new Date().toISOString() };
+    if (lost_reason) patch.lost_reason = lost_reason;
     const { error } = await supabase.from("jobs").update(patch).eq("id", l.id);
     if (error) { alert("Update failed: " + error.message); return; }
     load();
@@ -99,12 +100,12 @@ export default function LeadsTab() {
         </div>
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-3">
           <div className="text-2xl font-bold text-white leading-none">{walked.length}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">Walked, needs price</div>
+          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">Walked, needs proposal</div>
         </div>
       </div>
 
       <div className="flex gap-2 mb-4">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search leads…" className={input} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search To Quote…" className={input} />
         <button onClick={() => setAdding(!adding)} className="shrink-0 rounded-lg bg-white text-neutral-900 px-3 text-sm font-semibold">{adding ? "Cancel" : "+ Lead"}</button>
       </div>
 
@@ -168,9 +169,10 @@ export default function LeadsTab() {
                 <a href="/visits" className={btn}>📍 Log visit</a>
               </div>
 
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                <button onClick={() => move(l, "awaiting")} className="rounded-lg bg-white text-neutral-900 py-1.5 text-xs font-bold">→ Quoting</button>
+              <div className="mt-2 grid grid-cols-4 gap-2">
+                <button onClick={() => move(l, "awaiting")} className="rounded-lg bg-white text-neutral-900 py-1.5 text-xs font-bold">📤 Sent</button>
                 <button onClick={() => move(l, "booked")} className={btn}>→ Booked</button>
+                <button onClick={() => { const r = prompt("Why is it dead? (price, no response, not our work…)", "No go"); if (r !== null) move(l, "lost", r || "No go"); }} className={btn}>✕ Lost</button>
                 <button onClick={() => remove(l)} className="rounded-lg border border-red-500/40 py-1.5 text-xs font-semibold text-red-300">Delete</button>
               </div>
             </div>
@@ -179,7 +181,7 @@ export default function LeadsTab() {
       </div>
 
       <p className="mt-4 text-[11px] text-neutral-600">
-        Leads are jobs you still have to go look at. Log the site visit on the Visits tab and the card flips to Walked — then send it to Quoting once it's priced.
+        To Quote = work that hasn't gone out yet. Log the site visit and the card flips to Walked. Tap 📤 Sent once the proposal is out — it moves to Sent and a follow-up task lands on day 3.
       </p>
     </div>
   );

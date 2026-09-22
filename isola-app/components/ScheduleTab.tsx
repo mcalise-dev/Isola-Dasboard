@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Job, STATUS_META, todayISO } from "@/lib/format";
+import JobPicker from "@/components/JobPicker";
 
 type Entry = {
   id: string;
@@ -14,15 +15,16 @@ type Entry = {
 
 const DOT: Record<string, string> = {
   lead: "bg-violet-400",
-  awaiting: "bg-neutral-400",
+  awaiting: "bg-sky-400",
   booked: "bg-blue-400",
   progress: "bg-amber-400",
   complete: "bg-emerald-400",
+  lost: "bg-red-500/60",
 };
 
 const CHIP: Record<string, string> = {
   lead: "bg-violet-500/25 text-violet-200",
-  awaiting: "bg-neutral-500/25 text-neutral-200",
+  awaiting: "bg-sky-500/25 text-sky-200",
   booked: "bg-blue-500/25 text-blue-200",
   progress: "bg-amber-500/25 text-amber-200",
   complete: "bg-emerald-500/25 text-emerald-200",
@@ -61,16 +63,23 @@ export default function ScheduleTab() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filterWho, setFilterWho] = useState("");
+  const [dueTasks, setDueTasks] = useState<any[]>([]);
+  const [everScheduled, setEverScheduled] = useState<Set<string>>(new Set());
 
   const monthStart = iso(year, month, 1);
   const monthEnd = iso(year, month, new Date(year, month + 1, 0).getDate());
 
   async function load() {
-    const [{ data: es }, { data: js }, { data: ws }] = await Promise.all([
+    const [{ data: es }, { data: js }, { data: ws }, { data: ts }, { data: allSe }] = await Promise.all([
       supabase.from("schedule_entries").select("*").gte("entry_date", monthStart).lte("entry_date", monthEnd).order("sort").order("created_at"),
       supabase.from("jobs").select("*").order("priority", { ascending: false }).order("updated_at", { ascending: false }),
       supabase.from("workers").select("name,active").eq("active", true).order("name"),
+      // tasks with a due date show on the calendar, so Tasks and Schedule are one list
+      supabase.from("tasks").select("id,title,due_date,job_id,done,priority").not("due_date", "is", null).lte("due_date", monthEnd).eq("done", false),
+      supabase.from("schedule_entries").select("job_id").not("job_id", "is", null),
     ]);
+    setDueTasks(ts ?? []);
+    setEverScheduled(new Set((allSe ?? []).map((r: any) => r.job_id)));
     setEntries((es as Entry[]) ?? []);
     setJobs((js as Job[]) ?? []);
     setCrew(ws ?? []);
@@ -105,8 +114,32 @@ export default function ScheduleTab() {
     const { error } = await supabase.from("schedule_entries").insert(payload);
     setBusy(false);
     if (error) { alert("Add failed: " + error.message); return; }
+    await stampStart(addJobId, selected);
     setAddJobId(""); setAddLabel("");
     load();
+  }
+
+  // first time a booked job lands on the calendar, that day becomes its start date
+  // (the database then closes the "Set a start date" task on its own)
+  async function stampStart(jobId: string, day: string) {
+    const j = jobId ? jobById[jobId] : null;
+    if (j && !j.start_date && (j.status === "booked" || j.status === "progress")) {
+      await supabase.from("jobs").update({ start_date: day, updated_at: new Date().toISOString() }).eq("id", jobId);
+    }
+  }
+
+  async function scheduleJob(jobId: string) {
+    setBusy(true);
+    const { error } = await supabase.from("schedule_entries").insert({ entry_date: selected, job_id: jobId });
+    if (!error) await stampStart(jobId, selected);
+    setBusy(false);
+    if (error) { alert("Add failed: " + error.message); return; }
+    load();
+  }
+
+  async function toggleTask(t: any) {
+    await supabase.from("tasks").update({ done: true, completed_at: new Date().toISOString() }).eq("id", t.id);
+    setDueTasks((x) => x.filter((y) => y.id !== t.id));
   }
 
   async function setAssignee(e: Entry, who: string) {
@@ -135,6 +168,13 @@ export default function ScheduleTab() {
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
   while (cells.length % 7 !== 0) cells.push(null);
+
+  const tasksByDate = useMemo(() => {
+    const m: Record<string, any[]> = {};
+    dueTasks.forEach((t) => { const k = t.due_date < today ? today : t.due_date; (m[k] = m[k] ?? []).push(t); });
+    return m;
+  }, [dueTasks, today]);
+  const unscheduled = jobs.filter((j) => j.status === "booked" && !j.start_date && !everScheduled.has(j.id));
 
   const monthName = new Date(year, month, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const selEntries = byDate[selected] ?? [];
@@ -252,6 +292,7 @@ export default function ScheduleTab() {
                   return <span key={e.id} className={`w-full truncate rounded px-0.5 py-px text-[8px] font-semibold leading-tight text-left ${j ? CHIP[j.status] ?? "bg-neutral-800 text-neutral-300" : "bg-neutral-800 text-neutral-300"}`}>{name}</span>;
                 })}
                 {dayEntries.length > 3 ? <span className="text-[8px] text-neutral-400 leading-none pl-0.5">+{dayEntries.length - 3}</span> : null}
+                {(tasksByDate[ds] ?? []).length ? <span className={`text-[8px] font-bold leading-none pl-0.5 text-left ${ds === today && dueTasks.some((t) => t.due_date < today) ? "text-red-300" : "text-neutral-400"}`}>✓ {(tasksByDate[ds] ?? []).length}</span> : null}
               </span>
             </button>
           );
@@ -268,6 +309,44 @@ export default function ScheduleTab() {
         {!loading && selEntries.length === 0 ? <p className="text-sm text-neutral-500 mb-2">Nothing scheduled.</p> : null}
         <div className="space-y-1.5 mb-3">{selEntries.map((e) => entryRow(e))}</div>
 
+        {(tasksByDate[selected] ?? []).length ? (
+          <div className="mb-3">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Tasks due{selected === today ? " (incl. overdue)" : ""}</div>
+            <div className="space-y-1.5">
+              {(tasksByDate[selected] ?? []).map((t) => {
+                const j = t.job_id ? jobById[t.job_id] : null;
+                const late = t.due_date < today;
+                return (
+                  <div key={t.id} className="flex items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2">
+                    <button onClick={() => toggleTask(t)} aria-label="Done" className="w-5 h-5 shrink-0 rounded-md border border-neutral-600 text-[11px] text-transparent hover:text-emerald-300">✓</button>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-white truncate">{t.title}</div>
+                      <div className="text-[11px] text-neutral-500 truncate">{late ? <span className="text-red-400 font-semibold">Overdue · </span> : null}{j ? (j.job_name || j.customer) : "No job"}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {unscheduled.length ? (
+          <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-2.5">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300 mb-1.5">Booked — no date yet ({unscheduled.length})</div>
+            <div className="space-y-1.5">
+              {unscheduled.map((j) => (
+                <div key={j.id} className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-white truncate">{j.priority ? "★ " : ""}{j.job_name || j.customer}</div>
+                    <div className="text-[11px] text-neutral-500 truncate">{[j.job_name ? j.customer : null, j.location].filter(Boolean).join(" · ")}</div>
+                  </div>
+                  <button disabled={busy} onClick={() => scheduleJob(j.id)} className="shrink-0 rounded-lg border border-amber-400/50 px-2.5 py-1 text-[11px] font-bold text-amber-200 disabled:opacity-50">+ {selDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {routeUrl ? (
           <a href={routeUrl} target="_blank" rel="noopener noreferrer"
             className="mb-3 flex items-center justify-center gap-2 rounded-xl border border-neutral-700 py-2 text-xs font-bold text-neutral-200 hover:border-neutral-500">
@@ -276,12 +355,7 @@ export default function ScheduleTab() {
         ) : null}
 
         <div className="space-y-2">
-          <select className={input} value={addJobId} onChange={(e) => { setAddJobId(e.target.value); if (e.target.value) setAddLabel(""); }}>
-            <option value="">Pick a job from the pipeline…</option>
-            {activeJobs.map((j) => (
-              <option key={j.id} value={j.id}>{j.priority ? "★ " : ""}{j.job_name || j.customer}{j.location ? " — " + j.location : ""} ({STATUS_META[j.status]?.label})</option>
-            ))}
-          </select>
+          <JobPicker jobs={jobs} value={addJobId} onChange={(id) => { setAddJobId(id); if (id) setAddLabel(""); }} placeholder="Type to find a job…" />
           <div className="flex gap-2">
             <input className={input} placeholder="…or type anything (shop day, dump run)" value={addLabel}
               onChange={(e) => { setAddLabel(e.target.value); if (e.target.value) setAddJobId(""); }} />

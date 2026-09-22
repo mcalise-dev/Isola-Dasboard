@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Job, jobLabel, fmtDate, todayISO } from "@/lib/format";
+import JobPicker from "@/components/JobPicker";
 
 type Visit = {
   id: string;
@@ -36,10 +37,10 @@ export default function VisitsTab() {
   async function load() {
     const [v, j] = await Promise.all([
       supabase.from("site_visits").select("*").order("visit_date", { ascending: false }).order("created_at", { ascending: false }),
-      supabase.from("jobs").select("id,job_name,customer,location,job,status").order("customer"),
+      supabase.from("jobs").select("id,job_name,customer,location,job,status,paid_date,priority").order("customer"),
     ]);
     setVisits((v.data as Visit[]) ?? []);
-    setJobs((j.data as Job[]) ?? []);
+    setJobs((j.data as unknown as Job[]) ?? []);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -88,10 +89,7 @@ export default function VisitsTab() {
             <div><label className={label}>Met With</label><input className={input} value={form.met_with} onChange={(e) => setForm({ ...form, met_with: e.target.value })} /></div>
           </div>
           <div><label className={label}>Linked Job</label>
-            <select className={input} value={form.job_id} onChange={(e) => setForm({ ...form, job_id: e.target.value })}>
-              <option value="">None</option>
-              {jobs.map((j) => <option key={j.id} value={j.id}>{jobLabel(j)}</option>)}
-            </select>
+            <JobPicker jobs={jobs} value={form.job_id} onChange={(id) => setForm({ ...form, job_id: id })} />
           </div>
           <div><label className={label}>Purpose</label><input className={input} value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /></div>
           <div><label className={label}>Dimensions</label><input className={input} value={form.dimensions} onChange={(e) => setForm({ ...form, dimensions: e.target.value })} /></div>

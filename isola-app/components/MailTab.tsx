@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Job, jobLabel, fmtDate, todayISO } from "@/lib/format";
+import JobPicker from "@/components/JobPicker";
 
 type Highlight = {
   id: string;
@@ -33,11 +34,11 @@ export default function MailTab() {
     const [h, f, j] = await Promise.all([
       supabase.from("email_highlights").select("*").order("received_date", { ascending: false }),
       supabase.from("follow_ups").select("*").order("reminder_date", { ascending: true }),
-      supabase.from("jobs").select("id,job_name,customer,location,job,status").order("customer"),
+      supabase.from("jobs").select("id,job_name,customer,location,job,status,paid_date,priority").order("customer"),
     ]);
     setHighlights((h.data as Highlight[]) ?? []);
     setFollowUps((f.data as FollowUp[]) ?? []);
-    setJobs((j.data as Job[]) ?? []);
+    setJobs((j.data as unknown as Job[]) ?? []);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -106,10 +107,7 @@ export default function MailTab() {
           <div><label className={label}>Subject</label><input className={input} value={form.subject ?? ""} onChange={(e) => setForm({ ...form, subject: e.target.value })} /></div>
           <div><label className={label}>Note / What to do</label><textarea rows={2} className={input} value={form.note ?? ""} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
           <div><label className={label}>Linked Job</label>
-            <select className={input} value={form.job_id ?? ""} onChange={(e) => setForm({ ...form, job_id: e.target.value })}>
-              <option value="">None</option>
-              {jobs.map((j) => <option key={j.id} value={j.id}>{jobLabel(j)}</option>)}
-            </select>
+            <JobPicker jobs={jobs} value={form.job_id ?? ""} onChange={(id) => setForm({ ...form, job_id: id })} />
           </div>
           <button onClick={saveMail} className="w-full rounded-lg bg-white text-neutral-900 py-2.5 text-sm font-semibold">Save</button>
         </div>
@@ -118,10 +116,7 @@ export default function MailTab() {
       {adding === "fu" ? (
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 mb-4 space-y-3">
           <div><label className={label}>Job</label>
-            <select className={input} value={form.job_id ?? ""} onChange={(e) => setForm({ ...form, job_id: e.target.value })}>
-              <option value="">Pick a job…</option>
-              {jobs.filter((j) => j.status !== "complete").map((j) => <option key={j.id} value={j.id}>{jobLabel(j)}</option>)}
-            </select>
+            <JobPicker jobs={jobs} value={form.job_id ?? ""} onChange={(id) => setForm({ ...form, job_id: id })} />
           </div>
           <div><label className={label}>Note</label><textarea rows={2} className={input} value={form.note ?? ""} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
           <div><label className={label}>Reminder Date</label><input type="date" className={input} value={form.reminder_date ?? ""} onChange={(e) => setForm({ ...form, reminder_date: e.target.value })} /></div>

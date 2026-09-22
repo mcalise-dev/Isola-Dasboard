@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Job, jobLabel } from "@/lib/format";
+import JobPicker from "@/components/JobPicker";
 
 type Task = {
   id: string;
@@ -47,10 +48,10 @@ export default function TasksTab() {
   async function load() {
     const [t, j] = await Promise.all([
       supabase.from("tasks").select("*").order("created_at", { ascending: false }),
-      supabase.from("jobs").select("id,job_name,customer,location,job,status").order("customer"),
+      supabase.from("jobs").select("id,job_name,customer,location,job,status,paid_date,priority").order("customer"),
     ]);
     setTasks((t.data as Task[]) ?? []);
-    setJobs((j.data as Job[]) ?? []);
+    setJobs((j.data as unknown as Job[]) ?? []);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -122,7 +123,8 @@ export default function TasksTab() {
                 {!t.done && t.due_date < todayISO() ? "Overdue · " : "Due "}{fmtDue(t.due_date)}
               </span>
             ) : t.timeframe ? <span>{t.timeframe}</span> : null}
-            {t.job_id && jobById[t.job_id] ? <span>{(t.due_date || t.timeframe) ? " · " : ""}{jobLabel(jobById[t.job_id])}</span> : null}
+            {t.job_id && jobById[t.job_id] ? <span>{(t.due_date || t.timeframe) ? " · " : ""}<a href={`/?job=${t.job_id}`} className="underline decoration-neutral-700 underline-offset-2 hover:text-neutral-300">{jobLabel(jobById[t.job_id])}</a></span> : null}
+            {(t as any).auto_key ? <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wide text-neutral-600">auto</span> : null}
           </div>
         </div>
         {!t.done ? (
@@ -138,10 +140,7 @@ export default function TasksTab() {
       <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-3.5 mb-4 space-y-2.5">
         <input className={`${input} w-full`} placeholder="New task…" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
         <div className="flex gap-2">
-          <select className={`${input} flex-1 min-w-0`} value={jobId} onChange={(e) => setJobId(e.target.value)}>
-            <option value="">No job</option>
-            {jobs.filter((j) => j.status !== "complete").map((j) => <option key={j.id} value={j.id}>{jobLabel(j)}</option>)}
-          </select>
+          <JobPicker jobs={jobs} value={jobId} onChange={setJobId} className="flex-1 min-w-0" />
           <select className={input} value={prio} onChange={(e) => setPrio(e.target.value)}>
             <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
           </select>

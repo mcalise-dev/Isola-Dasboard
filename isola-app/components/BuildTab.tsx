@@ -744,7 +744,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
             <Row k="Customer" v={e.customer || "—"} />
             <Row k="Property" v={e.location || "—"} />
             <Row k="Work type" v={e.job_type || "—"} />
-            <Row k="Status" v="Awaiting — walked and quoted" />
+            <Row k="Status" v="Sent — proposal is with the customer" />
             <Row k="Contract price" v={sell ? fmt2(sell) : "—"} />
             <Row k="Cost basis" v={fmt2(totalCost)} />
             <Row k="Photos" v={photos.length ? `${photos.length} → job "before"` : "none"} />

@@ -15,7 +15,7 @@ const GROUPS: { title: string; items: { href: string; label: string; icon: strin
       { href: "/docs", label: "Documents", icon: "🛡️" },
       { href: "/reports", label: "Reports", icon: "📊" },
       { href: "/snow", label: "Recurring", icon: "❄️" },
-      { href: "/leads", label: "Leads", icon: "🔎" },
+      { href: "/leads", label: "To Quote", icon: "🔎" },
       { href: "/proposals", label: "Proposals", icon: "📤" },
       { href: "/schedule", label: "Schedule", icon: "📅" },
       { href: "/costs", label: "Costs", icon: "🧾" },

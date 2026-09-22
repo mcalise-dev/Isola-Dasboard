@@ -1,33 +1,38 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Job, STATUS_META, fmtDate, parsePrice } from "@/lib/format";
+import { Job, STATUS_META, PIPELINE, LOST_REASONS, stageTag, fmtDate, parsePrice } from "@/lib/format";
 import JobChecklist from "@/components/JobChecklist";
 import MyClock from "@/components/MyClock";import PunchList from "@/components/PunchList";
-const STATUSES = ["lead", "booked", "progress", "awaiting", "complete"] as const;const COST_CATEGORIES = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Subcontractor", "Permits", "Other"];
-const PATH: { key: string; label: string }[] = [
-  { key: "lead", label: "Lead" },
-  { key: "awaiting", label: "Awaiting" },
-  { key: "booked", label: "Booked" },
-  { key: "progress", label: "In Progress" },
-  { key: "complete", label: "Complete" },
-];
+const STATUSES = ["lead", "awaiting", "booked", "progress", "complete", "lost"] as const;const COST_CATEGORIES = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Subcontractor", "Permits", "Other"];
+const PATH: { key: string; label: string }[] = PIPELINE.map((k) => ({ key: k, label: STATUS_META[k].label }));
+// what each stage means, in plain words — shown under the section headers
+const STAGE_HINT: Record<string, string> = {
+  lead: "Not sent yet — walk it, price it, send it",
+  awaiting: "Proposal is with the customer",
+  booked: "Approved — needs a start date",
+  progress: "Crew is on it",
+  complete: "Work done — invoice and collect",
+  lost: "Declined or dead — kept for the record",
+};
 const BAR: Record<string, string> = {
   lead: "border-l-violet-400",
-  awaiting: "border-l-neutral-500",
+  awaiting: "border-l-sky-400",
   booked: "border-l-blue-400",
   progress: "border-l-amber-400",
   complete: "border-l-emerald-400",
+  lost: "border-l-red-500/50",
 };
 const DOTBG: Record<string, string> = {
   lead: "bg-violet-400",
-  awaiting: "bg-neutral-500",
+  awaiting: "bg-sky-400",
   booked: "bg-blue-400",
   progress: "bg-amber-400",
   complete: "bg-emerald-400",
+  lost: "bg-red-500/60",
 };
 const emptyForm = {
-  job_name: "", customer: "", customer_id: "", location: "", property_id: "", job: "", status: "awaiting", price: "",
+  job_name: "", customer: "", customer_id: "", location: "", property_id: "", job: "", status: "lead", price: "",
   contact_name: "", contact_phone: "", notes: "", scope_of_work: "",
 };
 
@@ -104,13 +109,32 @@ export default function JobsTab() {
   const [receiptView, setReceiptView] = useState<string>("");
   const [jbBusy, setJbBusy] = useState(false);
   const [jcomms, setJcomms] = useState<any[]>([]);
+  const [ctx, setCtx] = useState<{ walked: Set<string>; drafting: Set<string>; scheduled: Set<string>; next: Record<string, any> }>({ walked: new Set(), drafting: new Set(), scheduled: new Set(), next: {} });
+  const [lostPick, setLostPick] = useState(false);
   const [punchStat, setPunchStat] = useState<{ open: number; overdue: number }>({ open: 0, overdue: 0 });
 
   async function load() {
-    const [{ data }, { data: costRows }] = await Promise.all([
+    const [{ data }, { data: costRows }, { data: sv }, { data: est }, { data: se }, { data: ot }] = await Promise.all([
       supabase.from("jobs").select("*").order("priority", { ascending: false }).order("updated_at", { ascending: false }),
       supabase.from("job_costs").select("job_id,amount"),
+      supabase.from("site_visits").select("job_id"),
+      supabase.from("estimates").select("job_id,sent_at"),
+      supabase.from("schedule_entries").select("job_id"),
+      supabase.from("tasks").select("job_id,title,due_date,created_at").eq("done", false).not("job_id", "is", null),
     ]);
+    // next step per job = the open task due soonest (undated ones after dated ones)
+    const next: Record<string, any> = {};
+    (ot ?? []).forEach((t: any) => {
+      const cur = next[t.job_id];
+      const k = (x: any) => (x.due_date ? "0" + x.due_date : "1" + x.created_at);
+      if (!cur || k(t) < k(cur)) next[t.job_id] = t;
+    });
+    setCtx({
+      walked: new Set((sv ?? []).map((r: any) => r.job_id).filter(Boolean)),
+      drafting: new Set((est ?? []).filter((r: any) => r.job_id && !r.sent_at).map((r: any) => r.job_id)),
+      scheduled: new Set((se ?? []).map((r: any) => r.job_id).filter(Boolean)),
+      next,
+    });
     const cm: Record<string, number> = {};
     (costRows ?? []).forEach((c: any) => { if (c.job_id) cm[c.job_id] = (cm[c.job_id] ?? 0) + Number(c.amount ?? 0); });
     setCosts(cm);
@@ -122,13 +146,14 @@ export default function JobsTab() {
   useEffect(() => { load(); }, []);
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { lead: 0, booked: 0, progress: 0, awaiting: 0, complete: 0 };
+    const c: Record<string, number> = { lead: 0, booked: 0, progress: 0, awaiting: 0, complete: 0, lost: 0 };
     jobs.forEach((j) => { c[j.status] = (c[j.status] ?? 0) + 1; });
     return c;
   }, [jobs]);
 
   const shown = jobs.filter((j) => {
-    if (statusFilter === "active" && j.status === "complete") return false;
+    if (statusFilter === "active" && (j.status === "complete" || j.status === "lost")) return false;
+    if (statusFilter === "all" && j.status === "lost") return false;
     if (statusFilter !== "active" && statusFilter !== "all" && j.status !== statusFilter) return false;
     if (q) {
       const hay = `${j.job_name ?? ""} ${j.customer} ${j.location ?? ""} ${j.job ?? ""} ${j.notes ?? ""}`.toLowerCase();
@@ -136,24 +161,6 @@ export default function JobsTab() {
     }
     return true;
   });
-
-  const grouped = (() => {
-    const m = new Map<string, Job[]>();
-    shown.forEach((j) => {
-      const k = (j.customer ?? "").trim().toLowerCase();
-      if (!m.has(k)) m.set(k, []);
-      m.get(k)!.push(j);
-    });
-    const seen = new Set<string>();
-    const out: { name: string; jobs: Job[] }[] = [];
-    shown.forEach((j) => {
-      const k = (j.customer ?? "").trim().toLowerCase();
-      if (seen.has(k)) return;
-      seen.add(k);
-      out.push({ name: j.customer, jobs: m.get(k)! });
-    });
-    return out;
-  })();
 
   function startEdit(j: Job | "new") {
     setEditing(j);
@@ -221,6 +228,7 @@ export default function JobsTab() {
 
   useEffect(() => {
     setDraft({});
+    setLostPick(false);
     if (!viewing) { setPhotos([]); setLabor([]); setJobbook(null); setJtasks([]); setJcosts([]); return; }
     supabase.from("job_photos").select("id,phase,caption,photo_b64,created_at").eq("job_id", viewing.id).order("created_at").then(({ data }) => setPhotos(data ?? []));
     supabase.from("job_costs").select("id,entry_date,worker,hours,rate,amount,paid").eq("job_id", viewing.id).eq("category", "Labor").order("entry_date", { ascending: false }).then(({ data }) => setLabor(data ?? []));
@@ -245,7 +253,9 @@ export default function JobsTab() {
     setDraft({});
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 2000);
-    load();
+    setLostPick(false);
+    await load();
+    reloadTasks(); // stage changes create/close next-step tasks in the database
   }
 
   function closeViewing() {
@@ -497,29 +507,52 @@ export default function JobsTab() {
 
   return (
     <div>
-      <div className="grid grid-cols-5 gap-1.5 mb-4">
-        {STATUSES.map((s) => (
-          <button key={s} onClick={() => setStatusFilter(statusFilter === s ? "active" : s)} className={`rounded-xl border p-2.5 text-center ${statusFilter === s ? "border-neutral-400 bg-neutral-800" : "border-neutral-800 bg-neutral-900"}`}>
-            <div className="text-lg font-bold text-white leading-none">{counts[s]}</div>
-            <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">{STATUS_META[s].label}</div>
-          </button>
-        ))}
+      {/* PIPELINE — Selling (not yet won) | Doing (won work) */}
+      <div className="grid grid-cols-5 gap-1.5 mb-1 px-0.5">
+        <div className="col-span-2 text-[9px] font-bold uppercase tracking-widest text-violet-300/80">Selling</div>
+        <div className="col-span-3 text-[9px] font-bold uppercase tracking-widest text-blue-300/80 pl-1">Doing</div>
+      </div>
+      <div className="grid grid-cols-5 gap-1.5 mb-3">
+        {PIPELINE.map((s, i) => {
+          const sub = s === "complete" ? jobs.filter((j) => j.status === "complete" && !(j as any).paid_date).length
+            : s === "booked" ? jobs.filter((j) => j.status === "booked" && !j.start_date && !ctx.scheduled.has(j.id)).length
+            : s === "awaiting" ? jobs.filter((j) => j.status === "awaiting" && j.quoted_date && (Date.now() - new Date(j.quoted_date + "T12:00:00").getTime()) / 86400000 > 14).length
+            : s === "lead" ? jobs.filter((j) => j.status === "lead" && !ctx.walked.has(j.id)).length : 0;
+          const subLabel = s === "complete" ? "to collect" : s === "booked" ? "no date" : s === "awaiting" ? "stale" : s === "lead" ? "to walk" : "";
+          return (
+            <button key={s} onClick={() => setStatusFilter(statusFilter === s ? "active" : s)}
+              className={`rounded-xl border border-b-2 p-2 text-center ${i === 2 ? "ml-1" : ""} ${statusFilter === s ? "border-neutral-400 bg-neutral-800" : "border-neutral-800 bg-neutral-900"}`}
+>
+              <div className="flex justify-center mb-1"><span className={`w-1.5 h-1.5 rounded-full ${DOTBG[s]}`} /></div>
+              <div className="text-lg font-bold text-white leading-none">{counts[s]}</div>
+              <div className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-400 leading-tight">{STATUS_META[s].label}</div>
+              {sub ? <div className={`mt-0.5 text-[9px] leading-tight ${s === "complete" ? "text-red-300" : "text-amber-300"}`}>{sub} {subLabel}</div> : <div className="mt-0.5 text-[9px] leading-tight text-transparent">·</div>}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex gap-2 mb-4">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search jobs…" className={input} />
-        <button onClick={() => setStatusFilter(statusFilter === "all" ? "active" : "all")} className={`shrink-0 rounded-lg border px-3 text-xs font-semibold ${statusFilter === "all" ? "border-neutral-400 text-white" : "border-neutral-700 text-neutral-400"}`}>
+        <button onClick={() => setStatusFilter(statusFilter === "all" ? "active" : "all")} className={`shrink-0 rounded-lg border px-2.5 text-xs font-semibold ${statusFilter === "all" ? "border-neutral-400 text-white" : "border-neutral-700 text-neutral-400"}`}>
           {statusFilter === "all" ? "All" : "Active"}
+        </button>
+        <button onClick={() => setStatusFilter(statusFilter === "lost" ? "active" : "lost")} className={`shrink-0 rounded-lg border px-2.5 text-xs font-semibold ${statusFilter === "lost" ? "border-red-400/60 text-red-300" : "border-neutral-700 text-neutral-500"}`}>
+          Lost{counts.lost ? ` ${counts.lost}` : ""}
         </button>
         <button onClick={() => startEdit("new")} className="shrink-0 rounded-lg bg-white text-neutral-900 px-3 text-sm font-semibold">+ Job</button>
       </div>
 
       {loading ? <p className="text-neutral-500 text-sm">Loading…</p> : null}
-      {!loading && shown.length === 0 ? <p className="text-neutral-500 text-sm">No jobs match.</p> : null}
+      {!loading && shown.length === 0 ? <p className="text-neutral-500 text-sm">{statusFilter === "lost" ? "Nothing in the archive." : "No jobs match."}</p> : null}
 
-      <div className="space-y-2.5">
+      <div className="space-y-5">
         {(() => {
-          const jobCard = (j: Job) => (
+          const jobCard = (j: Job) => {
+            const tag = stageTag(j, { walked: ctx.walked.has(j.id), drafting: ctx.drafting.has(j.id), scheduled: ctx.scheduled.has(j.id) });
+            const nx = ctx.next[j.id];
+            const overdue = nx?.due_date && nx.due_date < new Date().toISOString().slice(0, 10);
+            return (
           <button key={j.id} onClick={() => setViewing(j)}
             className={`w-full text-left bg-neutral-900 border border-neutral-800 border-l-4 ${BAR[j.status]} rounded-xl px-4 py-3 hover:border-neutral-600`}>
             <div className="flex items-start justify-between gap-3">
@@ -529,12 +562,17 @@ export default function JobsTab() {
                   {j.job_name || j.customer}
                 </div>
                 <div className="text-sm text-neutral-400 truncate">
-                  {[j.location, j.job].filter(Boolean).join(" · ") || "—"}
+                  {[j.job_name ? j.customer : j.location, j.job].filter(Boolean).join(" · ") || "—"}
                 </div>
+                {nx && j.status !== "lost" ? (
+                  <div className={`mt-1 text-[11px] truncate ${overdue ? "text-red-400" : "text-neutral-300"}`}>
+                    → {nx.title}{nx.due_date ? ` · ${overdue ? "overdue " : ""}${fmtDate(nx.due_date).replace(/^\w+, /, "")}` : ""}
+                  </div>
+                ) : null}
                 {(() => {
                   const priceN = parsePrice(j.price);
                   const spent = costs[j.id] ?? 0;
-                  if (!priceN || !spent) return null;
+                  if (!priceN || !spent || (j.status !== "progress" && j.status !== "complete")) return null;
                   const pct = Math.min(100, Math.round((spent / priceN) * 100));
                   return (
                     <div className="mt-1.5 pr-2">
@@ -546,25 +584,35 @@ export default function JobsTab() {
               </div>
               <div className="shrink-0 text-right">
                 {j.price ? <div className="font-bold text-white tabular-nums text-sm">{j.price}</div> : null}
-                <span className={`inline-block mt-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_META[j.status].cls}`}>
-                  {STATUS_META[j.status].label}
-                </span>
+                {tag ? <div className={`mt-0.5 text-[10px] font-bold uppercase tracking-wide ${tag.cls}`}>{tag.text}</div> : null}
               </div>
             </div>
           </button>
-          );
-          return grouped.map((g) => {
-            if (g.jobs.length === 1) return jobCard(g.jobs[0]);
-            const open = q ? true : !(collapsed[g.name] ?? true);
+            );
+          };
+          const order: string[] = statusFilter === "active" ? ["lead", "awaiting", "booked", "progress"]
+            : statusFilter === "all" ? [...PIPELINE] : [statusFilter];
+          const rank = (j: Job) => (j.priority ? 0 : 1);
+          return order.map((st) => {
+            let list = shown.filter((j) => j.status === st);
+            if (!list.length) return null;
+            list = [...list].sort((a, b) => {
+              if (st === "complete") { const pa = (a as any).paid_date ? 1 : 0, pb = (b as any).paid_date ? 1 : 0; if (pa !== pb) return pa - pb; }
+              if (st === "awaiting") return rank(a) - rank(b) || String(a.quoted_date ?? "").localeCompare(String(b.quoted_date ?? ""));
+              return rank(a) - rank(b) || String(a.customer).localeCompare(String(b.customer));
+            });
+            const key = "sec-" + st;
+            const open = q ? true : !(collapsed[key] ?? (statusFilter === "all" && st === "complete"));
             return (
-              <div key={"grp-" + g.name} className="rounded-xl border border-neutral-800 bg-neutral-900/60 overflow-hidden">
-                <button onClick={() => setCollapsed({ ...collapsed, [g.name]: open })} className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-neutral-900">
-                  <span className="text-neutral-500 text-[10px] shrink-0">{open ? "▼" : "▶"}</span>
-                  <span className="min-w-0 font-semibold text-white truncate">{g.jobs.some((x) => x.priority) ? <span className="text-amber-300 mr-1">★</span> : null}{g.name}</span>
-                  <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-300">{g.jobs.length}</span>
-                  <span className="ml-auto shrink-0 flex gap-1">{g.jobs.map((x) => <span key={x.id} className={`w-2 h-2 rounded-full ${DOTBG[x.status]}`} />)}</span>
+              <div key={key}>
+                <button onClick={() => setCollapsed({ ...collapsed, [key]: open })} className="w-full flex items-baseline gap-2 pb-1.5 text-left">
+                  <span className={`w-2 h-2 rounded-full self-center ${DOTBG[st]}`} />
+                  <span className="text-[12px] font-extrabold uppercase tracking-widest text-white">{STATUS_META[st].label}</span>
+                  <span className="text-[11px] font-semibold text-neutral-500">{list.length}</span>
+                  <span className="ml-1 text-[10px] text-neutral-500 truncate">{STAGE_HINT[st]}</span>
+                  <span className="ml-auto text-[10px] text-neutral-600">{open ? "▾" : "▸"}</span>
                 </button>
-                {open ? <div className="px-2 pb-2 space-y-2">{g.jobs.map((x) => jobCard(x))}</div> : null}
+                {open ? <div className="space-y-2">{list.map(jobCard)}</div> : null}
               </div>
             );
           });
@@ -617,11 +665,30 @@ export default function JobsTab() {
                       </button>
                     ))}
                   </div>
+                  {v.status === "lost" ? (
+                    <div className="mt-2 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2">
+                      <span className="text-xs text-red-300 font-semibold">Lost{(v as any).lost_reason ? ` — ${(v as any).lost_reason}` : ""}{(v as any).lost_date ? ` · ${fmtDate((v as any).lost_date)}` : ""}</span>
+                      <span className="ml-auto text-[10px] text-neutral-500">Tap a stage above to reopen</span>
+                    </div>
+                  ) : lostPick ? (
+                    <div className="mt-2 rounded-lg border border-neutral-700 p-2">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Why was it lost?</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {LOST_REASONS.map((r) => (
+                          <button key={r} onClick={() => { setDraft({ ...draft, status: "lost", lost_reason: r }); }}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${(draft as any).lost_reason === r ? "bg-red-400 text-neutral-900 border-red-400" : "border-neutral-700 text-neutral-300"}`}>{r}</button>
+                        ))}
+                        <button onClick={() => { setLostPick(false); const d: any = { ...draft }; delete d.lost_reason; if (d.status === "lost") delete d.status; setDraft(d); }} className="px-2.5 py-1 text-[11px] text-neutral-500">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => setLostPick(true)} className="mt-1.5 text-[11px] font-semibold text-neutral-500 hover:text-red-300">✕ Mark lost / declined</button>
+                  )}
                 </div>
                 <Section id="proposal" title="Proposal" summary={<>{(v as any).proposal_status ? String((v as any).proposal_status) : "not sent"}</>} defaultOpen={!!(v as any).proposal_status}>
                   <div className="flex gap-1.5 flex-wrap">
                     {["sent", "signed", "declined"].map((p) => (
-                      <button key={p} onClick={() => setProposal(v, (v as any).proposal_status === p ? "none" : p)}
+                      <button key={p} onClick={() => { if (p === "declined" && (v as any).proposal_status !== "declined") { setLostPick(true); setDraft({ ...draft, proposal_status: "declined", status: "lost" }); return; } setProposal(v, (v as any).proposal_status === p ? "none" : p); }}
                         className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border ${(v as any).proposal_status === p ? "bg-white text-neutral-900 border-white" : "border-neutral-700 text-neutral-300"}`}>
                         {p === "sent" ? "📤 Sent" : p === "signed" ? "✍️ Signed" : "🚫 Declined"}
                       </button>

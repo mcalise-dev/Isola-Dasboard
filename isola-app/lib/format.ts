@@ -19,7 +19,7 @@ export type Job = {
   customer: string;
   location: string | null;
   job: string | null;
-  status: "lead" | "booked" | "progress" | "complete" | "awaiting";
+  status: "lead" | "booked" | "progress" | "complete" | "awaiting" | "lost";
   price: string | null;
   contact_name: string | null;
   contact_phone: string | null;
@@ -36,12 +36,54 @@ export const jobLabel = (j: Partial<Pick<Job, "job_name" | "customer" | "locatio
     ? `${j.job_name}${j.customer ? " — " + j.customer : ""}`
     : [j.customer, j.location].filter(Boolean).join(" — ") + (j.job ? ` (${j.job})` : "");
 
+// Pipeline v4 (9/22/26). DB keys stay the same so nothing else breaks; the labels are what Mike reads.
+//   Selling: lead = TO QUOTE (not sent yet) · awaiting = SENT (with the customer)
+//   Doing:   booked · progress · complete        Archive: lost (declined / dead)
 export const STATUS_META: Record<string, { label: string; cls: string }> = {
-  lead: { label: "Lead", cls: "bg-violet-500/15 text-violet-300 border-violet-500/30" },
+  lead: { label: "To Quote", cls: "bg-violet-500/15 text-violet-300 border-violet-500/30" },
+  awaiting: { label: "Sent", cls: "bg-sky-500/15 text-sky-300 border-sky-500/30" },
   booked: { label: "Booked", cls: "bg-blue-500/15 text-blue-300 border-blue-500/30" },
   progress: { label: "In Progress", cls: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
-  awaiting: { label: "Awaiting", cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30" },
   complete: { label: "Complete", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
+  lost: { label: "Lost", cls: "bg-red-500/10 text-red-300/80 border-red-500/30" },
+};
+export const PIPELINE = ["lead", "awaiting", "booked", "progress", "complete"] as const;
+export const LOST_REASONS = ["Price", "Went with someone else", "No response", "Scope changed / cancelled", "Not our kind of work", "Other"];
+
+// A job still "live" for pickers: anything not lost, and complete jobs only until they're paid.
+export const isLiveJob = (j: any) =>
+  !!j && j.status !== "lost" && !(j.status === "complete" && !!j.paid_date);
+
+// Sub-stage tag shown on a card, so each column reads at a glance.
+export function stageTag(j: any, ctx: { walked?: boolean; drafting?: boolean; scheduled?: boolean } = {}): { text: string; cls: string } | null {
+  const warn = "text-amber-300", ok = "text-emerald-300", mute = "text-neutral-400", bad = "text-red-400";
+  if (j.status === "lead") {
+    if (ctx.drafting) return { text: "Drafting", cls: ok };
+    if (ctx.walked) return { text: "Walked", cls: ok };
+    return { text: "Not walked", cls: warn };
+  }
+  if (j.status === "awaiting") {
+    const d = daysSince(j.quoted_date);
+    return { text: j.quoted_date ? `${d}d out` : "Sent", cls: d > 30 ? bad : d > 14 ? warn : mute };
+  }
+  if (j.status === "booked") {
+    if (j.start_date) return { text: "Starts " + fmtDate(j.start_date).replace(/^\w+, /, ""), cls: mute };
+    if (ctx.scheduled) return { text: "On calendar", cls: mute };
+    return { text: "Unscheduled", cls: warn };
+  }
+  if (j.status === "complete") {
+    if (j.paid_date) return { text: "Paid", cls: ok };
+    if (j.invoiced_date) return { text: "Invoiced", cls: mute };
+    return { text: "To invoice", cls: bad };
+  }
+  if (j.status === "lost") return { text: j.lost_reason || "Lost", cls: mute };
+  return null;
+}
+
+export const daysSince = (iso: string | null | undefined) => {
+  if (!iso) return 0;
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return Math.floor((Date.now() - new Date(y, m - 1, d, 12).getTime()) / 86400000);
 };
 
 // jobs.price is free text: "$9,800", "6,028", "$900.00 (paid in full)", and sometimes
