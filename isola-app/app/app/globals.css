@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* v4.3 (9/23/26) readability: the smallest text in the app is 13px (was 9–11px).
+   v4.5 (9/24/26) design pass: Geist font, black & white with green / amber / red only
+   for done / heads-up / late, sentence-case headings, softer cards, motion. */
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.15rem;
+}
+
+html { -webkit-text-size-adjust: 100%; color-scheme: dark; }
+/* checkboxes, radios and sliders in the app's white instead of browser blue */
+input, progress { accent-color: #fff; }
+body {
+  font-family: var(--font-sans);
+  letter-spacing: -0.005em;
+  /* numbers line up in every column of dollars and hours */
+  font-variant-numeric: tabular-nums;
+}
+h1, h2, h3 { letter-spacing: -0.015em; }
+
+/* no grey flash on tap in iOS, and a visible focus ring for keyboards */
+* { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+::selection { background: rgba(255, 255, 255, 0.25); }
+
+/* motion: sheets slide up, dialogs fade in; off for people who ask for less motion */
+@keyframes isola-sheet { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes isola-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes isola-pop { from { transform: scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
+.anim-sheet { animation: isola-sheet 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-fade { animation: isola-fade 0.18s ease-out both; }
+.anim-pop { animation: isola-pop 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@media (min-width: 768px) { .anim-sheet { animation-name: isola-pop; } }
+@media (prefers-reduced-motion: reduce) { .anim-sheet, .anim-fade, .anim-pop { animation: none; } }
+
+/* loading placeholder bars */
+.skeleton { border-radius: 0.75rem; background: linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.09) 50%, rgba(255,255,255,.04) 100%); background-size: 200% 100%; animation: isola-shimmer 1.2s ease-in-out infinite; }
+@keyframes isola-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }

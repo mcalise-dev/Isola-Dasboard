@@ -1,0 +1,399 @@
+"use client";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Job, STATUS_META, todayISO } from "@/lib/format";
+import JobPicker from "@/components/JobPicker";
+import CalendarLinkCard from "@/components/CalendarLinkCard";
+
+type Entry = {
+  id: string;
+  entry_date: string;
+  job_id: string | null;
+  label: string | null;
+  notes: string | null;
+  assignee: string | null;
+};
+
+const DOT: Record<string, string> = {
+  lead: "bg-neutral-400",
+  awaiting: "bg-neutral-400",
+  booked: "bg-neutral-400",
+  progress: "bg-amber-400",
+  complete: "bg-emerald-400",
+  lost: "bg-red-500/60",
+};
+
+const CHIP: Record<string, string> = {
+  lead: "bg-neutral-500/25 text-neutral-200",
+  awaiting: "bg-neutral-500/25 text-neutral-200",
+  booked: "bg-neutral-500/25 text-neutral-200",
+  progress: "bg-amber-500/25 text-amber-200",
+  complete: "bg-emerald-500/25 text-emerald-200",
+};
+
+// stable per-name color so a crew member reads the same everywhere
+const CREW_CLS = [
+  "bg-neutral-500/20 text-neutral-200 border-neutral-500/40",
+  "bg-neutral-500/20 text-neutral-200 border-neutral-500/40",
+  "bg-neutral-500/20 text-neutral-200 border-neutral-500/40",
+  "bg-amber-500/20 text-amber-200 border-amber-500/40",
+  "bg-neutral-500/20 text-neutral-200 border-neutral-500/40",
+];
+const crewCls = (name: string) => {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return CREW_CLS[h % CREW_CLS.length];
+};
+
+const iso = (y: number, m: number, d: number) =>
+  `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+export default function ScheduleTab() {
+  const supabase = useMemo(() => createClient(), []);
+  const today = todayISO();
+  const [ty, tm] = [Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1];
+  const [year, setYear] = useState(ty);
+  const [month, setMonth] = useState(tm); // 0-indexed
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [crew, setCrew] = useState<any[]>([]);
+  const [selected, setSelected] = useState<string>(today);
+  const [addJobId, setAddJobId] = useState("");
+  const [addLabel, setAddLabel] = useState("");
+  const [addWho, setAddWho] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [filterWho, setFilterWho] = useState("");
+  const [dueTasks, setDueTasks] = useState<any[]>([]);
+  const [everScheduled, setEverScheduled] = useState<Set<string>>(new Set());
+
+  const monthStart = iso(year, month, 1);
+  const monthEnd = iso(year, month, new Date(year, month + 1, 0).getDate());
+
+  async function load() {
+    const [{ data: es }, { data: js }, { data: ws }, { data: ts }, { data: allSe }] = await Promise.all([
+      supabase.from("schedule_entries").select("*").gte("entry_date", monthStart).lte("entry_date", monthEnd).order("sort").order("created_at"),
+      supabase.from("jobs").select("*").order("priority", { ascending: false }).order("updated_at", { ascending: false }),
+      supabase.from("workers").select("name,active").eq("active", true).order("name"),
+      // tasks with a due date show on the calendar, so Tasks and Schedule are one list
+      supabase.from("tasks").select("id,title,due_date,job_id,done,priority").not("due_date", "is", null).lte("due_date", monthEnd).eq("done", false),
+      supabase.from("schedule_entries").select("job_id").not("job_id", "is", null),
+    ]);
+    setDueTasks(ts ?? []);
+    setEverScheduled(new Set((allSe ?? []).map((r: any) => r.job_id)));
+    setEntries((es as Entry[]) ?? []);
+    setJobs((js as Job[]) ?? []);
+    setCrew(ws ?? []);
+    setLoading(false);
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [year, month]);
+
+  const jobById = useMemo(() => Object.fromEntries(jobs.map((j) => [j.id, j])), [jobs]);
+  const activeJobs = jobs.filter((j) => j.status !== "complete");
+  const visible = useMemo(
+    () => (filterWho ? entries.filter((e) => e.assignee === filterWho) : entries),
+    [entries, filterWho]
+  );
+  const byDate = useMemo(() => {
+    const m: Record<string, Entry[]> = {};
+    visible.forEach((e) => { (m[e.entry_date] = m[e.entry_date] ?? []).push(e); });
+    return m;
+  }, [visible]);
+
+  function shift(delta: number) {
+    const d = new Date(year, month + delta, 1);
+    setYear(d.getFullYear());
+    setMonth(d.getMonth());
+  }
+
+  async function addEntry() {
+    if (!addJobId && !addLabel.trim()) return;
+    setBusy(true);
+    const payload: any = { entry_date: selected, assignee: addWho || null };
+    if (addJobId) payload.job_id = addJobId;
+    else payload.label = addLabel.trim();
+    const { error } = await supabase.from("schedule_entries").insert(payload);
+    setBusy(false);
+    if (error) { alert("Add failed: " + error.message); return; }
+    await stampStart(addJobId, selected);
+    setAddJobId(""); setAddLabel("");
+    load();
+  }
+
+  // first time a booked job lands on the calendar, that day becomes its start date
+  // (the database then closes the "Set a start date" task on its own)
+  async function stampStart(jobId: string, day: string) {
+    const j = jobId ? jobById[jobId] : null;
+    if (j && !j.start_date && (j.status === "booked" || j.status === "progress")) {
+      await supabase.from("jobs").update({ start_date: day, updated_at: new Date().toISOString() }).eq("id", jobId);
+    }
+  }
+
+  async function scheduleJob(jobId: string) {
+    setBusy(true);
+    const { error } = await supabase.from("schedule_entries").insert({ entry_date: selected, job_id: jobId });
+    if (!error) await stampStart(jobId, selected);
+    setBusy(false);
+    if (error) { alert("Add failed: " + error.message); return; }
+    load();
+  }
+
+  async function toggleTask(t: any) {
+    await supabase.from("tasks").update({ done: true, completed_at: new Date().toISOString() }).eq("id", t.id);
+    setDueTasks((x) => x.filter((y) => y.id !== t.id));
+  }
+
+  async function setAssignee(e: Entry, who: string) {
+    await supabase.from("schedule_entries").update({ assignee: who || null, updated_at: new Date().toISOString() }).eq("id", e.id);
+    load();
+  }
+
+  async function removeEntry(e: Entry) {
+    await supabase.from("schedule_entries").delete().eq("id", e.id);
+    load();
+  }
+
+  async function move(e: Entry, days: number) {
+    const d = new Date(e.entry_date + "T12:00:00");
+    d.setDate(d.getDate() + days);
+    const next = iso(d.getFullYear(), d.getMonth(), d.getDate());
+    await supabase.from("schedule_entries").update({ entry_date: next, updated_at: new Date().toISOString() }).eq("id", e.id);
+    load();
+  }
+
+  // calendar grid
+  const firstDow = new Date(year, month, 1).getDay(); // Sun=0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [
+    ...Array(firstDow).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const tasksByDate = useMemo(() => {
+    const m: Record<string, any[]> = {};
+    dueTasks.forEach((t) => { const k = t.due_date < today ? today : t.due_date; (m[k] = m[k] ?? []).push(t); });
+    return m;
+  }, [dueTasks, today]);
+  const unscheduled = jobs.filter((j) => j.status === "booked" && !j.start_date && !everScheduled.has(j.id));
+
+  const monthName = new Date(year, month, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const selEntries = byDate[selected] ?? [];
+  const selDate = new Date(Number(selected.slice(0, 4)), Number(selected.slice(5, 7)) - 1, Number(selected.slice(8, 10)));
+  const selLabel = selDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
+  // route for the selected day, in the order it's scheduled
+  const stops = selEntries
+    .map((e) => (e.job_id ? jobById[e.job_id]?.location : null))
+    .filter((s): s is string => !!s && s.trim().length > 2);
+  const routeUrl = (() => {
+    if (stops.length === 0) return null;
+    if (stops.length === 1) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stops[0])}`;
+    const dest = encodeURIComponent(stops[stops.length - 1]);
+    const way = stops.slice(0, -1).map(encodeURIComponent).join("|");
+    return `https://www.google.com/maps/dir/?api=1&destination=${dest}&waypoints=${way}&travelmode=driving`;
+  })();
+
+  // this week strip (Sun–Sat containing today)
+  const now = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, Number(today.slice(8, 10)));
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
+    return iso(d.getFullYear(), d.getMonth(), d.getDate());
+  });
+
+  const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
+
+  function entryRow(e: Entry, compact = false) {
+    const j = e.job_id ? jobById[e.job_id] : null;
+    return (
+      <div key={e.id} className={`flex items-center gap-2.5 rounded-xl bg-white/[0.05] ${compact ? "px-2.5 py-1.5" : "px-3.5 py-2.5"}`}>
+        <span className={`shrink-0 w-2 h-2 rounded-full ${j ? DOT[j.status] ?? "bg-neutral-600" : "bg-neutral-600"}`} />
+        <div className="min-w-0 flex-1">
+          <div className={`font-semibold text-white truncate ${compact ? "text-xs" : "text-sm"}`}>{j ? (j.job_name || j.customer) : e.label}</div>
+          {j && !compact ? <div className="text-xs text-neutral-400 truncate">{[j.customer, j.location, j.job].filter(Boolean).join(" · ")}</div> : null}
+          {compact && e.assignee ? (
+            <span className={`inline-block mt-0.5 text-xs font-bold px-1.5 py-px rounded-full border ${crewCls(e.assignee)}`}>{e.assignee}</span>
+          ) : null}
+        </div>
+        {!compact ? (
+          <select value={e.assignee ?? ""} onChange={(ev) => setAssignee(e, ev.target.value)}
+            className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-bold ${e.assignee ? crewCls(e.assignee) : "border-neutral-700 bg-neutral-900 text-neutral-400"}`}>
+            <option value="">unassigned</option>
+            {crew.map((w) => <option key={w.name} value={w.name}>{w.name}</option>)}
+          </select>
+        ) : null}
+        {j && !compact ? (
+          <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full border ${STATUS_META[j.status]?.cls ?? ""}`}>{STATUS_META[j.status]?.label}</span>
+        ) : null}
+        {!compact ? (
+          <span className="shrink-0 flex items-center">
+            <button onClick={() => move(e, -1)} title="Move back a day" className="text-neutral-500 hover:text-neutral-300 text-sm px-1">‹</button>
+            <button onClick={() => move(e, 1)} title="Push a day" className="text-neutral-500 hover:text-neutral-300 text-sm px-1">›</button>
+            <button onClick={() => removeEntry(e)} className="text-neutral-500 hover:text-red-400 text-sm px-1" aria-label="Remove">✕</button>
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="pt-1">
+      <CalendarLinkCard />
+
+      {/* month header */}
+      <div className="flex items-center justify-between mb-3">
+        <button onClick={() => shift(-1)} className="w-9 h-9 rounded-lg border border-neutral-700 text-neutral-300 text-lg">‹</button>
+        <div className="text-center">
+          <div className="font-bold text-white">{monthName}</div>
+          {(year !== ty || month !== tm) ? (
+            <button onClick={() => { setYear(ty); setMonth(tm); setSelected(today); }} className="text-xs text-neutral-300 font-semibold">Back to today</button>
+          ) : null}
+        </div>
+        <button onClick={() => shift(1)} className="w-9 h-9 rounded-lg border border-neutral-700 text-neutral-300 text-lg">›</button>
+      </div>
+
+      {/* crew filter */}
+      {crew.length ? (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          <button onClick={() => setFilterWho("")}
+            className={`px-2.5 py-1 rounded-full text-xs font-bold border ${filterWho === "" ? "border-white bg-neutral-800 text-white" : "border-neutral-700 text-neutral-400"}`}>
+            Everyone
+          </button>
+          {crew.map((w) => (
+            <button key={w.name} onClick={() => setFilterWho(filterWho === w.name ? "" : w.name)}
+              className={`px-2.5 py-1 rounded-full text-xs font-bold border ${filterWho === w.name ? crewCls(w.name) : "border-neutral-700 text-neutral-400"}`}>
+              {w.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {/* weekday header */}
+      <div className="grid grid-cols-7 mb-1">
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+          <div key={i} className="text-center text-xs font-bold text-neutral-400 py-1">{d}</div>
+        ))}
+      </div>
+
+      {/* calendar grid */}
+      <div className="grid grid-cols-7 gap-1 mb-4">
+        {cells.map((d, i) => {
+          if (d === null) return <div key={i} />;
+          const ds = iso(year, month, d);
+          const dayEntries = byDate[ds] ?? [];
+          const isToday = ds === today;
+          const isSel = ds === selected;
+          return (
+            <button key={i} onClick={() => setSelected(ds)}
+              className={`min-h-[66px] rounded-lg border p-1 flex flex-col gap-0.5 ${isSel ? "border-white bg-neutral-800" : isToday ? "border-neutral-400/60 bg-neutral-900" : "border-white/[0.08] bg-neutral-900 hover:border-neutral-600"}`}>
+              <span className={`self-center text-xs font-bold leading-none ${isToday ? "text-neutral-300" : isSel ? "text-white" : "text-neutral-300"}`}>{d}</span>
+              <span className="w-full flex flex-col gap-0.5 overflow-hidden">
+                {dayEntries.slice(0, 3).map((e) => {
+                  const j = e.job_id ? jobById[e.job_id] : null;
+                  const name = j ? j.customer : (e.label ?? "");
+                  return <span key={e.id} className={`w-full truncate rounded px-0.5 py-px text-[8px] font-semibold leading-tight text-left ${j ? CHIP[j.status] ?? "bg-neutral-800 text-neutral-300" : "bg-neutral-800 text-neutral-300"}`}>{name}</span>;
+                })}
+                {dayEntries.length > 3 ? <span className="text-[8px] text-neutral-400 leading-none pl-0.5">+{dayEntries.length - 3}</span> : null}
+                {(tasksByDate[ds] ?? []).length ? <span className={`text-[8px] font-bold leading-none pl-0.5 text-left ${ds === today && dueTasks.some((t) => t.due_date < today) ? "text-red-300" : "text-neutral-400"}`}>✓ {(tasksByDate[ds] ?? []).length}</span> : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* selected day */}
+      <div className="rounded-2xl border border-white/[0.07] bg-neutral-900/95 p-4 mb-4">
+        <div className="flex items-baseline justify-between mb-2.5">
+          <h2 className="text-sm font-extrabold text-white">{selLabel}</h2>
+          <span className="text-xs text-neutral-400">{selEntries.length} scheduled</span>
+        </div>
+        {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
+        {!loading && selEntries.length === 0 ? <p className="text-sm text-neutral-400 mb-2">Nothing scheduled.</p> : null}
+        <div className="space-y-1.5 mb-3">{selEntries.map((e) => entryRow(e))}</div>
+
+        {(tasksByDate[selected] ?? []).length ? (
+          <div className="mb-3">
+            <div className="text-sm font-semibold text-neutral-300 mb-1.5">Tasks due{selected === today ? " (incl. overdue)" : ""}</div>
+            <div className="space-y-1.5">
+              {(tasksByDate[selected] ?? []).map((t) => {
+                const j = t.job_id ? jobById[t.job_id] : null;
+                const late = t.due_date < today;
+                return (
+                  <div key={t.id} className="flex items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 py-2">
+                    <button onClick={() => toggleTask(t)} aria-label="Done" className="w-5 h-5 shrink-0 rounded-md border border-neutral-600 text-xs text-transparent hover:text-emerald-300">✓</button>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-white truncate">{t.title}</div>
+                      <div className="text-xs text-neutral-400 truncate">{late ? <span className="text-red-400 font-semibold">Overdue · </span> : null}{j ? (j.job_name || j.customer) : "No job"}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {unscheduled.length ? (
+          <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-2.5">
+            <div className="text-sm font-semibold text-amber-300 mb-1.5">Booked — no date yet ({unscheduled.length})</div>
+            <div className="space-y-1.5">
+              {unscheduled.map((j) => (
+                <div key={j.id} className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-white truncate">{j.priority ? "★ " : ""}{j.job_name || j.customer}</div>
+                    <div className="text-xs text-neutral-400 truncate">{[j.job_name ? j.customer : null, j.location].filter(Boolean).join(" · ")}</div>
+                  </div>
+                  <button disabled={busy} onClick={() => scheduleJob(j.id)} className="shrink-0 rounded-lg border border-amber-400/50 px-2.5 py-1 text-xs font-bold text-amber-200 disabled:opacity-50">+ {selDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {routeUrl ? (
+          <a href={routeUrl} target="_blank" rel="noopener noreferrer"
+            className="mb-3 flex items-center justify-center gap-2 rounded-xl border border-neutral-700 py-2 text-xs font-bold text-neutral-200 hover:border-neutral-500">
+            Map the day — {stops.length} stop{stops.length === 1 ? "" : "s"} in order
+          </a>
+        ) : null}
+
+        <div className="space-y-2">
+          <JobPicker jobs={jobs} value={addJobId} onChange={(id) => { setAddJobId(id); if (id) setAddLabel(""); }} placeholder="Type to find a job…" />
+          <div className="flex gap-2">
+            <input className={input} placeholder="…or type anything (shop day, dump run)" value={addLabel}
+              onChange={(e) => { setAddLabel(e.target.value); if (e.target.value) setAddJobId(""); }} />
+            <select className="shrink-0 rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-2 text-sm" value={addWho} onChange={(e) => setAddWho(e.target.value)}>
+              <option value="">Who?</option>
+              {crew.map((w) => <option key={w.name} value={w.name}>{w.name}</option>)}
+            </select>
+            <button onClick={addEntry} disabled={busy || (!addJobId && !addLabel.trim())}
+              className="shrink-0 rounded-lg bg-white text-neutral-900 px-4 text-sm font-semibold disabled:opacity-50">Add</button>
+          </div>
+        </div>
+      </div>
+
+      {/* this week */}
+      <div className="rounded-2xl border border-white/[0.07] bg-neutral-900/95 p-4">
+        <h2 className="text-sm font-extrabold text-white mb-2.5">This week</h2>
+        <div className="space-y-2">
+          {weekDays.map((ds) => {
+            const list = byDate[ds] ?? [];
+            const d = new Date(Number(ds.slice(0, 4)), Number(ds.slice(5, 7)) - 1, Number(ds.slice(8, 10)));
+            return (
+              <button key={ds} onClick={() => { setSelected(ds); if (d.getMonth() !== month || d.getFullYear() !== year) { setYear(d.getFullYear()); setMonth(d.getMonth()); } window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                className={`w-full text-left flex gap-3 rounded-xl border px-3 py-2 ${ds === today ? "border-neutral-400/50 bg-neutral-950" : "border-white/[0.08] bg-neutral-950 hover:border-neutral-600"}`}>
+                <div className="shrink-0 w-10 text-center">
+                  <div className="text-sm font-semibold text-neutral-400">{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
+                  <div className={`text-sm font-bold ${ds === today ? "text-neutral-300" : "text-white"}`}>{d.getDate()}</div>
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  {list.length === 0 ? <div className="text-xs text-neutral-500 py-1.5">—</div> : list.map((e) => entryRow(e, true))}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
