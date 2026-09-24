@@ -85,7 +85,7 @@ export default function LeadsTab() {
   }
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1";
+  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
   const btn = "rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white";
 
   const walked = shown.filter((l) => visitByJob[l.id]);
@@ -96,11 +96,11 @@ export default function LeadsTab() {
       <div className="grid grid-cols-2 gap-2 mb-4">
         <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-3">
           <div className="text-2xl font-bold text-white leading-none">{notWalked.length}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-wide text-violet-200">Need a look</div>
+          <div className="mt-1 text-xs uppercase tracking-wide text-violet-200">Need a look</div>
         </div>
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-3">
           <div className="text-2xl font-bold text-white leading-none">{walked.length}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">Walked, needs proposal</div>
+          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">Walked, needs proposal</div>
         </div>
       </div>
 
@@ -126,8 +126,8 @@ export default function LeadsTab() {
         </div>
       ) : null}
 
-      {loading ? <p className="text-neutral-500 text-sm">Loading…</p> : null}
-      {!loading && shown.length === 0 ? <p className="text-neutral-500 text-sm">No leads. Anything you still need to go look at goes here.</p> : null}
+      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
+      {!loading && shown.length === 0 ? <p className="text-neutral-400 text-sm">No leads. Anything you still need to go look at goes here.</p> : null}
 
       <div className="space-y-2.5">
         {shown.map((l) => {
@@ -143,19 +143,19 @@ export default function LeadsTab() {
                   </div>
                   <div className="text-sm text-neutral-400 truncate">{[l.customer, l.location, l.job].filter(Boolean).join(" · ") || "—"}</div>
                   {l.contact_name || l.contact_phone ? (
-                    <div className="text-xs text-neutral-500 truncate mt-0.5">{[l.contact_name, l.contact_phone].filter(Boolean).join(" · ")}</div>
+                    <div className="text-xs text-neutral-400 truncate mt-0.5">{[l.contact_name, l.contact_phone].filter(Boolean).join(" · ")}</div>
                   ) : null}
                   {l.notes ? <div className="text-xs text-neutral-400 mt-1 whitespace-pre-wrap">{l.notes}</div> : null}
                 </div>
                 <div className="shrink-0 text-right">
-                  <button onClick={() => togglePriority(l)} aria-label="Priority" className={`text-lg leading-none ${l.priority ? "text-amber-300" : "text-neutral-600"}`}>★</button>
-                  <div className={`mt-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${seen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-violet-500/30 bg-violet-500/10 text-violet-200"}`}>
+                  <button onClick={() => togglePriority(l)} aria-label="Priority" className={`text-lg leading-none ${l.priority ? "text-amber-300" : "text-neutral-500"}`}>★</button>
+                  <div className={`mt-1 text-xs font-bold uppercase px-1.5 py-0.5 rounded border ${seen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-violet-500/30 bg-violet-500/10 text-violet-200"}`}>
                     {seen ? "Walked" : "Go see"}
                   </div>
                 </div>
               </div>
 
-              <div className="mt-1.5 text-[10px] text-neutral-500">
+              <div className="mt-1.5 text-xs text-neutral-400">
                 {seen ? `Visited ${fmtDate(seen)}` : age == null ? "" : age === 0 ? "Added today" : `Waiting ${age} day${age === 1 ? "" : "s"}`}
               </div>
 
@@ -180,7 +180,7 @@ export default function LeadsTab() {
         })}
       </div>
 
-      <p className="mt-4 text-[11px] text-neutral-600">
+      <p className="mt-4 text-xs text-neutral-500">
         To Quote = work that hasn't gone out yet. Log the site visit and the card flips to Walked. Tap 📤 Sent once the proposal is out — it moves to Sent and a follow-up task lands on day 3.
       </p>
     </div>

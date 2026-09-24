@@ -80,9 +80,9 @@ export default function ClockApp() {
       <div className="flex items-center justify-between">
         <div>
           <div className="text-lg font-bold text-white">{state.worker.name}</div>
-          <div className="text-xs text-neutral-500">{Number(state.today_hours).toFixed(2)} hrs today</div>
+          <div className="text-xs text-neutral-400">{Number(state.today_hours).toFixed(2)} hrs today</div>
         </div>
-        <button onClick={() => { setState(null); setPin(""); }} className="text-xs text-neutral-500 underline">Switch</button>
+        <button onClick={() => { setState(null); setPin(""); }} className="text-xs text-neutral-400 underline">Switch</button>
       </div>
 
       {flash ? <div className="mt-4 rounded-xl border border-emerald-600/50 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300 text-center">{flash}</div> : null}
@@ -90,15 +90,15 @@ export default function ClockApp() {
       {open ? (
         <div className="mt-5">
           <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-5 text-center">
-            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300">On the clock</div>
+            <div className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">On the clock</div>
             <div className="mt-1 text-4xl font-extrabold text-white tabular-nums">{elapsed(open.clock_in)}</div>
             <div className="mt-1 text-sm text-neutral-300">{openJob?.label ?? "—"}</div>
-            <div className="text-[11px] text-neutral-500">
+            <div className="text-xs text-neutral-400">
               since {new Date(open.clock_in).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
             </div>
           </div>
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What did you get done? (optional)"
-            className="mt-3 w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500" />
+            className="mt-3 w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500" />
           <button onClick={punchOut} disabled={busy}
             className="mt-3 w-full rounded-xl bg-red-600 text-white py-4 text-base font-bold disabled:opacity-50">
             {busy ? "…" : "Clock out"}
@@ -106,14 +106,14 @@ export default function ClockApp() {
         </div>
       ) : (
         <div className="mt-5">
-          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-500 mb-2">Pick a job</div>
+          <div className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-400 mb-2">Pick a job</div>
           <div className="space-y-1.5 max-h-[46vh] overflow-y-auto">
-            {state.jobs.length === 0 ? <p className="text-sm text-neutral-500">No active jobs right now.</p> : null}
+            {state.jobs.length === 0 ? <p className="text-sm text-neutral-400">No active jobs right now.</p> : null}
             {state.jobs.map((j: any) => (
               <button key={j.id} onClick={() => setJobId(j.id)}
                 className={`w-full text-left rounded-xl border px-3.5 py-3 ${jobId === j.id ? "border-white bg-neutral-800" : "border-neutral-800 bg-neutral-950"}`}>
                 <div className="text-sm font-semibold text-white">{j.label}</div>
-                {j.location ? <div className="text-xs text-neutral-500 truncate">{j.location}</div> : null}
+                {j.location ? <div className="text-xs text-neutral-400 truncate">{j.location}</div> : null}
               </button>
             ))}
           </div>
@@ -124,7 +124,7 @@ export default function ClockApp() {
           </button>
         </div>
       )}
-      <p className="mt-6 text-center text-[11px] text-neutral-600">Hours post straight to the job when you clock out.</p>
+      <p className="mt-6 text-center text-xs text-neutral-500">Hours post straight to the job when you clock out.</p>
     </Shell>
   );
 }

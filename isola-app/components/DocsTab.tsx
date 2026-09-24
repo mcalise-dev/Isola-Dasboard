@@ -15,8 +15,8 @@ import { fmtDate, todayISO } from "@/lib/format";
    ============================================================ */
 
 const inp =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-neutral-400 focus:outline-none";
-const lbl = "block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1";
+  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none";
+const lbl = "block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1";
 const btn =
   "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-200 hover:border-neutral-500";
 const btnPrimary =
@@ -121,21 +121,21 @@ export default function DocsTab() {
     load();
   }
 
-  if (loading) return <div className="p-4 text-sm text-neutral-500">Loading…</div>;
+  if (loading) return <div className="p-4 text-sm text-neutral-400">Loading…</div>;
 
   return (
     <div className="pb-28 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-white">Documents</h1>
-          <p className="text-xs text-neutral-500">Insurance, waivers, permits, contracts</p>
+          <p className="text-xs text-neutral-400">Insurance, waivers, permits, contracts</p>
         </div>
         <button onClick={() => setEditing({ doc_type: "coi", issued_on: todayISO() })} className={btnPrimary}>＋ Add</button>
       </div>
 
       {expiring.length ? (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 space-y-1.5">
-          <div className="text-[11px] font-bold uppercase tracking-widest text-amber-300">Expiring or expired</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-amber-300">Expiring or expired</div>
           {expiring.map((d) => {
             const n = daysLeft(d)!;
             return (
@@ -163,7 +163,7 @@ export default function DocsTab() {
               ))}
             </div>
             {TYPES.find((t) => t.key === editing.doc_type)?.hint ? (
-              <p className="mt-1 text-[11px] text-neutral-600">{TYPES.find((t) => t.key === editing.doc_type)?.hint}</p>
+              <p className="mt-1 text-xs text-neutral-500">{TYPES.find((t) => t.key === editing.doc_type)?.hint}</p>
             ) : null}
           </div>
 
@@ -204,7 +204,7 @@ export default function DocsTab() {
               <input type="file" accept="image/*,application/pdf" className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) attach(f); e.currentTarget.value = ""; }} />
             </label>
-            {editing.file_b64 ? <span className="text-[11px] text-emerald-400">attached ✓</span> : null}
+            {editing.file_b64 ? <span className="text-xs text-emerald-400">attached ✓</span> : null}
           </div>
 
           <div className="flex gap-2">
@@ -239,17 +239,17 @@ export default function DocsTab() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-white truncate">{t?.icon} {d.title}</div>
-                  <div className="text-[11px] text-neutral-500 truncate">
+                  <div className="text-xs text-neutral-400 truncate">
                     {[d.issuer, d.reference, d.customer_id ? custById[d.customer_id] : null, d.job_id ? jobById[d.job_id] : null].filter(Boolean).join(" · ") || t?.label}
                   </div>
                 </div>
                 <div className="flex gap-1.5 shrink-0">
                   <button onClick={() => view(d)} className={btn}>View</button>
                   <button onClick={() => setEditing({ ...d, amount: d.amount ?? "" })} className={btn}>Edit</button>
-                  <button onClick={() => remove(d)} className="text-neutral-600 hover:text-red-400 text-sm px-1">✕</button>
+                  <button onClick={() => remove(d)} className="text-neutral-500 hover:text-red-400 text-sm px-1">✕</button>
                 </div>
               </div>
-              <div className="text-[11px] text-neutral-500">
+              <div className="text-xs text-neutral-400">
                 {d.issued_on ? `Issued ${fmtDate(d.issued_on)}` : ""}
                 {d.expires_at ? ` · Expires ${fmtDate(d.expires_at)}` : ""}
                 {n !== null ? <span className={n < 0 ? " text-red-400 font-semibold" : n <= 60 ? " text-amber-300 font-semibold" : ""}>{n < 0 ? ` — expired` : n <= 60 ? ` — ${n} days` : ""}</span> : null}

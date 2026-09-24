@@ -68,13 +68,13 @@ export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
     setBusy(""); load(); onChanged?.();
   }
 
-  if (loading) return <p className="text-sm text-neutral-500">Loading…</p>;
+  if (loading) return <p className="text-sm text-neutral-400">Loading…</p>;
 
   return (
     <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-3.5">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">👷 Clock the crew</div>
-        <button onClick={() => setManual(true)} className="text-[11px] font-semibold text-neutral-400 underline">＋ Type in time</button>
+        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">👷 Clock the crew</div>
+        <button onClick={() => setManual(true)} className="text-xs font-semibold text-neutral-400 underline">＋ Type in time</button>
       </div>
 
       {jobs.length === 0 ? (
@@ -92,21 +92,21 @@ export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-sm font-bold text-white">{w.name}</div>
-                  <div className="text-[11px] text-neutral-500">
+                  <div className="text-xs text-neutral-400">
                     {w.rate ? `$${w.rate}/${w.rate_type === "daily" ? "day" : "hr"}` : "no rate set"}
                   </div>
                 </div>
                 {p ? (
                   <div className="text-right shrink-0">
                     <div className="text-base font-extrabold text-white tabular-nums">{elapsed(p.clock_in)}</div>
-                    <div className="text-[10px] text-neutral-400">since {t12(p.clock_in)}</div>
+                    <div className="text-xs text-neutral-400">since {t12(p.clock_in)}</div>
                   </div>
                 ) : null}
               </div>
 
               {p ? (
                 <>
-                  <div className="mt-1 text-[11px] text-neutral-300 truncate">{j ? jobLabel(j) : "job no longer in progress"}</div>
+                  <div className="mt-1 text-xs text-neutral-300 truncate">{j ? jobLabel(j) : "job no longer in progress"}</div>
                   <button onClick={() => clockOut(w)} disabled={busy === w.id}
                     className="mt-2 w-full rounded-lg bg-red-600 text-white py-2 text-sm font-bold disabled:opacity-50">
                     {busy === w.id ? "…" : "Clock out"}
@@ -128,7 +128,7 @@ export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
             </div>
           );
         })}
-        {crew.length === 0 ? <p className="text-xs text-neutral-600">No active crew. Add someone below.</p> : null}
+        {crew.length === 0 ? <p className="text-xs text-neutral-500">No active crew. Add someone below.</p> : null}
       </div>
 
       {manual ? <ManualTime supabase={supabase} crew={crew} onClose={() => setManual(false)} onSaved={() => { setManual(false); load(); onChanged?.(); }} /> : null}
@@ -184,15 +184,15 @@ function ManualTime({ supabase, crew, onClose, onSaved }: any) {
     setBusy(false); onSaved();
   }
 
-  const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500";
-  const lab = "block text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1";
+  const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500";
+  const lab = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 overflow-y-auto p-3">
       <div className="mx-auto max-w-sm rounded-2xl border border-neutral-800 bg-neutral-950 p-4 my-6">
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-bold text-white">Type in time</div>
-          <button onClick={onClose} className="text-neutral-500 text-lg leading-none">✕</button>
+          <button onClick={onClose} className="text-neutral-400 text-lg leading-none">✕</button>
         </div>
         <div className="space-y-2.5">
           <div><label className={lab}>Who</label>
@@ -229,7 +229,7 @@ function ManualTime({ supabase, crew, onClose, onSaved }: any) {
           <button onClick={save} disabled={busy} className="w-full rounded-xl bg-white text-black py-2.5 text-sm font-bold disabled:opacity-50">
             {busy ? "Saving…" : "Log it to the job"}
           </button>
-          <p className="text-[11px] text-neutral-600">Goes on the job as unpaid Labor, same as a real punch.</p>
+          <p className="text-xs text-neutral-500">Goes on the job as unpaid Labor, same as a real punch.</p>
         </div>
       </div>
     </div>

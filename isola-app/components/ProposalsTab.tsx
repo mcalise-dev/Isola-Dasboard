@@ -66,18 +66,18 @@ export default function ProposalsTab() {
 
   function pill(j: any) {
     const d = daysOut(j);
-    if (d == null) return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-400">no date</span>;
-    if (d > 30) return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-red-500/40 bg-red-500/10 text-red-300">expired · {d}d</span>;
-    if (d > 21) return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-300">{30 - d}d left</span>;
-    if (d > 14) return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-yellow-500/30 bg-yellow-500/10 text-yellow-200">{d}d out — check in</span>;
-    return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-300">{d}d out</span>;
+    if (d == null) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-400">no date</span>;
+    if (d > 30) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-red-500/40 bg-red-500/10 text-red-300">expired · {d}d</span>;
+    if (d > 21) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-300">{30 - d}d left</span>;
+    if (d > 14) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-yellow-500/30 bg-yellow-500/10 text-yellow-200">{d}d out — check in</span>;
+    return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-300">{d}d out</span>;
   }
 
   function hubRow(j: any) {
     const l = links[j.id];
     if (!l) return (
       <button onClick={() => setEditing({ job: j })}
-        className="mt-2 w-full rounded-lg border border-dashed border-neutral-700 py-1.5 text-[11px] font-semibold text-neutral-400 hover:border-neutral-500 hover:text-neutral-200">
+        className="mt-2 w-full rounded-lg border border-dashed border-neutral-700 py-1.5 text-xs font-semibold text-neutral-400 hover:border-neutral-500 hover:text-neutral-200">
         🔗 Create client link
       </button>
     );
@@ -91,7 +91,7 @@ export default function ProposalsTab() {
       : "🔗 Link sent — not opened yet";
     return (
       <div className="mt-2 space-y-1.5">
-        <div className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold ${tone}`}>{label}</div>
+        <div className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${tone}`}>{label}</div>
         <div className="flex gap-1.5">
           <a href={`/p/${l.token}`} target="_blank" rel="noopener noreferrer" className={btn}>View</a>
           <button onClick={() => copy(l.token)} className={btn}>{copied === l.token ? "Copied ✓" : "Copy link"}</button>
@@ -107,14 +107,14 @@ export default function ProposalsTab() {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-semibold text-white truncate">{jobLabel(j)}</div>
-            <div className="text-xs text-neutral-500 mt-0.5">{j.quoted_date ? "sent " + fmtDate(j.quoted_date) : "no send date"}{j.price ? " · " + j.price : ""}</div>
+            <div className="text-xs text-neutral-400 mt-0.5">{j.quoted_date ? "sent " + fmtDate(j.quoted_date) : "no send date"}{j.price ? " · " + j.price : ""}</div>
           </div>
           <div className="shrink-0">{j.proposal_status === "sent" ? pill(j) : null}</div>
         </div>
         {hubRow(j)}
         <div className="flex gap-1.5 mt-2">
           {actions.map((a) => (
-            <button key={a.to} onClick={() => setProposal(j, a.to)} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500">
+            <button key={a.to} onClick={() => setProposal(j, a.to)} className="px-2.5 py-1 rounded-lg text-xs font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500">
               {a.label}
             </button>
           ))}
@@ -123,7 +123,7 @@ export default function ProposalsTab() {
     );
   }
 
-  if (loading) return <p className="pt-4 text-sm text-neutral-500">Loading…</p>;
+  if (loading) return <p className="pt-4 text-sm text-neutral-400">Loading…</p>;
 
   return (
     <div className="pt-2 space-y-4">
@@ -134,35 +134,35 @@ export default function ProposalsTab() {
         <Tile v={String(expiring + expired)} l="Expiring" tone={expiring + expired ? "amber" : undefined} />
       </div>
 
-      {sent.length === 0 ? <p className="text-sm text-neutral-500">Nothing out right now. Mark a job&apos;s proposal &quot;Sent&quot; on the Jobs tab and it shows up here with the 30-day clock running.</p> : (
+      {sent.length === 0 ? <p className="text-sm text-neutral-400">Nothing out right now. Mark a job&apos;s proposal &quot;Sent&quot; on the Jobs tab and it shows up here with the 30-day clock running.</p> : (
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Out for signature — 30-day validity</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Out for signature — 30-day validity</div>
           <div className="space-y-1.5">{sent.map((j) => card(j, [{ label: "✍️ Signed", to: "signed" }, { label: "🚫 Declined", to: "declined" }]))}</div>
         </div>
       )}
 
       {signed.length ? (
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 mb-1.5">✍️ Signed</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-1.5">✍️ Signed</div>
           <div className="space-y-1.5">{signed.map((j) => card(j, [{ label: "↩︎ Back to sent", to: "sent" }]))}</div>
         </div>
       ) : null}
 
       {declined.length ? (
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">🚫 Declined</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">🚫 Declined</div>
           <div className="space-y-1.5">{declined.map((j) => card(j, [{ label: "↩︎ Back to sent", to: "sent" }]))}</div>
         </div>
       ) : null}
 
-      <p className="text-xs text-neutral-600">Proposals expire 30 days after sending per your standard terms. A client link lets them read the scope, approve it, and sign right on their phone — you see the moment they open it.</p>
+      <p className="text-xs text-neutral-500">Proposals expire 30 days after sending per your standard terms. A client link lets them read the scope, approve it, and sign right on their phone — you see the moment they open it.</p>
 
       {editing ? <LinkEditor supabase={supabase} job={editing.job} link={editing.link} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} newToken={newToken} /> : null}
     </div>
   );
 }
 
-const btn = "px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500";
+const btn = "px-2.5 py-1 rounded-lg text-xs font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500";
 
 function Tile({ v, l, tone }: { v: string; l: string; tone?: "amber" | "blue" }) {
   const border = tone === "amber" ? "border-amber-500/50" : tone === "blue" ? "border-blue-500/50" : "border-neutral-800";
@@ -170,7 +170,7 @@ function Tile({ v, l, tone }: { v: string; l: string; tone?: "amber" | "blue" })
   return (
     <div className={`rounded-xl border ${border} bg-neutral-900 p-2.5 text-center`}>
       <div className={`text-base font-bold leading-none ${text}`}>{v}</div>
-      <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">{l}</div>
+      <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">{l}</div>
     </div>
   );
 }
@@ -216,7 +216,7 @@ function LinkEditor({ supabase, job, link, onClose, onSaved, newToken }: any) {
       <div className="w-full max-w-lg rounded-2xl border border-neutral-800 bg-neutral-950 p-4 my-6">
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-bold text-white">{link ? "Edit client link" : "Create client link"}</div>
-          <button onClick={onClose} className="text-neutral-500 text-lg leading-none">✕</button>
+          <button onClick={onClose} className="text-neutral-400 text-lg leading-none">✕</button>
         </div>
         <div className="space-y-2.5">
           <F l="Title"><input value={f.title} onChange={set("title")} className={inp} placeholder="e.g. 148 West River St — Concrete Replacement" /></F>
@@ -233,14 +233,14 @@ function LinkEditor({ supabase, job, link, onClose, onSaved, newToken }: any) {
           <button onClick={save} disabled={busy} className="w-full rounded-xl bg-white text-black py-2.5 text-sm font-bold disabled:opacity-50">
             {busy ? "Saving…" : link ? "Save changes" : "Create link"}
           </button>
-          <p className="text-[11px] text-neutral-600">Nothing here shows your costs — the client sees the scope, the total, and the deposit only.</p>
+          <p className="text-xs text-neutral-500">Nothing here shows your costs — the client sees the scope, the total, and the deposit only.</p>
         </div>
       </div>
     </div>
   );
 }
 
-const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500";
+const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500";
 function F({ l, children }: { l: string; children: React.ReactNode }) {
-  return <label className="block"><span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">{l}</span>{children}</label>;
+  return <label className="block"><span className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">{l}</span>{children}</label>;
 }

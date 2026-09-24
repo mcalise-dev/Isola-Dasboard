@@ -110,8 +110,8 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
     load();
   }
 
-  if (loading) return <p className="text-sm text-neutral-500">Loading…</p>;
-  if (!me) return <p className="text-sm text-neutral-500">No owner record set up.</p>;
+  if (loading) return <p className="text-sm text-neutral-400">Loading…</p>;
+  if (!me) return <p className="text-sm text-neutral-400">No owner record set up.</p>;
 
   const jobById = (id: string) => jobs.find((j) => j.id === id);
   const running = !!openPunch;
@@ -120,13 +120,13 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
   return (
     <div className={`rounded-2xl border ${running ? "border-emerald-500/50 bg-emerald-500/[0.07]" : "border-neutral-800 bg-neutral-900/60"} p-3.5`}>
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">
           ⏱️ My time{compact ? " on this job" : ""}
         </div>
-        <div className="text-[10px] text-neutral-500">{todayHrs.toFixed(2)} hrs today</div>
+        <div className="text-xs text-neutral-400">{todayHrs.toFixed(2)} hrs today</div>
       </div>
 
-      {flash ? <div className="mb-2 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-[11px] text-neutral-200">{flash}</div> : null}
+      {flash ? <div className="mb-2 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-200">{flash}</div> : null}
 
       {running ? (
         <>
@@ -135,15 +135,15 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
             <div className="mt-1 text-xs text-neutral-300 truncate">
               {openPunch.job_id ? (jobById(openPunch.job_id) ? jobLabel(jobById(openPunch.job_id)) : "job") : "no job tagged"}
             </div>
-            <div className="text-[11px] text-neutral-500">started {t12(openPunch.clock_in)}</div>
+            <div className="text-xs text-neutral-400">started {t12(openPunch.clock_in)}</div>
           </div>
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What are you doing? (optional)"
-            className="w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500" />
+            className="w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500" />
           <button onClick={clockOut} disabled={busy}
             className="mt-2 w-full rounded-xl bg-red-600 text-white py-3.5 text-base font-bold disabled:opacity-50">
             {busy ? "…" : "Clock out"}
           </button>
-          <button onClick={scrap} className="mt-1.5 w-full text-[11px] text-neutral-600 underline">discard this punch</button>
+          <button onClick={scrap} className="mt-1.5 w-full text-xs text-neutral-500 underline">discard this punch</button>
         </>
       ) : (
         <>
@@ -161,7 +161,7 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
           ) : (
             <>
               <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)"
-                className="mt-2 w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500" />
+                className="mt-2 w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500" />
               <button onClick={clockIn} disabled={busy || !pick}
                 className="mt-2 w-full rounded-xl bg-emerald-600 text-white py-3.5 text-base font-bold disabled:opacity-40">
                 {busy ? "…" : "Clock in"}
@@ -174,27 +174,27 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
       {!compact ? (
         <div className="mt-3 pt-3 border-t border-neutral-800">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-neutral-500">
+            <span className="text-xs text-neutral-400">
               Your rate: {me.rate == null ? <span className="text-amber-300">not set — time logs at $0</span> : `$${me.rate}/${me.rate_type === "daily" ? "day" : "hr"}`}
             </span>
-            <button onClick={() => setRateOpen(!rateOpen)} className="text-[11px] text-neutral-400 underline">{rateOpen ? "cancel" : "edit"}</button>
+            <button onClick={() => setRateOpen(!rateOpen)} className="text-xs text-neutral-400 underline">{rateOpen ? "cancel" : "edit"}</button>
           </div>
           {rateOpen ? (
             <div className="flex gap-2 mt-2">
               <input value={rateVal} onChange={(e) => setRateVal(e.target.value)} inputMode="decimal" placeholder="Leave blank to track hours only"
-                className="flex-1 rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-600" />
-              <button onClick={saveRate} className="rounded-lg border border-neutral-700 px-3 text-[11px] font-semibold text-neutral-300">Save</button>
+                className="flex-1 rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-500" />
+              <button onClick={saveRate} className="rounded-lg border border-neutral-700 px-3 text-xs font-semibold text-neutral-300">Save</button>
             </div>
           ) : null}
 
           {today.filter((p) => p.clock_out).length ? (
             <div className="mt-2.5 space-y-1">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">Today</div>
+              <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">Today</div>
               {today.filter((p) => p.clock_out).map((p) => {
                 const h = hrsBetween(p.clock_in, p.clock_out);
                 const j = p.job_id ? jobById(p.job_id) : null;
                 return (
-                  <div key={p.id} className="flex items-center justify-between gap-2 text-[11px]">
+                  <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-neutral-400 truncate">{j ? jobLabel(j) : "—"}</span>
                     <span className="shrink-0 text-neutral-300 tabular-nums">{t12(p.clock_in)}–{t12(p.clock_out)} · {h.toFixed(2)}h</span>
                   </div>

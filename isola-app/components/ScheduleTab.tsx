@@ -211,26 +211,26 @@ export default function ScheduleTab() {
         <span className={`shrink-0 w-2 h-2 rounded-full ${j ? DOT[j.status] ?? "bg-neutral-600" : "bg-neutral-600"}`} />
         <div className="min-w-0 flex-1">
           <div className={`font-semibold text-white truncate ${compact ? "text-xs" : "text-sm"}`}>{j ? (j.job_name || j.customer) : e.label}</div>
-          {j && !compact ? <div className="text-xs text-neutral-500 truncate">{[j.customer, j.location, j.job].filter(Boolean).join(" · ")}</div> : null}
+          {j && !compact ? <div className="text-xs text-neutral-400 truncate">{[j.customer, j.location, j.job].filter(Boolean).join(" · ")}</div> : null}
           {compact && e.assignee ? (
-            <span className={`inline-block mt-0.5 text-[9px] font-bold px-1.5 py-px rounded-full border ${crewCls(e.assignee)}`}>{e.assignee}</span>
+            <span className={`inline-block mt-0.5 text-xs font-bold px-1.5 py-px rounded-full border ${crewCls(e.assignee)}`}>{e.assignee}</span>
           ) : null}
         </div>
         {!compact ? (
           <select value={e.assignee ?? ""} onChange={(ev) => setAssignee(e, ev.target.value)}
-            className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${e.assignee ? crewCls(e.assignee) : "border-neutral-700 bg-neutral-900 text-neutral-500"}`}>
+            className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-bold ${e.assignee ? crewCls(e.assignee) : "border-neutral-700 bg-neutral-900 text-neutral-400"}`}>
             <option value="">unassigned</option>
             {crew.map((w) => <option key={w.name} value={w.name}>{w.name}</option>)}
           </select>
         ) : null}
         {j && !compact ? (
-          <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_META[j.status]?.cls ?? ""}`}>{STATUS_META[j.status]?.label}</span>
+          <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full border ${STATUS_META[j.status]?.cls ?? ""}`}>{STATUS_META[j.status]?.label}</span>
         ) : null}
         {!compact ? (
           <span className="shrink-0 flex items-center">
-            <button onClick={() => move(e, -1)} title="Move back a day" className="text-neutral-600 hover:text-neutral-300 text-sm px-1">‹</button>
-            <button onClick={() => move(e, 1)} title="Push a day" className="text-neutral-600 hover:text-neutral-300 text-sm px-1">›</button>
-            <button onClick={() => removeEntry(e)} className="text-neutral-600 hover:text-red-400 text-sm px-1" aria-label="Remove">✕</button>
+            <button onClick={() => move(e, -1)} title="Move back a day" className="text-neutral-500 hover:text-neutral-300 text-sm px-1">‹</button>
+            <button onClick={() => move(e, 1)} title="Push a day" className="text-neutral-500 hover:text-neutral-300 text-sm px-1">›</button>
+            <button onClick={() => removeEntry(e)} className="text-neutral-500 hover:text-red-400 text-sm px-1" aria-label="Remove">✕</button>
           </span>
         ) : null}
       </div>
@@ -247,7 +247,7 @@ export default function ScheduleTab() {
         <div className="text-center">
           <div className="font-bold text-white">{monthName}</div>
           {(year !== ty || month !== tm) ? (
-            <button onClick={() => { setYear(ty); setMonth(tm); setSelected(today); }} className="text-[11px] text-blue-300 font-semibold">Back to today</button>
+            <button onClick={() => { setYear(ty); setMonth(tm); setSelected(today); }} className="text-xs text-blue-300 font-semibold">Back to today</button>
           ) : null}
         </div>
         <button onClick={() => shift(1)} className="w-9 h-9 rounded-lg border border-neutral-700 text-neutral-300 text-lg">›</button>
@@ -257,12 +257,12 @@ export default function ScheduleTab() {
       {crew.length ? (
         <div className="flex flex-wrap gap-1.5 mb-3">
           <button onClick={() => setFilterWho("")}
-            className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${filterWho === "" ? "border-white bg-neutral-800 text-white" : "border-neutral-700 text-neutral-400"}`}>
+            className={`px-2.5 py-1 rounded-full text-xs font-bold border ${filterWho === "" ? "border-white bg-neutral-800 text-white" : "border-neutral-700 text-neutral-400"}`}>
             Everyone
           </button>
           {crew.map((w) => (
             <button key={w.name} onClick={() => setFilterWho(filterWho === w.name ? "" : w.name)}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${filterWho === w.name ? crewCls(w.name) : "border-neutral-700 text-neutral-400"}`}>
+              className={`px-2.5 py-1 rounded-full text-xs font-bold border ${filterWho === w.name ? crewCls(w.name) : "border-neutral-700 text-neutral-400"}`}>
               {w.name}
             </button>
           ))}
@@ -272,7 +272,7 @@ export default function ScheduleTab() {
       {/* weekday header */}
       <div className="grid grid-cols-7 mb-1">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-          <div key={i} className="text-center text-[10px] font-bold uppercase text-neutral-500 py-1">{d}</div>
+          <div key={i} className="text-center text-xs font-bold uppercase text-neutral-400 py-1">{d}</div>
         ))}
       </div>
 
@@ -306,25 +306,25 @@ export default function ScheduleTab() {
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/95 p-4 mb-4">
         <div className="flex items-baseline justify-between mb-2.5">
           <h2 className="text-sm font-extrabold text-white">{selLabel}</h2>
-          <span className="text-xs text-neutral-500">{selEntries.length} scheduled</span>
+          <span className="text-xs text-neutral-400">{selEntries.length} scheduled</span>
         </div>
-        {loading ? <p className="text-sm text-neutral-500">Loading…</p> : null}
-        {!loading && selEntries.length === 0 ? <p className="text-sm text-neutral-500 mb-2">Nothing scheduled.</p> : null}
+        {loading ? <p className="text-sm text-neutral-400">Loading…</p> : null}
+        {!loading && selEntries.length === 0 ? <p className="text-sm text-neutral-400 mb-2">Nothing scheduled.</p> : null}
         <div className="space-y-1.5 mb-3">{selEntries.map((e) => entryRow(e))}</div>
 
         {(tasksByDate[selected] ?? []).length ? (
           <div className="mb-3">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Tasks due{selected === today ? " (incl. overdue)" : ""}</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Tasks due{selected === today ? " (incl. overdue)" : ""}</div>
             <div className="space-y-1.5">
               {(tasksByDate[selected] ?? []).map((t) => {
                 const j = t.job_id ? jobById[t.job_id] : null;
                 const late = t.due_date < today;
                 return (
                   <div key={t.id} className="flex items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2">
-                    <button onClick={() => toggleTask(t)} aria-label="Done" className="w-5 h-5 shrink-0 rounded-md border border-neutral-600 text-[11px] text-transparent hover:text-emerald-300">✓</button>
+                    <button onClick={() => toggleTask(t)} aria-label="Done" className="w-5 h-5 shrink-0 rounded-md border border-neutral-600 text-xs text-transparent hover:text-emerald-300">✓</button>
                     <div className="min-w-0 flex-1">
                       <div className="text-sm text-white truncate">{t.title}</div>
-                      <div className="text-[11px] text-neutral-500 truncate">{late ? <span className="text-red-400 font-semibold">Overdue · </span> : null}{j ? (j.job_name || j.customer) : "No job"}</div>
+                      <div className="text-xs text-neutral-400 truncate">{late ? <span className="text-red-400 font-semibold">Overdue · </span> : null}{j ? (j.job_name || j.customer) : "No job"}</div>
                     </div>
                   </div>
                 );
@@ -335,15 +335,15 @@ export default function ScheduleTab() {
 
         {unscheduled.length ? (
           <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-2.5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300 mb-1.5">Booked — no date yet ({unscheduled.length})</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-amber-300 mb-1.5">Booked — no date yet ({unscheduled.length})</div>
             <div className="space-y-1.5">
               {unscheduled.map((j) => (
                 <div key={j.id} className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="text-sm text-white truncate">{j.priority ? "★ " : ""}{j.job_name || j.customer}</div>
-                    <div className="text-[11px] text-neutral-500 truncate">{[j.job_name ? j.customer : null, j.location].filter(Boolean).join(" · ")}</div>
+                    <div className="text-xs text-neutral-400 truncate">{[j.job_name ? j.customer : null, j.location].filter(Boolean).join(" · ")}</div>
                   </div>
-                  <button disabled={busy} onClick={() => scheduleJob(j.id)} className="shrink-0 rounded-lg border border-amber-400/50 px-2.5 py-1 text-[11px] font-bold text-amber-200 disabled:opacity-50">+ {selDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</button>
+                  <button disabled={busy} onClick={() => scheduleJob(j.id)} className="shrink-0 rounded-lg border border-amber-400/50 px-2.5 py-1 text-xs font-bold text-amber-200 disabled:opacity-50">+ {selDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</button>
                 </div>
               ))}
             </div>
@@ -383,11 +383,11 @@ export default function ScheduleTab() {
               <button key={ds} onClick={() => { setSelected(ds); if (d.getMonth() !== month || d.getFullYear() !== year) { setYear(d.getFullYear()); setMonth(d.getMonth()); } window.scrollTo({ top: 0, behavior: "smooth" }); }}
                 className={`w-full text-left flex gap-3 rounded-xl border px-3 py-2 ${ds === today ? "border-blue-400/50 bg-neutral-950" : "border-neutral-800 bg-neutral-950 hover:border-neutral-600"}`}>
                 <div className="shrink-0 w-10 text-center">
-                  <div className="text-[10px] uppercase font-bold text-neutral-500">{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
+                  <div className="text-xs uppercase font-bold text-neutral-400">{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
                   <div className={`text-sm font-bold ${ds === today ? "text-blue-300" : "text-white"}`}>{d.getDate()}</div>
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
-                  {list.length === 0 ? <div className="text-xs text-neutral-600 py-1.5">—</div> : list.map((e) => entryRow(e, true))}
+                  {list.length === 0 ? <div className="text-xs text-neutral-500 py-1.5">—</div> : list.map((e) => entryRow(e, true))}
                 </div>
               </button>
             );

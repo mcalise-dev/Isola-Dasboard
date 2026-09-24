@@ -78,12 +78,12 @@ function CampaignInner() {
         {[[rows.length, "Prospects"], [pct(connected, liSent), `Connected (${connected}/${liSent})`], [pct(liResp, liSent), "LI responses"], [pct(emResp, emSent), "Email responses"]].map(([n, l], i) => (
           <div key={i} className="rounded-xl border border-neutral-800 bg-neutral-900 p-2.5 text-center">
             <div className="text-base font-bold text-white leading-none tabular-nums">{n}</div>
-            <div className="mt-1 text-[9px] uppercase tracking-wide text-neutral-500">{l}</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">{l}</div>
           </div>
         ))}
       </div>
 
-      <p className="text-xs text-neutral-500 mb-3 leading-relaxed">
+      <p className="text-xs text-neutral-400 mb-3 leading-relaxed">
         Nothing sends itself. Open a prospect, copy the message, send it from your own LinkedIn or Gmail, then set the status here.
         The moment someone responds, stop the sequence — it&apos;s a conversation now.
       </p>
@@ -112,13 +112,13 @@ function CampaignInner() {
           <option value="">All types</option>
           {["Property Manager", "Facilities Director", "Owner / Developer", "General Contractor"].map((t) => <option key={t}>{t}</option>)}
         </select>
-        <button onClick={() => setFDue(!fDue)} className={`shrink-0 rounded-lg border px-3 text-xs font-semibold ${fDue ? "border-amber-400 text-amber-300" : "border-neutral-700 text-neutral-500"}`}>
+        <button onClick={() => setFDue(!fDue)} className={`shrink-0 rounded-lg border px-3 text-xs font-semibold ${fDue ? "border-amber-400 text-amber-300" : "border-neutral-700 text-neutral-400"}`}>
           Due
         </button>
       </div>
       </div>
 
-      {loading ? <p className="text-neutral-500 text-sm">Loading…</p> : null}
+      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
 
       <div className="space-y-4">
         {groups.map(([co, ps]) => {
@@ -127,10 +127,10 @@ function CampaignInner() {
           return (
             <div key={co}>
               <div className="flex items-center gap-2 pb-1.5">
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${topGrade === "A" ? "bg-white text-neutral-900 border-white" : "border-neutral-600 text-neutral-300"}`}>{topGrade}</span>
+                <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${topGrade === "A" ? "bg-white text-neutral-900 border-white" : "border-neutral-600 text-neutral-300"}`}>{topGrade}</span>
                 <span className="text-xs font-bold uppercase tracking-widest text-neutral-400 truncate">{co}</span>
-                <span className="text-[10px] text-neutral-600">{ps.length} contact{ps.length === 1 ? "" : "s"}</span>
-                {dueN ? <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">{dueN} due</span> : null}
+                <span className="text-xs text-neutral-500">{ps.length} contact{ps.length === 1 ? "" : "s"}</span>
+                {dueN ? <span className="text-xs font-bold uppercase px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">{dueN} due</span> : null}
               </div>
               <div className="space-y-2">
                 {ps.map((c) => {
@@ -142,52 +142,52 @@ function CampaignInner() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="font-semibold text-white truncate">{c.name}</div>
-                            <div className="text-xs text-neutral-500 truncate">{c.title ?? ""}</div>
+                            <div className="text-xs text-neutral-400 truncate">{c.title ?? ""}</div>
                           </div>
-                          <div className="flex flex-col items-end gap-1 shrink-0 text-[10px]">
-                            <span className={`px-2 py-0.5 rounded-full border ${RESP.includes(c.li_status) ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" : c.li_status === "Not Contacted" ? "border-neutral-700 text-neutral-500" : "border-neutral-600 text-neutral-300"}`}>LI: {c.li_status}</span>
-                            <span className={`px-2 py-0.5 rounded-full border ${RESP.includes(c.em_status) ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" : c.em_status === "Not Contacted" ? "border-neutral-700 text-neutral-500" : "border-neutral-600 text-neutral-300"}`}>Email: {c.em_status}</span>
+                          <div className="flex flex-col items-end gap-1 shrink-0 text-xs">
+                            <span className={`px-2 py-0.5 rounded-full border ${RESP.includes(c.li_status) ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" : c.li_status === "Not Contacted" ? "border-neutral-700 text-neutral-400" : "border-neutral-600 text-neutral-300"}`}>LI: {c.li_status}</span>
+                            <span className={`px-2 py-0.5 rounded-full border ${RESP.includes(c.em_status) ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" : c.em_status === "Not Contacted" ? "border-neutral-700 text-neutral-400" : "border-neutral-600 text-neutral-300"}`}>Email: {c.em_status}</span>
                           </div>
                         </div>
                       </button>
                       {isOpen ? (
                         <div className="border-t border-neutral-800 px-4 py-3 space-y-3">
-                          {c.angle ? <p className="text-xs text-neutral-400"><b className="text-neutral-500 uppercase">Angle: </b>{c.angle}</p> : null}
-                          {bldg(c) ? <p className="text-xs text-neutral-400"><b className="text-neutral-500 uppercase">Building: </b>{bldg(c)}</p> : null}
+                          {c.angle ? <p className="text-xs text-neutral-400"><b className="text-neutral-400 uppercase">Angle: </b>{c.angle}</p> : null}
+                          {bldg(c) ? <p className="text-xs text-neutral-400"><b className="text-neutral-400 uppercase">Building: </b>{bldg(c)}</p> : null}
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">LinkedIn status</label>
+                              <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">LinkedIn status</label>
                               <select className={input} value={c.li_status} onChange={(e) => patch(c, { li_status: e.target.value, last_touch: e.target.value === "Not Contacted" ? c.last_touch : todayISO() })}>
                                 {LI_STATUSES.map((s) => <option key={s}>{s}</option>)}
                               </select>
                             </div>
                             <div>
-                              <label className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Email status</label>
+                              <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">Email status</label>
                               <select className={input} value={c.em_status} onChange={(e) => patch(c, { em_status: e.target.value, last_touch: e.target.value === "Not Contacted" ? c.last_touch : todayISO() })}>
                                 {EM_STATUSES.map((s) => <option key={s}>{s}</option>)}
                               </select>
                             </div>
                             <div>
-                              <label className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Last contact</label>
+                              <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">Last contact</label>
                               <input type="date" className={input} value={c.last_touch ?? ""} onChange={(e) => patch(c, { last_touch: e.target.value || null })} />
                             </div>
                             <div>
-                              <label className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Next action due</label>
+                              <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">Next action due</label>
                               <input type="date" className={input} value={c.next_date ?? ""} onChange={(e) => patch(c, { next_date: e.target.value || null })} />
                             </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+                          <div className="grid grid-cols-3 gap-1.5 text-xs">
                             {SEQ.map(([d, w]) => (
                               <div key={d} className="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5">
                                 <b className="block text-neutral-300">{d}</b>
-                                <span className="text-neutral-500">{w}</span>
+                                <span className="text-neutral-400">{w}</span>
                               </div>
                             ))}
                           </div>
                           {MSGS.map(([key, title]) => (
                             <div key={key}>
                               <div className="flex items-center justify-between mb-1">
-                                <label className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{title}</label>
+                                <label className="text-xs font-semibold uppercase tracking-wide text-neutral-400">{title}</label>
                                 <button
                                   onClick={(e) => {
                                     const btn = e.currentTarget;
@@ -195,7 +195,7 @@ function CampaignInner() {
                                     btn.textContent = "Copied";
                                     setTimeout(() => { btn.textContent = "Copy"; }, 1200);
                                   }}
-                                  className="rounded border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300">Copy</button>
+                                  className="rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-300">Copy</button>
                               </div>
                               <textarea
                                 rows={key.includes("subj") || key.startsWith("li_conn") ? 2 : 5}
@@ -207,7 +207,7 @@ function CampaignInner() {
                               />
                             </div>
                           ))}
-                          <p className="text-[10px] text-neutral-600">Drafts are generated from verified CRM data (building, role, company) — edit anything; edits save. Unverifiable details are never included.</p>
+                          <p className="text-xs text-neutral-500">Drafts are generated from verified CRM data (building, role, company) — edit anything; edits save. Unverifiable details are never included.</p>
                         </div>
                       ) : null}
                     </div>
@@ -225,7 +225,7 @@ function CampaignInner() {
 
 export default function CampaignTab() {
   return (
-    <Suspense fallback={<p className="text-neutral-500 text-sm">Loading…</p>}>
+    <Suspense fallback={<p className="text-neutral-400 text-sm">Loading…</p>}>
       <CampaignInner />
     </Suspense>
   );

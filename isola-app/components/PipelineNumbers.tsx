@@ -46,7 +46,7 @@ export default function PipelineNumbers({ jobs, compact = false }: { jobs: any[]
 
   const tile = "rounded-xl border border-neutral-800 bg-neutral-950 p-2.5";
   const big = "text-lg font-extrabold tabular-nums text-white leading-none";
-  const small = "mt-1 text-[10px] uppercase tracking-wide text-neutral-500 leading-tight";
+  const small = "mt-1 text-xs uppercase tracking-wide text-neutral-400 leading-tight";
 
   if (compact) {
     return (
@@ -67,9 +67,9 @@ export default function PipelineNumbers({ jobs, compact = false }: { jobs: any[]
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 mb-4 overflow-hidden">
       <button onClick={toggle} className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left">
-        <span className="text-[10px] text-neutral-600 w-3">{open ? "▾" : "▸"}</span>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">📈 Numbers</span>
-        <span className="ml-auto text-[11px] text-neutral-400 tabular-nums">{fmt$(s.sent$)} in Sent · {s.winRate == null ? "win rate —" : `${s.winRate}% won`}</span>
+        <span className="text-xs text-neutral-500 w-3">{open ? "▾" : "▸"}</span>
+        <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">📈 Numbers</span>
+        <span className="ml-auto text-xs text-neutral-400 tabular-nums">{fmt$(s.sent$)} in Sent · {s.winRate == null ? "win rate —" : `${s.winRate}% won`}</span>
       </button>
       {open ? (
         <div className="px-3.5 pb-3.5 space-y-2">
@@ -87,13 +87,13 @@ export default function PipelineNumbers({ jobs, compact = false }: { jobs: any[]
             <div className={tile}><div className={`${big} ${s.avgOut != null && s.avgOut > 14 ? "text-amber-300" : ""}`}>{s.avgOut == null ? "—" : s.avgOut + "d"}</div><div className={small}>Avg age of Sent</div></div>
           </div>
           <div className={tile}>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Why jobs are lost</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1">Why jobs are lost</div>
             {s.topReasons.length ? s.topReasons.map(([r, n]) => (
-              <div key={r} className="flex justify-between text-xs text-neutral-300"><span>{r}</span><span className="tabular-nums text-neutral-500">{n}</span></div>
-            )) : <div className="text-xs text-neutral-500">Nothing marked lost yet. Mark declined work Lost with a reason and this fills in.</div>}
-            {s.lostDollars ? <div className="mt-1 text-[11px] text-neutral-500">{fmt$(s.lostDollars)} lost vs {fmt$(s.wonDollars)} won (last 6 months)</div> : null}
+              <div key={r} className="flex justify-between text-xs text-neutral-300"><span>{r}</span><span className="tabular-nums text-neutral-400">{n}</span></div>
+            )) : <div className="text-xs text-neutral-400">Nothing marked lost yet. Mark declined work Lost with a reason and this fills in.</div>}
+            {s.lostDollars ? <div className="mt-1 text-xs text-neutral-400">{fmt$(s.lostDollars)} lost vs {fmt$(s.wonDollars)} won (last 6 months)</div> : null}
           </div>
-          <p className="text-[10px] text-neutral-600">Win rate and close time count proposals decided in the last 6 months, starting 9/22/26. They get sharper as more jobs move through Sent.</p>
+          <p className="text-xs text-neutral-500">Win rate and close time count proposals decided in the last 6 months, starting 9/22/26. They get sharper as more jobs move through Sent.</p>
         </div>
       ) : null}
     </div>

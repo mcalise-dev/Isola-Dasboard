@@ -66,12 +66,12 @@ export default function VisitsTab() {
   }
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1";
+  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-neutral-500">Observed conditions only — no pricing on site records.</p>
+        <p className="text-xs text-neutral-400">Observed conditions only — no pricing on site records.</p>
         <button onClick={() => setAdding(!adding)} className="rounded-lg bg-white text-neutral-900 px-3.5 py-2 text-sm font-semibold shrink-0">
           {adding ? "Close" : "+ Visit"}
         </button>
@@ -104,8 +104,8 @@ export default function VisitsTab() {
         </div>
       ) : null}
 
-      {loading ? <p className="text-neutral-500 text-sm">Loading…</p> : null}
-      {!loading && visits.length === 0 ? <p className="text-neutral-500 text-sm">No site visits logged yet.</p> : null}
+      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
+      {!loading && visits.length === 0 ? <p className="text-neutral-400 text-sm">No site visits logged yet.</p> : null}
 
       <div className="space-y-2.5">
         {visits.map((v) => (
@@ -114,7 +114,7 @@ export default function VisitsTab() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-semibold text-white truncate">{v.property_address ?? v.client_company ?? "Site visit"}</div>
-                  <div className="text-xs text-neutral-500 truncate">
+                  <div className="text-xs text-neutral-400 truncate">
                     {[fmtDate(v.visit_date), v.client_company, v.purpose].filter(Boolean).join(" · ")}
                   </div>
                 </div>
@@ -122,13 +122,13 @@ export default function VisitsTab() {
             </button>
             {open === v.id ? (
               <div className="border-t border-neutral-800 px-4 py-3 text-sm space-y-1.5">
-                {v.met_with ? <p><span className="text-neutral-500">Met with:</span> {v.met_with}</p> : null}
-                {v.job_id && jobById[v.job_id] ? <p><span className="text-neutral-500">Job:</span> {jobLabel(jobById[v.job_id])}</p> : null}
-                {v.weather ? <p><span className="text-neutral-500">Weather:</span> {v.weather}</p> : null}
-                {v.dimensions ? <p className="whitespace-pre-wrap"><span className="text-neutral-500">Dimensions:</span> {v.dimensions}</p> : null}
-                {v.observed_conditions ? <p className="whitespace-pre-wrap"><span className="text-neutral-500">Observed:</span> {v.observed_conditions}</p> : null}
-                {v.photos_taken ? <p><span className="text-neutral-500">Photos:</span> {v.photos_taken}</p> : null}
-                {v.follow_up_needed ? <p><span className="text-neutral-500">Follow-up:</span> {v.follow_up_needed}</p> : null}
+                {v.met_with ? <p><span className="text-neutral-400">Met with:</span> {v.met_with}</p> : null}
+                {v.job_id && jobById[v.job_id] ? <p><span className="text-neutral-400">Job:</span> {jobLabel(jobById[v.job_id])}</p> : null}
+                {v.weather ? <p><span className="text-neutral-400">Weather:</span> {v.weather}</p> : null}
+                {v.dimensions ? <p className="whitespace-pre-wrap"><span className="text-neutral-400">Dimensions:</span> {v.dimensions}</p> : null}
+                {v.observed_conditions ? <p className="whitespace-pre-wrap"><span className="text-neutral-400">Observed:</span> {v.observed_conditions}</p> : null}
+                {v.photos_taken ? <p><span className="text-neutral-400">Photos:</span> {v.photos_taken}</p> : null}
+                {v.follow_up_needed ? <p><span className="text-neutral-400">Follow-up:</span> {v.follow_up_needed}</p> : null}
                 <button onClick={() => remove(v)} className="mt-1.5 rounded-lg border border-red-900 px-2.5 py-1 text-xs text-red-400">Delete</button>
               </div>
             ) : null}

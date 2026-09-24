@@ -1,1 +1,14 @@
 @import "tailwindcss";
+
+/* v4.3 (9/23/26) readability: the smallest text in the app is now 13px (was 9–11px),
+   and gray secondary text is a shade lighter so it reads outside in the sun. */
+@theme {
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.15rem;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+body { font-feature-settings: "tnum" 0; }
+/* no grey flash on tap in iOS, and a visible focus ring for keyboards */
+* { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

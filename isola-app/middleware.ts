@@ -62,6 +62,6 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     // Skip every static asset and image request — none of them need an auth check.
-    "/((?!_next/static|_next/image|favicon.ico|manifest.json|logo.png|icon-192.png|icon-512.png|apple-touch-icon.png|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|logo.png|icon-192.png|icon-512.png|apple-touch-icon.png|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf)$).*)",
   ],
 };

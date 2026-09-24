@@ -76,7 +76,7 @@ export default function CustomersTab() {
       .some((v: any) => String(v ?? "").toLowerCase().includes(s));
   });
 
-  if (loading) return <p className="pt-4 text-sm text-neutral-500">Loading…</p>;
+  if (loading) return <p className="pt-4 text-sm text-neutral-400">Loading…</p>;
 
   const active = rows.filter((c) => !c.archived);
   const totalValue = jobs.reduce((a, j) => a + parsePrice(j.price), 0);
@@ -93,20 +93,20 @@ export default function CustomersTab() {
       {dupes.length && dupsOpen ? (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 px-3.5 py-3">
           <div className="flex items-center justify-between mb-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300">
+            <div className="text-xs font-bold uppercase tracking-widest text-amber-300">
               ⚠️ {dupes.length} possible duplicate{dupes.length === 1 ? "" : "s"}
             </div>
-            <button onClick={() => setDupsOpen(false)} className="text-[11px] text-neutral-500 underline">hide</button>
+            <button onClick={() => setDupsOpen(false)} className="text-xs text-neutral-400 underline">hide</button>
           </div>
           <div className="space-y-1.5">
             {dupes.map(({ a, b, why }, i) => (
               <div key={i} className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-xs font-semibold text-white truncate">{a.name} &nbsp;·&nbsp; {b.name}</div>
-                  <div className="text-[11px] text-neutral-500">{why}</div>
+                  <div className="text-xs text-neutral-400">{why}</div>
                 </div>
                 <button onClick={() => setMerging({ a, b })}
-                  className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold border border-amber-500/50 bg-amber-500/10 text-amber-300">
+                  className="shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold border border-amber-500/50 bg-amber-500/10 text-amber-300">
                   Merge
                 </button>
               </div>
@@ -117,24 +117,24 @@ export default function CustomersTab() {
 
       <div className="flex gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, contact, phone, tag…"
-          className="flex-1 rounded-xl bg-neutral-900 border border-neutral-800 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600" />
+          className="flex-1 rounded-xl bg-neutral-900 border border-neutral-800 px-3 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-600" />
         <button onClick={() => setAdding(true)} className="rounded-xl bg-white text-black px-3.5 text-sm font-bold">+ New</button>
       </div>
 
       <div className="flex flex-wrap gap-1.5 items-center">
         <button onClick={() => setFilter("")}
-          className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${filter === "" ? "border-white bg-neutral-800 text-white" : "border-neutral-700 text-neutral-400"}`}>All</button>
+          className={`px-2.5 py-1 rounded-full text-xs font-bold border ${filter === "" ? "border-white bg-neutral-800 text-white" : "border-neutral-700 text-neutral-400"}`}>All</button>
         {Object.entries(TYPES).map(([k, v]) => {
           const n = active.filter((c) => c.client_type === k).length;
           if (!n) return null;
           return (
             <button key={k} onClick={() => setFilter(filter === k ? "" : k)}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${filter === k ? v.cls : "border-neutral-700 text-neutral-400"}`}>
+              className={`px-2.5 py-1 rounded-full text-xs font-bold border ${filter === k ? v.cls : "border-neutral-700 text-neutral-400"}`}>
               {v.label} {n}
             </button>
           );
         })}
-        <button onClick={() => setMergeOpen(true)} className="ml-auto px-2.5 py-1 rounded-full text-[11px] font-bold border border-neutral-700 text-neutral-400 hover:border-neutral-500">
+        <button onClick={() => setMergeOpen(true)} className="ml-auto px-2.5 py-1 rounded-full text-xs font-bold border border-neutral-700 text-neutral-400 hover:border-neutral-500">
           ⇄ Merge two
         </button>
       </div>
@@ -152,15 +152,15 @@ export default function CustomersTab() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-white truncate">
-                    {c.name}{c.archived ? <span className="ml-1.5 text-[10px] text-neutral-600">archived</span> : null}
+                    {c.name}{c.archived ? <span className="ml-1.5 text-xs text-neutral-500">archived</span> : null}
                   </div>
-                  <div className="text-xs text-neutral-500 truncate">
+                  <div className="text-xs text-neutral-400 truncate">
                     {[c.contact_name, c.phone].filter(Boolean).join(" · ") || "no contact on file"}
                   </div>
                 </div>
-                <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${t.cls}`}>{t.label}</span>
+                <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full border ${t.cls}`}>{t.label}</span>
               </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-neutral-500">
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-400">
                 <span>{js.length} job{js.length === 1 ? "" : "s"}</span>
                 {np ? <span>{np} propert{np === 1 ? "y" : "ies"}</span> : null}
                 {val ? <span>{fmt$(val)}</span> : null}
@@ -172,11 +172,11 @@ export default function CustomersTab() {
             </Link>
           );
         })}
-        {filtered.length === 0 ? <p className="text-sm text-neutral-500 pt-2">No customers match that.</p> : null}
+        {filtered.length === 0 ? <p className="text-sm text-neutral-400 pt-2">No customers match that.</p> : null}
       </div>
 
       {rows.some((c) => c.archived) ? (
-        <button onClick={() => setShowArchived(!showArchived)} className="text-[11px] text-neutral-500 underline">
+        <button onClick={() => setShowArchived(!showArchived)} className="text-xs text-neutral-400 underline">
           {showArchived ? "Hide" : "Show"} archived
         </button>
       ) : null}
@@ -194,12 +194,12 @@ function Tile({ v, l }: { v: string; l: string }) {
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-2.5 text-center">
       <div className="text-base font-bold text-white leading-none">{v}</div>
-      <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">{l}</div>
+      <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">{l}</div>
     </div>
   );
 }
 
-const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500";
+const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500";
 
 function PickTwo({ rows, onClose, onPick }: any) {
   const [a, setA] = useState(""); const [b, setB] = useState("");
@@ -210,14 +210,14 @@ function PickTwo({ rows, onClose, onPick }: any) {
         <div className="text-sm font-bold text-white mb-3">Merge two customers</div>
         <div className="space-y-2.5">
           <label className="block">
-            <span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">First</span>
+            <span className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">First</span>
             <select value={a} onChange={(e) => setA(e.target.value)} className={inp}>
               <option value="">Pick a customer…</option>
               {rows.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </label>
           <label className="block">
-            <span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Second</span>
+            <span className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">Second</span>
             <select value={b} onChange={(e) => setB(e.target.value)} className={inp}>
               <option value="">Pick a customer…</option>
               {rows.filter((r: any) => r.id !== a).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -258,9 +258,9 @@ function MergeModal({ supabase, a, b, jobsFor, propsFor, onClose, onDone }: any)
         className={`w-full text-left rounded-xl border px-3 py-2.5 ${picked ? "border-emerald-500/60 bg-emerald-500/10" : "border-neutral-800 bg-neutral-950"}`}>
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm font-bold text-white truncate">{c.name}</div>
-          {picked ? <span className="shrink-0 text-[10px] font-bold text-emerald-300">KEEP THIS NAME</span> : null}
+          {picked ? <span className="shrink-0 text-xs font-bold text-emerald-300">KEEP THIS NAME</span> : null}
         </div>
-        <div className="mt-1 space-y-0.5 text-[11px] text-neutral-500">
+        <div className="mt-1 space-y-0.5 text-xs text-neutral-400">
           <div>{c.contact_name || "—"}{c.phone ? " · " + c.phone : ""}</div>
           {c.email ? <div className="truncate">{c.email}</div> : null}
           {c.address ? <div className="truncate">{c.address}</div> : null}
@@ -274,10 +274,10 @@ function MergeModal({ supabase, a, b, jobsFor, propsFor, onClose, onDone }: any)
     <div className="fixed inset-0 z-50 bg-black/85 overflow-y-auto p-3" onClick={onClose}>
       <div className="mx-auto max-w-sm rounded-2xl border border-neutral-800 bg-neutral-950 p-4 my-6" onClick={(e) => e.stopPropagation()}>
         <div className="text-sm font-bold text-white">Merge into one customer</div>
-        <p className="text-[11px] text-neutral-500 mt-0.5 mb-3">Tap the one whose name you want to keep. Jobs, properties, notes and contacts all move onto it — nothing is thrown away.</p>
+        <p className="text-xs text-neutral-400 mt-0.5 mb-3">Tap the one whose name you want to keep. Jobs, properties, notes and contacts all move onto it — nothing is thrown away.</p>
         <div className="space-y-2">{card(a)}{card(b)}</div>
 
-        <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-[11px] text-neutral-400">
+        <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
           Keeping <span className="text-white font-semibold">{keep.name}</span>. Everything under{" "}
           <span className="text-white font-semibold">{dead.name}</span> moves across, and &quot;{dead.name}&quot; is kept as a
           QuickBooks alias so invoices under the old name still match.
@@ -287,7 +287,7 @@ function MergeModal({ supabase, a, b, jobsFor, propsFor, onClose, onDone }: any)
         <button onClick={go} disabled={busy} className="mt-3 w-full rounded-xl bg-white text-black py-2.5 text-sm font-bold disabled:opacity-50">
           {busy ? "Merging…" : `Merge into ${keep.name}`}
         </button>
-        <button onClick={onClose} className="mt-1.5 w-full text-xs text-neutral-500 underline">Cancel</button>
+        <button onClick={onClose} className="mt-1.5 w-full text-xs text-neutral-400 underline">Cancel</button>
       </div>
     </div>
   );
@@ -312,7 +312,7 @@ function NewCustomer({ supabase, onClose, onSaved }: any) {
       <div className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-bold text-white">New customer</div>
-          <button onClick={onClose} className="text-neutral-500 text-lg leading-none">✕</button>
+          <button onClick={onClose} className="text-neutral-400 text-lg leading-none">✕</button>
         </div>
         <div className="space-y-2.5">
           <input value={f.name} onChange={set("name")} placeholder="Customer / company name" className={inp} />
@@ -331,7 +331,7 @@ function NewCustomer({ supabase, onClose, onSaved }: any) {
           <button onClick={save} disabled={busy} className="w-full rounded-xl bg-white text-black py-2.5 text-sm font-bold disabled:opacity-50">
             {busy ? "Saving…" : "Add customer"}
           </button>
-          <p className="text-[11px] text-neutral-600">Properties, extra contacts, tags and notes all live on the profile once it exists.</p>
+          <p className="text-xs text-neutral-500">Properties, extra contacts, tags and notes all live on the profile once it exists.</p>
         </div>
       </div>
     </div>

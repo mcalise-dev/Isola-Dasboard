@@ -21,8 +21,8 @@ const fmt2 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { minim
 const fmt0 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
 const inp =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-neutral-400 focus:outline-none";
-const lbl = "block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1";
+  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none";
+const lbl = "block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1";
 const btn = "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-200 hover:border-neutral-500";
 const btnPrimary = "rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-neutral-900 hover:bg-neutral-200 disabled:opacity-40";
 const card = "rounded-xl border border-neutral-800 bg-neutral-950 p-3.5";
@@ -142,14 +142,14 @@ export default function SnowTab() {
     load();
   }
 
-  if (loading) return <div className="p-4 text-sm text-neutral-500">Loading…</div>;
+  if (loading) return <div className="p-4 text-sm text-neutral-400">Loading…</div>;
 
   return (
     <div className="pb-28 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-white">Recurring</h1>
-          <p className="text-xs text-neutral-500">Snow and seasonal accounts</p>
+          <p className="text-xs text-neutral-400">Snow and seasonal accounts</p>
         </div>
         <button onClick={() => setEditC({ service_type: "snow", rate_type: "per_event", commission_pct: 10, performed_by: "THM", active: true })} className={btnPrimary}>＋ Account</button>
       </div>
@@ -157,7 +157,7 @@ export default function SnowTab() {
       <div className="grid grid-cols-3 gap-2">
         {[["Gross billed", fmt0(grossYTD)], ["Your commission", fmt0(commYTD)], ["Not invoiced", fmt0(uninvoiced)]].map(([k, v]) => (
           <div key={k} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2.5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{k}</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">{k}</div>
             <div className="text-lg font-bold text-white leading-tight tabular-nums">{v}</div>
           </div>
         ))}
@@ -198,7 +198,7 @@ export default function SnowTab() {
             <div><label className={lbl}>Rate</label><MoneyInput className={inp} value={editC.rate ?? ""} onChange={(v) => setEditC({ ...editC, rate: v })} /></div>
             <div><label className={lbl}>Your %</label><input type="number" inputMode="decimal" className={inp} value={editC.commission_pct ?? 10} onChange={(e) => setEditC({ ...editC, commission_pct: e.target.value })} /></div>
           </div>
-          <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-[11px] text-neutral-400">
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-400">
             Commission is calculated on top-line gross — no costs come out before your cut.
           </div>
           <div className="flex gap-2">
@@ -217,7 +217,7 @@ export default function SnowTab() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-white truncate">{c.name}</div>
-                <div className="text-[11px] text-neutral-500 truncate">
+                <div className="text-xs text-neutral-400 truncate">
                   {[c.customer_id ? custById[c.customer_id] : null, RATE_TYPES.find((r) => r.key === c.rate_type)?.label,
                     c.rate ? fmt0(Number(c.rate)) : null, `${c.commission_pct}% to you`, c.performed_by].filter(Boolean).join(" · ")}
                 </div>
@@ -231,7 +231,7 @@ export default function SnowTab() {
               </div>
             </div>
 
-            <div className="flex gap-3 text-[11px] text-neutral-500">
+            <div className="flex gap-3 text-xs text-neutral-400">
               <span>{evs.length} event{evs.length === 1 ? "" : "s"}</span>
               <span>{fmt0(gross)} gross</span>
               <span className="text-emerald-400 font-semibold">{fmt2(comm)} yours</span>
@@ -245,7 +245,7 @@ export default function SnowTab() {
                 </div>
                 <div><label className={lbl}>Billed to the account (gross)</label><MoneyInput className={inp} value={addE.billed_amount} onChange={(v) => setAddE({ ...addE, billed_amount: v })} /></div>
                 {addE.billed_amount ? (
-                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] text-emerald-200">
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200">
                     Your {c.commission_pct}%: <span className="font-bold">{fmt2(Number(addE.billed_amount) * (Number(c.commission_pct) / 100))}</span>
                   </div>
                 ) : null}
@@ -264,12 +264,12 @@ export default function SnowTab() {
                     {fmtDate(e.event_date)}{e.inches ? ` · ${e.inches}"` : ""} — {fmt0(Number(e.billed_amount))}
                     <span className="text-emerald-400"> ({fmt2(Number(e.commission_amount))})</span>
                   </div>
-                  {e.description ? <div className="text-[11px] text-neutral-500 truncate">{e.description}</div> : null}
+                  {e.description ? <div className="text-xs text-neutral-400 truncate">{e.description}</div> : null}
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <button onClick={() => toggleEvent(e, "invoiced")} className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${e.invoiced ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-neutral-700 text-neutral-500"}`}>INV</button>
-                  <button onClick={() => toggleEvent(e, "paid")} className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${e.paid ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-neutral-700 text-neutral-500"}`}>PAID</button>
-                  <button onClick={() => delEvent(e.id)} className="text-neutral-600 hover:text-red-400 text-xs px-1">✕</button>
+                  <button onClick={() => toggleEvent(e, "invoiced")} className={`rounded-md border px-1.5 py-0.5 text-xs font-bold ${e.invoiced ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-neutral-700 text-neutral-400"}`}>INV</button>
+                  <button onClick={() => toggleEvent(e, "paid")} className={`rounded-md border px-1.5 py-0.5 text-xs font-bold ${e.paid ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-neutral-700 text-neutral-400"}`}>PAID</button>
+                  <button onClick={() => delEvent(e.id)} className="text-neutral-500 hover:text-red-400 text-xs px-1">✕</button>
                 </div>
               </div>
             ))}

@@ -82,7 +82,7 @@ export default function MailTab() {
   }
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1";
+  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
   const openFus = followUps.filter((f) => !f.done);
 
   return (
@@ -126,14 +126,14 @@ export default function MailTab() {
 
       {openFus.length ? (
         <div className="mb-5">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Follow-ups</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Follow-ups</h3>
           <div className="space-y-2">
             {openFus.map((f) => (
               <div key={f.id} className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-neutral-900 px-3.5 py-3">
                 <button onClick={() => toggleFu(f)} className="w-5 h-5 shrink-0 rounded-md border border-neutral-600" aria-label="Done" />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-white">{f.note}</div>
-                  <div className="text-xs text-neutral-500 truncate">
+                  <div className="text-xs text-neutral-400 truncate">
                     {[jobById[f.job_id] ? jobLabel(jobById[f.job_id]) : null, f.reminder_date ? `remind ${fmtDate(f.reminder_date)}` : null].filter(Boolean).join(" · ")}
                   </div>
                 </div>
@@ -143,22 +143,22 @@ export default function MailTab() {
         </div>
       ) : null}
 
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Mail highlights</h3>
-      {loading ? <p className="text-neutral-500 text-sm">Loading…</p> : null}
-      {!loading && highlights.length === 0 ? <p className="text-neutral-500 text-sm">Nothing logged. Ask Claude to sweep your inbox for job threads.</p> : null}
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Mail highlights</h3>
+      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
+      {!loading && highlights.length === 0 ? <p className="text-neutral-400 text-sm">Nothing logged. Ask Claude to sweep your inbox for job threads.</p> : null}
       <div className="space-y-2">
         {highlights.map((h) => (
           <div key={h.id} className="rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-semibold text-white text-sm truncate">{h.subject ?? h.sender ?? "Mail"}</div>
-                <div className="text-xs text-neutral-500 truncate">{[fmtDate(h.received_date), h.sender].filter(Boolean).join(" · ")}</div>
+                <div className="text-xs text-neutral-400 truncate">{[fmtDate(h.received_date), h.sender].filter(Boolean).join(" · ")}</div>
               </div>
-              <button onClick={() => removeHighlight(h)} className="text-neutral-600 hover:text-red-400 text-sm shrink-0" aria-label="Delete">✕</button>
+              <button onClick={() => removeHighlight(h)} className="text-neutral-500 hover:text-red-400 text-sm shrink-0" aria-label="Delete">✕</button>
             </div>
             <p className="text-sm text-neutral-300 mt-1.5">{h.note}</p>
             <div className="flex gap-3 mt-1.5 text-xs">
-              {h.job_id && jobById[h.job_id] ? <span className="text-neutral-500">{jobLabel(jobById[h.job_id])}</span> : null}
+              {h.job_id && jobById[h.job_id] ? <span className="text-neutral-400">{jobLabel(jobById[h.job_id])}</span> : null}
               {h.gmail_thread_id ? (
                 <a className="text-blue-400" target="_blank" rel="noopener"
                   href={`https://mail.google.com/mail/u/0/#all/${h.gmail_thread_id}`}>Open in Gmail →</a>

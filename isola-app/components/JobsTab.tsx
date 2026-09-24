@@ -5,6 +5,9 @@ import { Job, STATUS_META, PIPELINE, LOST_REASONS, stageTag, fmtDate, parsePrice
 import JobChecklist from "@/components/JobChecklist";
 import PipelineNumbers from "@/components/PipelineNumbers";
 import MyClock from "@/components/MyClock";import PunchList from "@/components/PunchList";
+import { useRef } from "react";
+import { undoable } from "@/components/Toaster";
+import { Phone, Navigation, Pencil, X, MapPin, Hammer, ThumbsUp, CalendarPlus, Play, CheckCircle2, FileText, Banknote, ArrowRight, Briefcase, Plus } from "lucide-react";
 const STATUSES = ["lead", "awaiting", "booked", "progress", "complete", "lost"] as const;const COST_CATEGORIES = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Subcontractor", "Permits", "Other"];
 const PATH: { key: string; label: string }[] = PIPELINE.map((k) => ({ key: k, label: STATUS_META[k].label }));
 // what each stage means, in plain words — shown under the section headers
@@ -47,15 +50,20 @@ function Section({ id, title, summary, defaultOpen, children }: {
   useEffect(() => {
     try { const v = localStorage.getItem(key); if (v != null) setOpen(v === "1"); } catch {}
   }, [key]);
+  useEffect(() => {
+    const on = (e: Event) => { if ((e as CustomEvent).detail === id) setOpen(true); };
+    window.addEventListener("isola:sec", on);
+    return () => window.removeEventListener("isola:sec", on);
+  }, [id]);
   function toggle() {
     setOpen((o) => { const n = !o; try { localStorage.setItem(key, n ? "1" : "0"); } catch {} return n; });
   }
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-950 overflow-hidden">
-      <button onClick={toggle} className="w-full flex items-center gap-2 px-3.5 py-3 text-left active:bg-neutral-900">
-        <span className="shrink-0 w-3 text-[10px] text-neutral-600">{open ? "▾" : "▸"}</span>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">{title}</span>
-        <span className="ml-auto pl-2 text-[11px] text-neutral-500 truncate text-right">{summary}</span>
+    <div id={"sec-" + id} className="rounded-xl border border-neutral-800 bg-neutral-950 overflow-hidden">
+      <button onClick={toggle} className="w-full flex items-center gap-2 px-3.5 min-h-[48px] text-left active:bg-neutral-900">
+        <span className="shrink-0 w-3 text-xs text-neutral-500">{open ? "▾" : "▸"}</span>
+        <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">{title}</span>
+        <span className="ml-auto pl-2 text-xs text-neutral-400 truncate text-right">{summary}</span>
       </button>
       {open ? <div className="px-3.5 pb-3.5 -mt-1">{children}</div> : null}
     </div>
@@ -151,6 +159,56 @@ export default function JobsTab() {
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
+
+  // v4.3 deep link: /?job=<id> opens that job file. Today, Money, Tasks, Build and the
+  // search box all link this way — before 9/23 the id was ignored and the list just opened.
+  const [deepId, setDeepId] = useState<string | null>(null);
+  useEffect(() => {
+    try { const id = new URLSearchParams(window.location.search).get("job"); if (id) setDeepId(id); } catch {}
+    const onOpen = (e: Event) => setDeepId(String((e as CustomEvent).detail));
+    const onChanged = () => load();
+    window.addEventListener("isola:open-job", onOpen);
+    window.addEventListener("isola:changed", onChanged);
+    return () => { window.removeEventListener("isola:open-job", onOpen); window.removeEventListener("isola:changed", onChanged); };
+  }, []);
+  useEffect(() => {
+    if (!deepId || loading) return;
+    const j = jobs.find((x) => x.id === deepId);
+    if (j) setViewing(j);
+    setDeepId(null);
+    try { window.history.replaceState(null, "", "/"); } catch {}
+  }, [deepId, loading, jobs]);
+
+  const panelRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLDivElement>(null);
+  // jump to a section of the job file: open it, then scroll it just under the sticky header
+  function jump(id: string) {
+    window.dispatchEvent(new CustomEvent("isola:sec", { detail: id }));
+    setTimeout(() => {
+      const box = panelRef.current, el = document.getElementById("sec-" + id);
+      if (!box) return;
+      const top = id === "top" || !el ? 0 : el.offsetTop - (headRef.current?.offsetHeight ?? 0) - 8;
+      box.scrollTo({ top, behavior: "smooth" });
+    }, 40);
+  }
+  useEffect(() => { panelRef.current?.scrollTo({ top: 0 }); }, [viewing?.id]);
+
+  // one-tap stage moves from the job header — applied right away, with Undo
+  function quick(patch: Record<string, any>, text: string) {
+    if (!viewing) return;
+    const before = viewing;
+    const id = viewing.id;
+    undoable({
+      text,
+      hide: () => setViewing({ ...before, ...patch } as Job),
+      restore: () => setViewing((cur) => (cur && cur.id === id ? before : cur)),
+      commit: async () => {
+        const { error } = await supabase.from("jobs").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+        if (error) alert("Save failed: " + error.message);
+        load();
+      },
+    });
+  }
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { lead: 0, booked: 0, progress: 0, awaiting: 0, complete: 0, lost: 0 };
@@ -334,10 +392,14 @@ export default function JobsTab() {
     setJtasks(jtasks.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)));
   }
 
-  async function removeTask(t: any) {
-    if (!confirm(`Delete task "${t.title}"?`)) return;
-    await supabase.from("tasks").delete().eq("id", t.id);
-    setJtasks(jtasks.filter((x) => x.id !== t.id));
+  function removeTask(t: any) {
+    const prev = jtasks;
+    undoable({
+      text: "Task deleted",
+      hide: () => setJtasks(prev.filter((x) => x.id !== t.id)),
+      restore: () => setJtasks(prev),
+      commit: () => supabase.from("tasks").delete().eq("id", t.id),
+    });
   }
 
   async function addPhoto(file: File, phase: string) {
@@ -389,10 +451,14 @@ export default function JobsTab() {
     setPhotoBusy(false);
   }
 
-  async function removePhoto(id: string) {
-    if (!confirm("Delete this photo?")) return;
-    await supabase.from("job_photos").delete().eq("id", id);
-    setPhotos(photos.filter((p) => p.id !== id));
+  function removePhoto(id: string) {
+    const prev = photos;
+    undoable({
+      text: "Photo deleted",
+      hide: () => setPhotos(prev.filter((p) => p.id !== id)),
+      restore: () => setPhotos(prev),
+      commit: () => supabase.from("job_photos").delete().eq("id", id),
+    });
   }
 
   async function cyclePhase(p: any) {
@@ -427,11 +493,14 @@ export default function JobsTab() {
     setLabor(labor.map((x) => (x.id === l.id ? { ...x, paid: !x.paid } : x)));
   }
 
-  async function removeLabor(l: any) {
-    if (!confirm(`Delete ${l.worker}'s ${Number(l.hours)}h entry?`)) return;
-    await supabase.from("job_costs").delete().eq("id", l.id);
-    setLabor(labor.filter((x) => x.id !== l.id));
-    load();
+  function removeLabor(l: any) {
+    const prev = labor;
+    undoable({
+      text: `${l.worker ?? "Labor"} ${Number(l.hours)}h deleted`,
+      hide: () => setLabor(prev.filter((x) => x.id !== l.id)),
+      restore: () => setLabor(prev),
+      commit: async () => { await supabase.from("job_costs").delete().eq("id", l.id); load(); },
+    });
   }
 
   async function reloadJcosts() {
@@ -506,11 +575,14 @@ export default function JobsTab() {
     load();
   }
 
-  async function removeJobCost(c: any) {
-    if (!confirm("Delete this cost entry?")) return;
-    await supabase.from("job_costs").delete().eq("id", c.id);
-    setJcosts(jcosts.filter((x: any) => x.id !== c.id));
-    load();
+  function removeJobCost(c: any) {
+    const prev = jcosts;
+    undoable({
+      text: "Cost deleted",
+      hide: () => setJcosts(prev.filter((x: any) => x.id !== c.id)),
+      restore: () => setJcosts(prev),
+      commit: async () => { await supabase.from("job_costs").delete().eq("id", c.id); load(); },
+    });
   }
 
   async function downloadJobbook() {
@@ -553,14 +625,15 @@ export default function JobsTab() {
   }
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1";
+  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
 
   return (
-    <div>
+    <div className="lg:grid lg:grid-cols-[minmax(340px,1fr)_minmax(440px,1.1fr)] lg:gap-5 lg:items-start">
+      <div className="min-w-0">
       {/* PIPELINE — Selling (not yet won) | Doing (won work) */}
       <div className="grid grid-cols-5 gap-1.5 mb-1 px-0.5">
-        <div className="col-span-2 text-[9px] font-bold uppercase tracking-widest text-violet-300/80">Selling</div>
-        <div className="col-span-3 text-[9px] font-bold uppercase tracking-widest text-blue-300/80 pl-1">Doing</div>
+        <div className="col-span-2 text-xs font-bold uppercase tracking-widest text-violet-300/80">Selling</div>
+        <div className="col-span-3 text-xs font-bold uppercase tracking-widest text-blue-300/80 pl-1">Doing</div>
       </div>
       <div className="grid grid-cols-5 gap-1.5 mb-3">
         {PIPELINE.map((s, i) => {
@@ -571,12 +644,12 @@ export default function JobsTab() {
           const subLabel = s === "complete" ? "to collect" : s === "booked" ? "no date" : s === "awaiting" ? "stale" : s === "lead" ? "to walk" : "";
           return (
             <button key={s} onClick={() => setStatusFilter(statusFilter === s ? "active" : s)}
-              className={`rounded-xl border border-b-2 p-2 text-center ${i === 2 ? "ml-1" : ""} ${statusFilter === s ? "border-neutral-400 bg-neutral-800" : "border-neutral-800 bg-neutral-900"}`}
+              className={`min-w-0 rounded-xl border border-b-2 px-1 py-2 text-center ${i === 2 ? "ml-1" : ""} ${statusFilter === s ? "border-neutral-400 bg-neutral-800" : "border-neutral-800 bg-neutral-900"}`}
 >
               <div className="flex justify-center mb-1"><span className={`w-1.5 h-1.5 rounded-full ${DOTBG[s]}`} /></div>
-              <div className="text-lg font-bold text-white leading-none">{counts[s]}</div>
-              <div className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-400 leading-tight">{STATUS_META[s].label}</div>
-              {sub ? <div className={`mt-0.5 text-[9px] leading-tight ${s === "complete" ? "text-red-300" : "text-amber-300"}`}>{sub} {subLabel}</div> : <div className="mt-0.5 text-[9px] leading-tight text-transparent">·</div>}
+              <div className="text-xl font-bold text-white leading-none">{counts[s]}</div>
+              <div className="mt-1 text-[12px] font-semibold text-neutral-300 leading-tight">{STATUS_META[s].label}</div>
+              {sub ? <div className={`mt-0.5 text-[11px] leading-tight ${s === "complete" ? "text-red-300" : "text-amber-300"}`}>{sub} {subLabel}</div> : <div className="mt-0.5 text-[11px] leading-tight text-transparent">·</div>}
             </button>
           );
         })}
@@ -589,14 +662,24 @@ export default function JobsTab() {
         <button onClick={() => setStatusFilter(statusFilter === "all" ? "active" : "all")} className={`shrink-0 rounded-lg border px-2.5 text-xs font-semibold ${statusFilter === "all" ? "border-neutral-400 text-white" : "border-neutral-700 text-neutral-400"}`}>
           {statusFilter === "all" ? "All" : "Active"}
         </button>
-        <button onClick={() => setStatusFilter(statusFilter === "lost" ? "active" : "lost")} className={`shrink-0 rounded-lg border px-2.5 text-xs font-semibold ${statusFilter === "lost" ? "border-red-400/60 text-red-300" : "border-neutral-700 text-neutral-500"}`}>
+        <button onClick={() => setStatusFilter(statusFilter === "lost" ? "active" : "lost")} className={`shrink-0 rounded-lg border px-2.5 text-xs font-semibold ${statusFilter === "lost" ? "border-red-400/60 text-red-300" : "border-neutral-700 text-neutral-400"}`}>
           Lost{counts.lost ? ` ${counts.lost}` : ""}
         </button>
         <button onClick={() => startEdit("new")} className="shrink-0 rounded-lg bg-white text-neutral-900 px-3 text-sm font-semibold">+ Job</button>
       </div>
 
-      {loading ? <p className="text-neutral-500 text-sm">Loading…</p> : null}
-      {!loading && shown.length === 0 ? <p className="text-neutral-500 text-sm">{statusFilter === "lost" ? "Nothing in the archive." : "No jobs match."}</p> : null}
+      {loading ? (
+        <div className="space-y-2">{[0, 1, 2, 3].map((i) => <div key={i} className="h-[72px] rounded-xl bg-neutral-900 border border-neutral-800 animate-pulse" />)}</div>
+      ) : null}
+      {!loading && shown.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-neutral-700 px-5 py-8 text-center">
+          <Briefcase size={28} className="mx-auto text-neutral-400" />
+          <p className="mt-2 text-base font-semibold text-white">{statusFilter === "lost" ? "Nothing in the archive" : q ? `No jobs match “${q}”` : "No jobs here"}</p>
+          <p className="mt-1 text-sm text-neutral-400">{q ? "Try a customer name, street, or work type." : statusFilter !== "active" ? "Tap the stage again to see all active jobs." : "Add a lead or a job to get started."}</p>
+          {q ? <button onClick={() => setQ("")} className="mt-3 rounded-lg border border-neutral-600 px-4 min-h-[40px] text-sm font-semibold text-white">Clear search</button>
+            : <button onClick={() => startEdit("new")} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white text-neutral-900 px-4 min-h-[40px] text-sm font-bold"><Plus size={16} /> New job</button>}
+        </div>
+      ) : null}
 
       <div className="space-y-5">
         {(() => {
@@ -617,7 +700,7 @@ export default function JobsTab() {
                   {[j.job_name ? j.customer : j.location, j.job].filter(Boolean).join(" · ") || "—"}
                 </div>
                 {nx && j.status !== "lost" ? (
-                  <div className={`mt-1 text-[11px] truncate ${overdue ? "text-red-400" : "text-neutral-300"}`}>
+                  <div className={`mt-1 text-xs truncate ${overdue ? "text-red-400" : "text-neutral-300"}`}>
                     → {nx.title}{nx.due_date ? ` · ${overdue ? "overdue " : ""}${fmtDate(nx.due_date).replace(/^\w+, /, "")}` : ""}
                   </div>
                 ) : null}
@@ -629,14 +712,14 @@ export default function JobsTab() {
                   return (
                     <div className="mt-1.5 pr-2">
                       <div className="h-1.5 rounded-full bg-neutral-800 overflow-hidden"><div className={`h-full ${pct >= 90 ? "bg-red-400" : pct >= 70 ? "bg-amber-400" : "bg-emerald-400"}`} style={{ width: pct + "%" }} /></div>
-                      <div className="text-[10px] text-neutral-500 mt-0.5">${spent.toLocaleString()} spent · {pct}% of price</div>
+                      <div className="text-xs text-neutral-400 mt-0.5">${spent.toLocaleString()} spent · {pct}% of price</div>
                     </div>
                   );
                 })()}
               </div>
               <div className="shrink-0 text-right">
                 {j.price ? <div className="font-bold text-white tabular-nums text-sm">{j.price}</div> : null}
-                {tag ? <div className={`mt-0.5 text-[10px] font-bold uppercase tracking-wide ${tag.cls}`}>{tag.text}</div> : null}
+                {tag ? <div className={`mt-0.5 text-xs font-bold uppercase tracking-wide ${tag.cls}`}>{tag.text}</div> : null}
               </div>
             </div>
           </button>
@@ -660,9 +743,9 @@ export default function JobsTab() {
                 <button onClick={() => setCollapsed({ ...collapsed, [key]: open })} className="w-full flex items-baseline gap-2 pb-1.5 text-left">
                   <span className={`w-2 h-2 rounded-full self-center ${DOTBG[st]}`} />
                   <span className="text-[12px] font-extrabold uppercase tracking-widest text-white">{STATUS_META[st].label}</span>
-                  <span className="text-[11px] font-semibold text-neutral-500">{list.length}</span>
-                  <span className="ml-1 text-[10px] text-neutral-500 truncate">{STAGE_HINT[st]}</span>
-                  <span className="ml-auto text-[10px] text-neutral-600">{open ? "▾" : "▸"}</span>
+                  <span className="text-xs font-semibold text-neutral-400">{list.length}</span>
+                  <span className="ml-1 text-xs text-neutral-400 truncate">{STAGE_HINT[st]}</span>
+                  <span className="ml-auto text-xs text-neutral-500">{open ? "▾" : "▸"}</span>
                 </button>
                 {open ? <div className="space-y-2">{list.map(jobCard)}</div> : null}
               </div>
@@ -671,48 +754,117 @@ export default function JobsTab() {
         })()}
       </div>
 
+      </div>
+
       {viewing ? (() => {
         const v = { ...viewing, ...draft } as Job;
         const curIdx = PATH.findIndex((p) => p.key === v.status);
         const tel = (v.contact_phone ?? "").replace(/[^0-9+]/g, "");
         return (
-          <div className="fixed inset-0 z-40 bg-black/80 flex items-end sm:items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) closeViewing(); }}>
-            <div className="w-full max-w-lg max-h-[94vh] overflow-y-auto bg-neutral-900 border border-neutral-800 rounded-t-2xl sm:rounded-2xl">
-              <div className="sticky top-0 bg-neutral-900 border-b border-neutral-800 px-5 pt-4 pb-3 z-10">
-                <div className="flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold text-white leading-tight">{v.priority ? <span className="text-amber-300 mr-1">★</span> : null}{v.job_name || v.customer}</div>
-                    <div className="text-xs text-neutral-400 truncate">{[v.customer, v.location, v.job].filter(Boolean).join(" · ") || "—"}</div>
-                    <div className="text-[10px] text-neutral-500 mt-0.5">{STATUS_META[v.status].label}{v.price ? ` · ${v.price}` : ""}</div>
-                  </div>
-                  <button onClick={closeViewing} className="shrink-0 text-neutral-500 hover:text-white text-lg leading-none px-1">✕</button>
-                </div>
-                <div className="grid grid-cols-4 gap-2 mt-3">
-                  {tel.length >= 7 ? (
-                    <a href={`tel:${tel.slice(0, 11)}`} className="rounded-lg bg-white text-neutral-900 py-1.5 text-center text-xs font-bold">📞 Call</a>
-                  ) : <span className="rounded-lg border border-neutral-800 py-1.5 text-center text-xs text-neutral-600">📞 Call</span>}
-                  {v.location ? (
-                    <a href={`https://maps.google.com/?q=${encodeURIComponent(v.location)}`} target="_blank" rel="noreferrer" className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">🧭 Map</a>
-                  ) : <span className="rounded-lg border border-neutral-800 py-1.5 text-center text-xs text-neutral-600">🧭 Map</span>}
-                  <a href="/costs" className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">🧾 Costs</a>
-                  <button onClick={() => { setViewing(null); startEdit(v); }} className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">✏️ Edit</button>
-                </div>
-                {Object.keys(draft).length ? (
-                  <div className="flex gap-2 mt-2">
-                    <button onClick={saveDraft} className="flex-1 rounded-lg bg-emerald-400 text-neutral-900 py-2 text-sm font-bold">💾 Save changes</button>
-                    <button onClick={() => setDraft({})} className="rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-300">Discard</button>
-                  </div>
-                ) : savedFlash ? (
-                  <div className="mt-2 text-center text-xs font-bold text-emerald-300">✓ Saved</div>
-                ) : null}
+          <div className="fixed inset-0 z-40 bg-black/80 flex items-end sm:items-center justify-center lg:sticky lg:inset-auto lg:top-[77px] lg:z-auto lg:bg-transparent lg:block" onClick={(e) => { if (e.target === e.currentTarget) closeViewing(); }}>
+            <div ref={panelRef} className="relative w-full max-w-lg max-h-[94vh] overflow-y-auto bg-neutral-900 border border-neutral-800 rounded-t-2xl sm:rounded-2xl lg:max-w-none lg:max-h-[calc(100vh-93px)]">
+              <div ref={headRef} className="sticky top-0 bg-neutral-900 border-b border-neutral-800 px-4 pt-3 pb-2.5 z-10">
+                {(() => {
+                  // v4.3 job header: stage, the money at a glance, and the one thing to do next
+                  const priceN = parsePrice(v.price);
+                  const spent = costs[v.id] ?? 0;
+                  const margin = priceN ? priceN - spent : null;
+                  const mPct = priceN ? Math.round(((priceN - spent) / priceN) * 100) : null;
+                  const today = new Date().toISOString().slice(0, 10);
+                  const vv: any = v;
+                  type Step = { label: string; Icon: any; run: () => void } | null;
+                  const go = (href: string) => () => { window.location.href = href; };
+                  const step: Step =
+                    v.status === "lead" ? (!ctx.walked.has(v.id) ? { label: "Log the site visit", Icon: MapPin, run: go("/visits") }
+                      : ctx.drafting.has(v.id) ? { label: "Finish the proposal", Icon: Hammer, run: go("/build") }
+                      : { label: "Price it — start a build", Icon: Hammer, run: go("/build") })
+                    : v.status === "awaiting" ? { label: "They said yes — mark Booked", Icon: ThumbsUp, run: () => quick({ status: "booked" }, "Moved to Booked") }
+                    : v.status === "booked" ? (!jsched.length ? { label: "Put it on the schedule", Icon: CalendarPlus, run: () => jump("schedule") }
+                      : { label: "Crew started — In Progress", Icon: Play, run: () => quick({ status: "progress" }, "Moved to In Progress") })
+                    : v.status === "progress" ? { label: "Work's done — mark Complete", Icon: CheckCircle2, run: () => quick({ status: "complete", completed_date: vv.completed_date ?? today }, "Marked Complete") }
+                    : v.status === "complete" ? (!vv.invoiced_date ? { label: "Mark invoiced", Icon: FileText, run: () => quick({ invoiced_date: today }, "Marked invoiced") }
+                      : !vv.paid_date ? { label: "Mark paid", Icon: Banknote, run: () => quick({ paid_date: today }, "Marked paid") }
+                      : null)
+                    : null;
+                  const JUMP = [
+                    { id: "top", label: "Status" }, { id: "schedule", label: "Schedule" }, { id: "money", label: "Money" },
+                    { id: "costs", label: "Costs" }, { id: "labor", label: "Labor" }, { id: "tasks", label: "Tasks" },
+                    { id: "photos", label: "Photos" }, { id: "jobbook", label: "Jobbook" },
+                  ];
+                  const btn = "inline-flex items-center justify-center gap-1.5 rounded-lg border min-h-[44px] text-sm font-semibold";
+                  return (
+                    <>
+                      <div className="flex items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-bold ${STATUS_META[v.status].cls}`}>{STATUS_META[v.status].label}</span>
+                            {vv.paid_date ? <span className="inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-300">Paid</span>
+                              : vv.invoiced_date ? <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-xs font-bold text-amber-300">Invoiced</span> : null}
+                          </div>
+                          <div className="mt-1 text-lg font-bold text-white leading-tight">{v.priority ? <span className="text-amber-300 mr-1">★</span> : null}{v.job_name || v.customer}</div>
+                          <div className="text-sm text-neutral-400 truncate">{[v.customer, v.location, v.job].filter(Boolean).join(" · ") || "—"}</div>
+                        </div>
+                        <button onClick={closeViewing} aria-label="Close job" className="shrink-0 -mr-2 -mt-1 w-11 h-11 flex items-center justify-center text-neutral-400 hover:text-white"><X size={22} /></button>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-1.5 mt-2.5">
+                        <div className="rounded-lg bg-neutral-950 border border-neutral-800 px-2.5 py-1.5">
+                          <div className="text-xs text-neutral-400">Contract</div>
+                          <div className="text-base font-bold tabular-nums text-white truncate">{priceN ? "$" + priceN.toLocaleString() : (v.price || "—")}</div>
+                        </div>
+                        <div className="rounded-lg bg-neutral-950 border border-neutral-800 px-2.5 py-1.5">
+                          <div className="text-xs text-neutral-400">Spent</div>
+                          <div className="text-base font-bold tabular-nums text-white">${spent.toLocaleString()}</div>
+                        </div>
+                        <div className="rounded-lg bg-neutral-950 border border-neutral-800 px-2.5 py-1.5">
+                          <div className="text-xs text-neutral-400">Margin</div>
+                          <div className={`text-base font-bold tabular-nums ${mPct == null ? "text-neutral-400" : mPct < 10 ? "text-red-400" : mPct < 30 ? "text-amber-300" : "text-emerald-300"}`}>
+                            {margin == null ? "—" : `$${Math.round(margin).toLocaleString()}`}{mPct != null ? <span className="text-xs font-semibold"> {mPct}%</span> : null}
+                          </div>
+                        </div>
+                      </div>
+
+                      {step ? (
+                        <button onClick={step.run} className="mt-2.5 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-white text-neutral-900 min-h-[48px] text-base font-bold active:scale-[.99]">
+                          <step.Icon size={20} strokeWidth={2.4} /> {step.label} <ArrowRight size={18} className="opacity-60" />
+                        </button>
+                      ) : null}
+
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        {tel.length >= 7 ? (
+                          <a href={`tel:${tel.slice(0, 11)}`} className={`${btn} border-neutral-600 text-white`}><Phone size={16} /> Call</a>
+                        ) : <span className={`${btn} border-neutral-800 text-neutral-500`}><Phone size={16} /> Call</span>}
+                        {v.location ? (
+                          <a href={`https://maps.google.com/?q=${encodeURIComponent(v.location)}`} target="_blank" rel="noreferrer" className={`${btn} border-neutral-600 text-white`}><Navigation size={16} /> Map</a>
+                        ) : <span className={`${btn} border-neutral-800 text-neutral-500`}><Navigation size={16} /> Map</span>}
+                        <button onClick={() => { setViewing(null); startEdit(v); }} className={`${btn} border-neutral-600 text-white`}><Pencil size={16} /> Edit</button>
+                      </div>
+
+                      {Object.keys(draft).length ? (
+                        <div className="flex gap-2 mt-2">
+                          <button onClick={saveDraft} className="flex-1 rounded-lg bg-emerald-400 text-neutral-900 min-h-[44px] text-sm font-bold">Save changes</button>
+                          <button onClick={() => setDraft({})} className="rounded-lg border border-neutral-700 px-4 min-h-[44px] text-sm text-neutral-300">Discard</button>
+                        </div>
+                      ) : savedFlash ? (
+                        <div className="mt-2 text-center text-sm font-bold text-emerald-300">✓ Saved</div>
+                      ) : null}
+
+                      <div className="flex gap-1.5 overflow-x-auto mt-2.5 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {JUMP.map((j) => (
+                          <button key={j.id} onClick={() => jump(j.id)} className="shrink-0 rounded-full border border-neutral-700 px-3 min-h-[34px] text-sm font-semibold text-neutral-300 hover:border-neutral-500 hover:text-white">{j.label}</button>
+                        ))}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
-              <div className="px-5 py-4 space-y-4">
+              <div className="px-4 py-4 space-y-4">
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Job status</div>
+                  <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Job status</div>
                   <div className="flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none]">
                     {PATH.map((s, i) => (
                       <button key={s.key} onClick={() => setStatus(v, s.key)}
-                        className={`shrink-0 px-3 py-1.5 text-[11px] font-semibold first:rounded-l-lg last:rounded-r-lg ${i <= curIdx && curIdx >= 0 ? (i === curIdx ? "bg-white text-neutral-900" : "bg-neutral-600 text-white") : "bg-neutral-800 text-neutral-500"}`}>
+                        className={`shrink-0 px-3 py-1.5 text-xs font-semibold first:rounded-l-lg last:rounded-r-lg ${i <= curIdx && curIdx >= 0 ? (i === curIdx ? "bg-white text-neutral-900" : "bg-neutral-600 text-white") : "bg-neutral-800 text-neutral-400"}`}>
                         {i < curIdx ? "✓ " : ""}{s.label}
                       </button>
                     ))}
@@ -720,21 +872,21 @@ export default function JobsTab() {
                   {v.status === "lost" ? (
                     <div className="mt-2 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2">
                       <span className="text-xs text-red-300 font-semibold">Lost{(v as any).lost_reason ? ` — ${(v as any).lost_reason}` : ""}{(v as any).lost_date ? ` · ${fmtDate((v as any).lost_date)}` : ""}</span>
-                      <span className="ml-auto text-[10px] text-neutral-500">Tap a stage above to reopen</span>
+                      <span className="ml-auto text-xs text-neutral-400">Tap a stage above to reopen</span>
                     </div>
                   ) : lostPick ? (
                     <div className="mt-2 rounded-lg border border-neutral-700 p-2">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Why was it lost?</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Why was it lost?</div>
                       <div className="flex flex-wrap gap-1.5">
                         {LOST_REASONS.map((r) => (
                           <button key={r} onClick={() => { setDraft({ ...draft, status: "lost", lost_reason: r }); }}
-                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${(draft as any).lost_reason === r ? "bg-red-400 text-neutral-900 border-red-400" : "border-neutral-700 text-neutral-300"}`}>{r}</button>
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${(draft as any).lost_reason === r ? "bg-red-400 text-neutral-900 border-red-400" : "border-neutral-700 text-neutral-300"}`}>{r}</button>
                         ))}
-                        <button onClick={() => { setLostPick(false); const d: any = { ...draft }; delete d.lost_reason; if (d.status === "lost") delete d.status; setDraft(d); }} className="px-2.5 py-1 text-[11px] text-neutral-500">Cancel</button>
+                        <button onClick={() => { setLostPick(false); const d: any = { ...draft }; delete d.lost_reason; if (d.status === "lost") delete d.status; setDraft(d); }} className="px-2.5 py-1 text-xs text-neutral-400">Cancel</button>
                       </div>
                     </div>
                   ) : (
-                    <button onClick={() => setLostPick(true)} className="mt-1.5 text-[11px] font-semibold text-neutral-500 hover:text-red-300">✕ Mark lost / declined</button>
+                    <button onClick={() => setLostPick(true)} className="mt-1.5 text-xs font-semibold text-neutral-400 hover:text-red-300">✕ Mark lost / declined</button>
                   )}
                 </div>
                 <Section id="schedule" title="📅 Schedule"
@@ -743,13 +895,13 @@ export default function JobsTab() {
                   {jsched.length ? (
                     <div className="flex flex-wrap gap-1.5 mb-2.5">
                       {jsched.map((e: any) => (
-                        <span key={e.id} className="inline-flex items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200">
+                        <span key={e.id} className="inline-flex items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200">
                           {fmtDate(e.entry_date)}{e.assignee ? ` · ${e.assignee}` : ""}
-                          <button onClick={() => unschedule(e)} className="text-neutral-500 hover:text-red-400" aria-label="Remove day">✕</button>
+                          <button onClick={() => unschedule(e)} className="text-neutral-400 hover:text-red-400" aria-label="Remove day">✕</button>
                         </span>
                       ))}
                     </div>
-                  ) : <p className="text-xs text-neutral-500 mb-2">Not on the calendar yet.</p>}
+                  ) : <p className="text-xs text-neutral-400 mb-2">Not on the calendar yet.</p>}
                   <div className="grid grid-cols-[1fr_auto_auto] gap-2">
                     <input type="date" className={input} value={sForm.date} onChange={(e) => setSForm({ ...sForm, date: e.target.value })} />
                     <select className="rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-2 text-sm" value={sForm.days} onChange={(e) => setSForm({ ...sForm, days: Number(e.target.value) })}>
@@ -761,35 +913,35 @@ export default function JobsTab() {
                     </select>
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    <label className="flex items-center gap-1.5 text-[11px] text-neutral-400">
+                    <label className="flex items-center gap-1.5 text-xs text-neutral-400">
                       <input type="checkbox" checked={sForm.skipWknd} onChange={(e) => setSForm({ ...sForm, skipWknd: e.target.checked })} /> skip weekends
                     </label>
                     <button disabled={sBusy} onClick={addToSchedule} className="rounded-lg bg-white text-neutral-900 px-4 py-1.5 text-xs font-bold disabled:opacity-50">{sBusy ? "Adding…" : "📅 Add to schedule"}</button>
                   </div>
-                  <a href="/schedule" className="block mt-2 text-[11px] text-blue-300">Open the calendar →</a>
+                  <a href="/schedule" className="block mt-2 text-xs text-blue-300">Open the calendar →</a>
                 </Section>
                 <Section id="proposal" title="Proposal" summary={<>{(v as any).proposal_status ? String((v as any).proposal_status) : "not sent"}</>} defaultOpen={!!(v as any).proposal_status}>
                   <div className="flex gap-1.5 flex-wrap">
                     {["sent", "signed", "declined"].map((p) => (
                       <button key={p} onClick={() => { if (p === "declined" && (v as any).proposal_status !== "declined") { setLostPick(true); setDraft({ ...draft, proposal_status: "declined", status: "lost" }); return; } setProposal(v, (v as any).proposal_status === p ? "none" : p); }}
-                        className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border ${(v as any).proposal_status === p ? "bg-white text-neutral-900 border-white" : "border-neutral-700 text-neutral-300"}`}>
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${(v as any).proposal_status === p ? "bg-white text-neutral-900 border-white" : "border-neutral-700 text-neutral-300"}`}>
                         {p === "sent" ? "📤 Sent" : p === "signed" ? "✍️ Signed" : "🚫 Declined"}
                       </button>
                     ))}
                   </div>
                   {(v as any).proposal_status === "sent" && v.quoted_date ? (() => {
                     const days = Math.floor((Date.now() - new Date(v.quoted_date + "T12:00:00").getTime()) / 86400000);
-                    return <p className={`text-xs mt-1.5 ${days > 30 ? "text-red-400" : days > 14 ? "text-amber-300" : "text-neutral-500"}`}>Sent {fmtDate(v.quoted_date)} — {days} days out{days > 30 ? " · past 30-day validity" : days > 14 ? " · getting stale, check in" : ""}</p>;
+                    return <p className={`text-xs mt-1.5 ${days > 30 ? "text-red-400" : days > 14 ? "text-amber-300" : "text-neutral-400"}`}>Sent {fmtDate(v.quoted_date)} — {days} days out{days > 30 ? " · past 30-day validity" : days > 14 ? " · getting stale, check in" : ""}</p>;
                   })() : null}
                 </Section>
                 <Section id="money" title="Money" summary={<>{(() => { const p = parsePrice(v.price); const sp = costs[v.id] ?? 0; return p ? `${v.price} · $${sp.toLocaleString()} spent` : (sp ? `$${sp.toLocaleString()} spent` : "no price"); })()}</>} defaultOpen={true}>
                   <div className="flex gap-1.5 flex-wrap">
                     <button onClick={() => setMoney(v, "invoiced_date", (v as any).invoiced_date ? null : new Date().toISOString().slice(0, 10))}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border ${(v as any).invoiced_date ? "bg-white text-neutral-900 border-white" : "border-neutral-700 text-neutral-300"}`}>
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${(v as any).invoiced_date ? "bg-white text-neutral-900 border-white" : "border-neutral-700 text-neutral-300"}`}>
                       🧾 Invoiced{(v as any).invoiced_date ? " " + fmtDate((v as any).invoiced_date) : ""}
                     </button>
                     <button onClick={() => setMoney(v, "paid_date", (v as any).paid_date ? null : new Date().toISOString().slice(0, 10))}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border ${(v as any).paid_date ? "bg-emerald-400 text-neutral-900 border-emerald-400" : "border-neutral-700 text-neutral-300"}`}>
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${(v as any).paid_date ? "bg-emerald-400 text-neutral-900 border-emerald-400" : "border-neutral-700 text-neutral-300"}`}>
                       💵 Paid{(v as any).paid_date ? " " + fmtDate((v as any).paid_date) : ""}
                     </button>
                   </div>
@@ -807,20 +959,20 @@ export default function JobsTab() {
                   })()}
                 </Section>
                 <Section id="details" title="Details" summary={<>{v.price || "—"}</>} defaultOpen={false}>
-                  {v.price ? <p><span className="text-neutral-500">Price: </span><span className="text-white font-semibold">{v.price}</span></p> : null}
-                  {v.contact_name || v.contact_phone ? <p><span className="text-neutral-500">Contact: </span><span className="text-neutral-200">{[v.contact_name, v.contact_phone].filter(Boolean).join(" · ")}</span></p> : null}
-                  {v.quoted_date ? <p><span className="text-neutral-500">Quoted: </span><span className="text-neutral-200">{fmtDate(v.quoted_date)}</span></p> : null}
-                  {v.completed_date ? <p><span className="text-neutral-500">Completed: </span><span className="text-neutral-200">{fmtDate(v.completed_date)}</span></p> : null}
-                  {v.scope_of_work ? <p className="whitespace-pre-wrap text-xs leading-relaxed"><span className="text-neutral-500">Scope: </span><span className="text-neutral-300">{v.scope_of_work}</span></p> : null}
-                  {v.notes ? <p className="whitespace-pre-wrap text-xs leading-relaxed"><span className="text-neutral-500">Notes: </span><span className="text-neutral-300">{v.notes}</span></p> : null}
+                  {v.price ? <p><span className="text-neutral-400">Price: </span><span className="text-white font-semibold">{v.price}</span></p> : null}
+                  {v.contact_name || v.contact_phone ? <p><span className="text-neutral-400">Contact: </span><span className="text-neutral-200">{[v.contact_name, v.contact_phone].filter(Boolean).join(" · ")}</span></p> : null}
+                  {v.quoted_date ? <p><span className="text-neutral-400">Quoted: </span><span className="text-neutral-200">{fmtDate(v.quoted_date)}</span></p> : null}
+                  {v.completed_date ? <p><span className="text-neutral-400">Completed: </span><span className="text-neutral-200">{fmtDate(v.completed_date)}</span></p> : null}
+                  {v.scope_of_work ? <p className="whitespace-pre-wrap text-xs leading-relaxed"><span className="text-neutral-400">Scope: </span><span className="text-neutral-300">{v.scope_of_work}</span></p> : null}
+                  {v.notes ? <p className="whitespace-pre-wrap text-xs leading-relaxed"><span className="text-neutral-400">Notes: </span><span className="text-neutral-300">{v.notes}</span></p> : null}
                 </Section>
                 <MyClock jobId={v.id} compact />
                 <JobChecklist jobId={v.id} jobType={v.job} />
                 <Section id="jobbook" title="Jobbook" summary={<>{jobbook ? "saved" : "none"}</>} defaultOpen={!!jobbook}>
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
-                      {jobbook?.file_b64 ? <button onClick={downloadJobbook} className="text-[11px] font-semibold text-white border border-neutral-600 rounded-lg px-2.5 py-1">⬇︎ Download</button> : null}
-                      <label className="text-[11px] font-semibold text-white border border-neutral-600 rounded-lg px-2.5 py-1 cursor-pointer">
+                      {jobbook?.file_b64 ? <button onClick={downloadJobbook} className="text-xs font-semibold text-white border border-neutral-600 rounded-lg px-2.5 py-1">⬇︎ Download</button> : null}
+                      <label className="text-xs font-semibold text-white border border-neutral-600 rounded-lg px-2.5 py-1 cursor-pointer">
                         {jbBusy ? "Uploading…" : jobbook?.file_b64 ? "⬆︎ Replace file" : "⬆︎ Upload xlsx"}
                         <input type="file" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadJobbookFile(f); e.target.value = ""; }} />
                       </label>
@@ -831,16 +983,16 @@ export default function JobsTab() {
                       <div className="space-y-1">
                         {(jobbook.summary?.rows ?? []).map((r: any, i: number) => (
                           <div key={i} className="flex justify-between gap-3 text-sm">
-                            <span className="text-neutral-500">{r.label}</span>
+                            <span className="text-neutral-400">{r.label}</span>
                             <span className={`font-semibold tabular-nums text-right ${r.highlight ? "text-emerald-300" : "text-white"}`}>{r.value}</span>
                           </div>
                         ))}
                       </div>
-                      {jobbook.summary?.note ? <p className="text-xs text-neutral-500 mt-2">{jobbook.summary.note}</p> : null}
-                      <p className="text-[10px] text-neutral-600 mt-2">Updated {new Date(jobbook.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                      {jobbook.summary?.note ? <p className="text-xs text-neutral-400 mt-2">{jobbook.summary.note}</p> : null}
+                      <p className="text-xs text-neutral-500 mt-2">Updated {new Date(jobbook.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
                     </div>
                   ) : (
-                    <p className="text-xs text-neutral-600">No jobbook yet — ask Claude to build one for this job and its snapshot will show here.</p>
+                    <p className="text-xs text-neutral-500">No jobbook yet — ask Claude to build one for this job and its snapshot will show here.</p>
                   )}
                 </Section>
                 <Section id="costs" title="Materials & costs" summary={<>{jcosts.length ? `$${jcosts.reduce((a: number, c: any) => a + Number(c.amount ?? 0), 0).toLocaleString()} · ${jcosts.length}` : "none"}</>} defaultOpen={jcosts.length > 0}>
@@ -853,15 +1005,15 @@ export default function JobsTab() {
                           ) : null}
                           <div className="min-w-0 flex-1">
                             <div className="text-sm font-semibold text-white truncate">{c.vendor ?? "Receipt — needs details"}</div>
-                            <div className="text-xs text-neutral-500 truncate">{fmtDate(c.entry_date)} · {c.category ?? "—"}{c.notes ? ` · ${c.notes}` : ""}</div>
+                            <div className="text-xs text-neutral-400 truncate">{fmtDate(c.entry_date)} · {c.category ?? "—"}{c.notes ? ` · ${c.notes}` : ""}</div>
                           </div>
-                          {c.status === "pending" ? <span className="shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-300">CLAUDE</span> : null}
+                          {c.status === "pending" ? <span className="shrink-0 text-xs font-bold px-2 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-300">CLAUDE</span> : null}
                           <div className="shrink-0 text-sm font-bold tabular-nums text-white">${Number(c.amount ?? 0).toLocaleString()}</div>
-                          <button onClick={() => removeJobCost(c)} className="shrink-0 text-neutral-600 hover:text-red-400 text-xs">✕</button>
+                          <button onClick={() => removeJobCost(c)} className="shrink-0 text-neutral-500 hover:text-red-400 text-xs">✕</button>
                         </div>
                       ))}
                     </div>
-                  ) : <p className="text-xs text-neutral-600 mb-2">No material or other costs logged yet.</p>}
+                  ) : <p className="text-xs text-neutral-500 mb-2">No material or other costs logged yet.</p>}
                   <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-3 space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                       <input className={input} placeholder="Vendor" value={cForm.vendor} onChange={(e) => setCForm({ ...cForm, vendor: e.target.value })} />
@@ -889,7 +1041,7 @@ export default function JobsTab() {
                       )}
                     </div>
                     <button onClick={addJobCost} disabled={cBusy} className="w-full rounded-lg bg-white text-neutral-900 py-2 text-xs font-bold disabled:opacity-60">{cBusy ? "Saving…" : "+ Log cost"}</button>
-                    <p className="text-[10px] text-neutral-600">Shoot it or pick from your roll, leave vendor/amount blank — it saves as pending and Claude fills it in. Several photos at once each save separately. Tax stays in the total.</p>
+                    <p className="text-xs text-neutral-500">Shoot it or pick from your roll, leave vendor/amount blank — it saves as pending and Claude fills it in. Several photos at once each save separately. Tax stays in the total.</p>
                   </div>
                 </Section>
                 <Section id="labor" title="Labor" summary={<>{labor.length ? `${labor.reduce((a: number, l: any) => a + Number(l.hours ?? 0), 0)} hrs · $${labor.reduce((a: number, l: any) => a + Number(l.amount ?? 0), 0).toLocaleString()}` : "none"}</>} defaultOpen={labor.length > 0}>
@@ -899,15 +1051,15 @@ export default function JobsTab() {
                         <div key={l.id} className="flex items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2">
                           <div className="min-w-0 flex-1">
                             <div className="text-sm font-semibold text-white truncate">{l.worker ?? "—"}</div>
-                            <div className="text-xs text-neutral-500">{fmtDate(l.entry_date)} · {Number(l.hours)}h @ ${Number(l.rate)}</div>
+                            <div className="text-xs text-neutral-400">{fmtDate(l.entry_date)} · {Number(l.hours)}h @ ${Number(l.rate)}</div>
                           </div>
                           <div className="shrink-0 text-sm font-bold tabular-nums text-white">${Number(l.amount ?? 0).toLocaleString()}</div>
-                          <button onClick={() => toggleLaborPaid(l)} className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg border ${l.paid ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"}`}>{l.paid ? "PAID" : "OWED"}</button>
-                          <button onClick={() => removeLabor(l)} className="shrink-0 text-neutral-600 hover:text-red-400 text-xs">✕</button>
+                          <button onClick={() => toggleLaborPaid(l)} className={`shrink-0 text-xs font-bold px-2 py-1 rounded-lg border ${l.paid ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"}`}>{l.paid ? "PAID" : "OWED"}</button>
+                          <button onClick={() => removeLabor(l)} className="shrink-0 text-neutral-500 hover:text-red-400 text-xs">✕</button>
                         </div>
                       ))}
                     </div>
-                  ) : <p className="text-xs text-neutral-600 mb-2">No labor logged on this job yet.</p>}
+                  ) : <p className="text-xs text-neutral-500 mb-2">No labor logged on this job yet.</p>}
                   <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-3 space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                       <input className={input} placeholder="Worker" value={lForm.worker} onChange={(e) => setLForm({ ...lForm, worker: e.target.value })} />
@@ -916,7 +1068,7 @@ export default function JobsTab() {
                     <div className="grid grid-cols-3 gap-2">
                       <input className={input} type="number" inputMode="decimal" placeholder="Hours" value={lForm.hours} onChange={(e) => setLForm({ ...lForm, hours: e.target.value })} />
                       <input className={input} type="number" inputMode="decimal" placeholder="$/hr" value={lForm.rate} onChange={(e) => setLForm({ ...lForm, rate: e.target.value })} />
-                      <button onClick={() => setLForm({ ...lForm, paid: !lForm.paid })} className={`rounded-lg border text-[11px] font-bold ${lForm.paid ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"}`}>{lForm.paid ? "PAID" : "OWED"}</button>
+                      <button onClick={() => setLForm({ ...lForm, paid: !lForm.paid })} className={`rounded-lg border text-xs font-bold ${lForm.paid ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"}`}>{lForm.paid ? "PAID" : "OWED"}</button>
                     </div>
                     <button onClick={addLabor} disabled={lBusy} className="w-full rounded-lg bg-white text-neutral-900 py-2 text-xs font-bold disabled:opacity-60">{lBusy ? "Saving…" : `+ Log labor${lForm.hours && lForm.rate ? ` — $${(Number(lForm.hours) * Number(lForm.rate)).toLocaleString()}` : ""}`}</button>
                   </div>
@@ -926,21 +1078,21 @@ export default function JobsTab() {
                     <div className="space-y-1.5 mb-2">
                       {jtasks.map((t: any) => (
                         <div key={t.id} className="flex items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2">
-                          <button onClick={() => toggleTask(t)} className={`shrink-0 w-5 h-5 rounded-md border flex items-center justify-center text-[11px] ${t.done ? "bg-emerald-400 border-emerald-400 text-neutral-900" : "border-neutral-600 text-transparent"}`}>✓</button>
+                          <button onClick={() => toggleTask(t)} className={`shrink-0 w-5 h-5 rounded-md border flex items-center justify-center text-xs ${t.done ? "bg-emerald-400 border-emerald-400 text-neutral-900" : "border-neutral-600 text-transparent"}`}>✓</button>
                           <div className="min-w-0 flex-1">
-                            <div className={`text-sm ${t.done ? "text-neutral-500 line-through" : "text-white font-semibold"}`}>{t.title}</div>
-                            {t.due_date ? <div className="text-xs text-neutral-500">due {fmtDate(t.due_date)}</div> : null}
+                            <div className={`text-sm ${t.done ? "text-neutral-400 line-through" : "text-white font-semibold"}`}>{t.title}</div>
+                            {t.due_date ? <div className="text-xs text-neutral-400">due {fmtDate(t.due_date)}</div> : null}
                           </div>
-                          <button onClick={() => removeTask(t)} className="shrink-0 text-neutral-600 hover:text-red-400 text-xs">✕</button>
+                          <button onClick={() => removeTask(t)} className="shrink-0 text-neutral-500 hover:text-red-400 text-xs">✕</button>
                         </div>
                       ))}
                     </div>
-                  ) : <p className="text-xs text-neutral-600 mb-2">No tasks on this job yet.</p>}
+                  ) : <p className="text-xs text-neutral-500 mb-2">No tasks on this job yet.</p>}
                   <div className="flex gap-2">
                     <input className={input} placeholder="Add a task for this job…" value={tTitle} onChange={(e) => setTTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addTask(); }} />
                     <button onClick={addTask} disabled={tBusy} className="shrink-0 rounded-lg bg-white text-neutral-900 px-3 text-xs font-bold disabled:opacity-60">{tBusy ? "…" : "+ Add"}</button>
                   </div>
-                  <p className="text-[10px] text-neutral-600 mt-1.5">Tasks added here also show on the main Tasks tab.</p>
+                  <p className="text-xs text-neutral-500 mt-1.5">Tasks added here also show on the main Tasks tab.</p>
                 </Section>
                 <Section id="punch" title="Punch list"
                   summary={<>{punchStat.open ? `${punchStat.open} open${punchStat.overdue ? ` · ${punchStat.overdue} overdue` : ""}` : "clear"}</>}
@@ -953,30 +1105,30 @@ export default function JobsTab() {
                       {jcomms.map((m: any) => (
                         <div key={m.id} className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-2.5">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${m.direction === "in" ? "bg-emerald-500/20 text-emerald-300" : "bg-blue-500/20 text-blue-300"}`}>{m.direction === "in" ? "FROM CLIENT" : "SENT"}</span>
-                            <span className="text-[10px] uppercase text-neutral-500">{m.kind}</span>
-                            <span className="text-[10px] text-neutral-500 ml-auto">{new Date(m.occurred_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${m.direction === "in" ? "bg-emerald-500/20 text-emerald-300" : "bg-blue-500/20 text-blue-300"}`}>{m.direction === "in" ? "FROM CLIENT" : "SENT"}</span>
+                            <span className="text-xs uppercase text-neutral-400">{m.kind}</span>
+                            <span className="text-xs text-neutral-400 ml-auto">{new Date(m.occurred_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>
                           </div>
-                          <pre className="whitespace-pre-wrap text-[11px] text-neutral-300 font-sans leading-relaxed m-0">{m.body}</pre>
+                          <pre className="whitespace-pre-wrap text-xs text-neutral-300 font-sans leading-relaxed m-0">{m.body}</pre>
                         </div>
                       ))}
                     </div>
-                  ) : <p className="text-xs text-neutral-600">No correspondence logged for this job yet.</p>}
+                  ) : <p className="text-xs text-neutral-500">No correspondence logged for this job yet.</p>}
                 </Section>
                 <Section id="photos" title="Photos" summary={<>{photos.length ? String(photos.length) : "none"}</>} defaultOpen={false}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-semibold text-white border border-neutral-600 rounded-lg px-2.5 py-1 cursor-pointer">
+                    <label className="text-xs font-semibold text-white border border-neutral-600 rounded-lg px-2.5 py-1 cursor-pointer">
                       {photoBusy ? "Saving…" : "📷 Add"}
                       <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) addPhotos(fs, "during"); e.target.value = ""; }} />
                     </label>
                   </div>
-                  {photos.length === 0 ? <p className="text-xs text-neutral-600">No photos yet — tap 📷 Add. Tap a photo's label to cycle before / during / after.</p> : (
+                  {photos.length === 0 ? <p className="text-xs text-neutral-500">No photos yet — tap 📷 Add. Tap a photo's label to cycle before / during / after.</p> : (
                     <div className="grid grid-cols-3 gap-1.5">
                       {photos.map((p) => (
                         <div key={p.id} className="relative">
                           <img src={p.photo_b64} alt={p.phase} className="w-full h-24 object-cover rounded-lg border border-neutral-800" />
-                          <button onClick={() => removePhoto(p.id)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-neutral-300 text-[10px]">✕</button>
-                          <button onClick={() => cyclePhase(p)} className="absolute bottom-1 left-1 text-[9px] font-bold uppercase bg-black/70 rounded px-1 text-neutral-200">{p.phase}</button>
+                          <button onClick={() => removePhoto(p.id)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-neutral-300 text-xs">✕</button>
+                          <button onClick={() => cyclePhase(p)} className="absolute bottom-1 left-1 text-xs font-bold uppercase bg-black/70 rounded px-1 text-neutral-200">{p.phase}</button>
                         </div>
                       ))}
                     </div>
@@ -990,7 +1142,15 @@ export default function JobsTab() {
             </div>
           </div>
         );
-      })() : null}
+      })() : (
+        <div className="hidden lg:flex sticky top-[77px] h-[calc(100vh-93px)] rounded-2xl border border-dashed border-neutral-800 items-center justify-center text-center px-8">
+          <div>
+            <Briefcase size={32} className="mx-auto text-neutral-500" />
+            <p className="mt-3 text-base font-semibold text-neutral-300">Pick a job to open its file here</p>
+            <p className="mt-1 text-sm text-neutral-400">The list stays put on the left, so you can click through jobs.</p>
+          </div>
+        </div>
+      )}
 
       {receiptView ? (
         <div className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4" onClick={() => setReceiptView("")}>
@@ -1011,7 +1171,7 @@ export default function JobsTab() {
                     <input className={input} autoFocus placeholder="New customer name"
                       value={form.customer} onChange={(e) => setForm({ ...form, customer: e.target.value, customer_id: "" })} />
                     <button type="button" onClick={() => { setNewCustomer(false); setForm({ ...form, customer: "", customer_id: "" }); }}
-                      className="shrink-0 rounded-lg border border-neutral-700 px-3 text-[11px] font-semibold text-neutral-400">Cancel</button>
+                      className="shrink-0 rounded-lg border border-neutral-700 px-3 text-xs font-semibold text-neutral-400">Cancel</button>
                   </div>
                 ) : (
                   <select className={input} value={form.customer_id}
@@ -1030,7 +1190,7 @@ export default function JobsTab() {
                   </select>
                 )}
                 {!newCustomer && form.customer && !form.customer_id ? (
-                  <p className="mt-1 text-[11px] text-amber-300">Saved as &quot;{form.customer}&quot; — pick it from the list to tie it to the customer record.</p>
+                  <p className="mt-1 text-xs text-amber-300">Saved as &quot;{form.customer}&quot; — pick it from the list to tie it to the customer record.</p>
                 ) : null}
               </div>
               {form.customer_id && properties.some((p) => p.customer_id === form.customer_id) ? (

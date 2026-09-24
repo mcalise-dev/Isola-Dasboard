@@ -68,11 +68,11 @@ export default function PunchList({ jobId }: { jobId: string }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-1.5">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">
           Punch list{open.length ? ` — ${open.length} open` : rows.length ? " — all clear" : ""}
         </div>
         {overdue ? (
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/40">{overdue} overdue</span>
+          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/40">{overdue} overdue</span>
         ) : null}
       </div>
 
@@ -83,24 +83,24 @@ export default function PunchList({ jobId }: { jobId: string }) {
             return (
               <div key={t.id} className={`flex items-start gap-2.5 rounded-xl border bg-neutral-950 px-3 py-2 ${late ? "border-red-500/50" : t.priority === "high" && !t.done ? "border-amber-500/40" : "border-neutral-800"}`}>
                 <button onClick={() => toggle(t)}
-                  className={`shrink-0 mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center text-[11px] ${t.done ? "bg-emerald-400 border-emerald-400 text-neutral-900" : "border-neutral-600 text-transparent"}`}>✓</button>
+                  className={`shrink-0 mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center text-xs ${t.done ? "bg-emerald-400 border-emerald-400 text-neutral-900" : "border-neutral-600 text-transparent"}`}>✓</button>
                 <div className="min-w-0 flex-1">
-                  <div className={`text-sm ${t.done ? "text-neutral-500 line-through" : "text-white font-semibold"}`}>
+                  <div className={`text-sm ${t.done ? "text-neutral-400 line-through" : "text-white font-semibold"}`}>
                     {t.priority === "high" && !t.done ? <span className="text-amber-300 mr-1">!</span> : null}{t.item}
                   </div>
-                  <div className="text-xs text-neutral-500 flex flex-wrap gap-x-2">
+                  <div className="text-xs text-neutral-400 flex flex-wrap gap-x-2">
                     {t.due_date ? <span className={late ? "text-red-300 font-semibold" : ""}>due {fmtDate(t.due_date)}{late ? " · overdue" : ""}</span> : null}
                     {t.raised_by ? <span>raised by {t.raised_by}</span> : null}
                     {t.done && t.done_at ? <span className="text-emerald-400/80">done {fmtDate(t.done_at.slice(0, 10))}</span> : null}
                   </div>
-                  {t.notes ? <div className="text-xs text-neutral-500 mt-0.5">{t.notes}</div> : null}
+                  {t.notes ? <div className="text-xs text-neutral-400 mt-0.5">{t.notes}</div> : null}
                 </div>
-                <button onClick={() => remove(t)} className="shrink-0 text-neutral-600 hover:text-red-400 text-xs">✕</button>
+                <button onClick={() => remove(t)} className="shrink-0 text-neutral-500 hover:text-red-400 text-xs">✕</button>
               </div>
             );
           })}
         </div>
-      ) : <p className="text-xs text-neutral-600 mb-2">Nothing outstanding on this job.</p>}
+      ) : <p className="text-xs text-neutral-500 mb-2">Nothing outstanding on this job.</p>}
 
       <div className="space-y-2">
         <input className={input} placeholder="What needs fixing before this closes out?" value={form.item}
@@ -115,7 +115,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
         <div className="flex gap-2">
           {(["normal", "high"] as const).map((lvl) => (
             <button key={lvl} type="button" onClick={() => setForm({ ...form, priority: lvl })}
-              className={`flex-1 rounded-lg border py-2 text-xs font-semibold ${form.priority === lvl ? (lvl === "high" ? "border-amber-500/60 text-amber-300 bg-neutral-800" : "border-neutral-300 text-white bg-neutral-800") : "border-neutral-700 text-neutral-500"}`}>
+              className={`flex-1 rounded-lg border py-2 text-xs font-semibold ${form.priority === lvl ? (lvl === "high" ? "border-amber-500/60 text-amber-300 bg-neutral-800" : "border-neutral-300 text-white bg-neutral-800") : "border-neutral-700 text-neutral-400"}`}>
               {lvl === "high" ? "! Priority" : "Normal"}
             </button>
           ))}
@@ -123,7 +123,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
             className="shrink-0 rounded-lg bg-white text-neutral-900 px-4 text-xs font-bold disabled:opacity-60">{busy ? "…" : "+ Add"}</button>
         </div>
       </div>
-      <p className="text-[10px] text-neutral-600 mt-1.5">Anything left to fix before this job closes out. Overdue items turn red.</p>
+      <p className="text-xs text-neutral-500 mt-1.5">Anything left to fix before this job closes out. Overdue items turn red.</p>
     </div>
   );
 }

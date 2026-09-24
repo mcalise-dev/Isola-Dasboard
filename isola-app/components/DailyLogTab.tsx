@@ -15,8 +15,8 @@ import JobPicker from "@/components/JobPicker";
    ============================================================ */
 
 const inp =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-neutral-400 focus:outline-none";
-const lbl = "block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1";
+  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none";
+const lbl = "block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1";
 const btn =
   "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-200 hover:border-neutral-500";
 const btnPrimary =
@@ -95,7 +95,7 @@ export default function DailyLogTab() {
     setEditing({ ...editing, crew: cur.includes(name) ? cur.filter((c) => c !== name) : [...cur, name] });
   }
 
-  if (loading) return <div className="p-4 text-sm text-neutral-500">Loading…</div>;
+  if (loading) return <div className="p-4 text-sm text-neutral-400">Loading…</div>;
 
   const today = logs.filter((l) => l.log_date === todayISO());
   const earlier = logs.filter((l) => l.log_date !== todayISO());
@@ -107,7 +107,7 @@ export default function DailyLogTab() {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-semibold text-white truncate">{j ? jobLabel(j) : "—"}</div>
-            <div className="text-[11px] text-neutral-500">
+            <div className="text-xs text-neutral-400">
               {fmtDate(l.log_date)}
               {l.weather ? ` · ${l.weather}` : ""}
               {l.temp_f != null ? ` ${l.temp_f}°` : ""}
@@ -116,25 +116,25 @@ export default function DailyLogTab() {
           </div>
           <div className="flex gap-1.5 shrink-0">
             <button onClick={() => setEditing({ ...l, temp_f: l.temp_f ?? "", hours_on_site: l.hours_on_site ?? "" })} className={btn}>Edit</button>
-            <button onClick={() => remove(l)} className="text-neutral-600 hover:text-red-400 text-sm px-1">✕</button>
+            <button onClick={() => remove(l)} className="text-neutral-500 hover:text-red-400 text-sm px-1">✕</button>
           </div>
         </div>
         {l.crew?.length ? (
           <div className="flex flex-wrap gap-1">
             {l.crew.map((c: string) => (
-              <span key={c} className="rounded-md border border-neutral-700 bg-neutral-900 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-300">{c}</span>
+              <span key={c} className="rounded-md border border-neutral-700 bg-neutral-900 px-1.5 py-0.5 text-xs font-semibold text-neutral-300">{c}</span>
             ))}
           </div>
         ) : null}
         <p className="text-sm text-neutral-200 whitespace-pre-wrap">{l.work_performed}</p>
         {l.delays ? (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-200">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200">
             <span className="font-bold">Delay:</span> {l.delays}
           </div>
         ) : null}
-        {l.materials_received ? <p className="text-[11px] text-neutral-500"><span className="font-bold">Delivered:</span> {l.materials_received}</p> : null}
-        {l.visitors ? <p className="text-[11px] text-neutral-500"><span className="font-bold">On site:</span> {l.visitors}</p> : null}
-        {l.notes ? <p className="text-[11px] text-neutral-500 whitespace-pre-wrap">{l.notes}</p> : null}
+        {l.materials_received ? <p className="text-xs text-neutral-400"><span className="font-bold">Delivered:</span> {l.materials_received}</p> : null}
+        {l.visitors ? <p className="text-xs text-neutral-400"><span className="font-bold">On site:</span> {l.visitors}</p> : null}
+        {l.notes ? <p className="text-xs text-neutral-400 whitespace-pre-wrap">{l.notes}</p> : null}
       </div>
     );
   }
@@ -144,7 +144,7 @@ export default function DailyLogTab() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-white">Daily log</h1>
-          <p className="text-xs text-neutral-500">What happened on site, day by day</p>
+          <p className="text-xs text-neutral-400">What happened on site, day by day</p>
         </div>
         <button onClick={startNew} className={btnPrimary}>＋ Log today</button>
       </div>
@@ -227,14 +227,14 @@ export default function DailyLogTab() {
 
       {today.length ? (
         <section className="space-y-2">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Today</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Today</div>
           {today.map(row)}
         </section>
       ) : null}
 
       {earlier.length ? (
         <section className="space-y-2">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Earlier</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Earlier</div>
           {earlier.map(row)}
         </section>
       ) : null}

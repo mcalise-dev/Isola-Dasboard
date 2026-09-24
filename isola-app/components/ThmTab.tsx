@@ -39,7 +39,7 @@ export default function ThmTab() {
       <div key={e.id} className={`flex items-start gap-3 rounded-xl border px-3.5 py-2.5 ${e.is_open ? "border-amber-500/50 bg-amber-500/5" : "border-neutral-800 bg-neutral-950"}`}>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-white">{e.description}</div>
-          <div className="text-xs text-neutral-500">{[e.ref, e.entry_date ? fmtDate(e.entry_date) : null].filter(Boolean).join(" · ")}{e.is_open ? " · OPEN — number pending" : ""}</div>
+          <div className="text-xs text-neutral-400">{[e.ref, e.entry_date ? fmtDate(e.entry_date) : null].filter(Boolean).join(" · ")}{e.is_open ? " · OPEN — number pending" : ""}</div>
         </div>
         <div className={`shrink-0 text-sm font-bold tabular-nums ${e.side === "owes_isola" ? "text-white" : "text-emerald-300"}`}>
           {e.is_open ? "—" : (e.side === "owes_thm" ? "−" : "") + money(Number(e.amount))}
@@ -51,9 +51,9 @@ export default function ThmTab() {
   return (
     <div className="pt-2 space-y-4">
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/95 p-4 text-center">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">THM owes ISOLA — Invoice #94</div>
+        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">THM owes ISOLA — Invoice #94</div>
         <div className="text-3xl font-extrabold tabular-nums text-white mt-1">{loading ? "…" : money(inv94Balance)}</div>
-        <div className="text-xs text-neutral-500 mt-1">$40,155.50 opening · {money(sum(inv94, "owes_thm"))} applied</div>
+        <div className="text-xs text-neutral-400 mt-1">$40,155.50 opening · {money(sum(inv94, "owes_thm"))} applied</div>
         {standalone.length ? (
           <div className="text-xs text-neutral-400 mt-2 border-t border-neutral-800 pt-2">
             Standalone (not part of #94): <span className="font-semibold text-white">{money(standaloneBal)}</span> owed to ISOLA
@@ -68,18 +68,18 @@ export default function ThmTab() {
       ) : null}
 
       <div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Applied against Invoice #94</div>
+        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Applied against Invoice #94</div>
         <div className="space-y-1.5">{inv94.map(row)}</div>
       </div>
 
       {standalone.length ? (
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Standalone settlements</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Standalone settlements</div>
           <div className="space-y-1.5">{standalone.map(row)}</div>
         </div>
       ) : null}
 
-      <p className="text-xs text-neutral-600">Green negative amounts pay the tab down. To log a new job closeout, payment, or reimbursement, tell Claude — the ledger and this tab stay in sync with QuickBooks Invoice #94.</p>
+      <p className="text-xs text-neutral-500">Green negative amounts pay the tab down. To log a new job closeout, payment, or reimbursement, tell Claude — the ledger and this tab stay in sync with QuickBooks Invoice #94.</p>
     </div>
   );
 }

@@ -55,8 +55,8 @@ const CLIENT_TYPE: Record<string, { label: string; hint: string; lo: number; hi:
 const STALE_DAYS = 183; // ~6 months — flag any cost older than this before relying on it
 
 const inp =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-neutral-400 focus:outline-none";
-const lbl = "block text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1";
+  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none";
+const lbl = "block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1";
 const btn =
   "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-200 hover:border-neutral-500";
 const btnPrimary =
@@ -123,7 +123,7 @@ export default function BuildTab() {
     if (openId === e.id) setOpenId(null);
   }
 
-  if (loading) return <div className="p-4 text-sm text-neutral-500">Loading…</div>;
+  if (loading) return <div className="p-4 text-sm text-neutral-400">Loading…</div>;
 
   if (open) {
     return (
@@ -151,9 +151,9 @@ export default function BuildTab() {
 
   const tile = (label: string, value: string, sub?: string) => (
     <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2.5">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{label}</div>
+      <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">{label}</div>
       <div className="text-xl font-bold text-white leading-tight">{value}</div>
-      {sub ? <div className="text-[11px] text-neutral-500">{sub}</div> : null}
+      {sub ? <div className="text-xs text-neutral-400">{sub}</div> : null}
     </div>
   );
 
@@ -167,15 +167,15 @@ export default function BuildTab() {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-semibold text-white truncate">{e.title || "Untitled build"}</div>
-            <div className="text-xs text-neutral-500 truncate">
+            <div className="text-xs text-neutral-400 truncate">
               {[e.customer, e.location].filter(Boolean).join(" — ") || "No customer yet"}
             </div>
           </div>
           <div className="flex items-start gap-2 shrink-0">
             <div className="text-right">
               {sell > 0 ? <div className="text-sm font-bold text-white">{fmt$(sell)}</div> : null}
-              {cost > 0 && !sell ? <div className="text-xs text-neutral-500">cost {fmt$(cost)}</div> : null}
-              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+              {cost > 0 && !sell ? <div className="text-xs text-neutral-400">cost {fmt$(cost)}</div> : null}
+              <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">
                 {e.status === "draft" ? e.step : e.status}
               </div>
             </div>
@@ -193,7 +193,7 @@ export default function BuildTab() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-white">Build</h1>
-          <p className="text-xs text-neutral-500">Walk it · Price it · Send it</p>
+          <p className="text-xs text-neutral-400">Walk it · Price it · Send it</p>
         </div>
         <button onClick={startBuild} className={btnPrimary}>＋ Start a build</button>
       </div>
@@ -216,25 +216,25 @@ export default function BuildTab() {
 
       {ready.length ? (
         <section className="space-y-2">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Priced — ready to send</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Priced — ready to send</div>
           {ready.map(row)}
         </section>
       ) : null}
       {pricing.length ? (
         <section className="space-y-2">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Pricing</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Pricing</div>
           {pricing.map(row)}
         </section>
       ) : null}
       {walking.length ? (
         <section className="space-y-2">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Walking</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Walking</div>
           {walking.map(row)}
         </section>
       ) : null}
       {sent.length ? (
         <section className="space-y-2">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Sent</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Sent</div>
           {sent.slice(0, 12).map(row)}
         </section>
       ) : null}
@@ -483,14 +483,14 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
         <button onClick={onBack} className={btn}>← Builds</button>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-white truncate">{e.title || "Untitled build"}</div>
-          <div className="text-[11px] text-neutral-500 truncate">{[e.customer, e.location].filter(Boolean).join(" — ")}</div>
+          <div className="text-xs text-neutral-400 truncate">{[e.customer, e.location].filter(Boolean).join(" — ")}</div>
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-1.5">
         {STEPS.map((s) => (
           <button key={s.key} onClick={() => { setStep(s.key); if (e.status === "draft") patch({ step: s.key }); }}
-            className={`rounded-lg border px-2 py-2 text-xs font-bold ${step === s.key ? "border-neutral-300 bg-neutral-800 text-white" : "border-neutral-800 bg-neutral-950 text-neutral-500"}`}>
+            className={`rounded-lg border px-2 py-2 text-xs font-bold ${step === s.key ? "border-neutral-300 bg-neutral-800 text-white" : "border-neutral-800 bg-neutral-950 text-neutral-400"}`}>
             <span className="mr-1">{s.icon}</span>{s.label}
           </button>
         ))}
@@ -519,11 +519,11 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
               </select>
               {cust ? (
                 <div className="mt-1.5 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5">
-                  <div className="text-[11px] font-bold text-neutral-300">{tier.label}</div>
-                  <div className="text-[11px] text-neutral-500">{tier.hint}</div>
+                  <div className="text-xs font-bold text-neutral-300">{tier.label}</div>
+                  <div className="text-xs text-neutral-400">{tier.hint}</div>
                 </div>
               ) : (
-                <p className="mt-1 text-[11px] text-neutral-600">
+                <p className="mt-1 text-xs text-neutral-500">
                   New customer? Add them on the Customers tab first so the spelling stays clean.
                 </p>
               )}
@@ -573,7 +573,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
           </div>
 
           <div className={card + " space-y-3"}>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">What you saw</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">What you saw</div>
             <div>
               <label className={lbl}>Observed conditions</label>
               <textarea rows={4} className={inp} value={e.observed_conditions ?? ""}
@@ -599,7 +599,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
               <span className="text-sm font-semibold text-white">Hand-dig corridor — no equipment access</span>
             </label>
             {e.hand_dig ? (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
                 Flagged. Hand-dig changes the labor cost structure — price the hours, not the machine.
               </div>
             ) : null}
@@ -607,7 +607,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
 
           <div className={card + " space-y-2"}>
             <div className="flex items-center justify-between">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Photos ({photos.length})</div>
+              <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Photos ({photos.length})</div>
               <label className={btn + " cursor-pointer"}>
                 📷 Add
                 <input type="file" accept="image/*" capture="environment" className="hidden"
@@ -615,11 +615,11 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
               </label>
             </div>
             {photos.length ? (
-              <div className="text-[11px] text-neutral-500">
+              <div className="text-xs text-neutral-400">
                 {photos.length} photo{photos.length === 1 ? "" : "s"} — they move onto the job as “before” shots when you send.
               </div>
             ) : (
-              <div className="text-[11px] text-neutral-600">No photos yet.</div>
+              <div className="text-xs text-neutral-500">No photos yet.</div>
             )}
           </div>
 
@@ -634,7 +634,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
         <div className="space-y-3">
           {templates.length ? (
             <div className={card}>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-2">Start from a scope</div>
+              <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">Start from a scope</div>
               <div className="flex flex-wrap gap-1.5">
                 {templates.map((t: any) => (
                   <button key={t.id} onClick={() => useTemplate(t)} className={btn}>{t.name}</button>
@@ -657,7 +657,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
           </div>
 
           <div className={card + " space-y-2"}>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Cost basis</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Cost basis</div>
             {byCat.map((b) => (
               <div key={b.cat} className="flex justify-between text-sm">
                 <span className="text-neutral-400">{CAT_META[b.cat].icon} {b.cat}</span>
@@ -669,7 +669,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
               <div className="flex items-center gap-1.5">
                 <input type="number" className="w-16 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-white text-right"
                   value={e.contingency_pct ?? 0} onChange={(ev) => patch({ contingency_pct: Number(ev.target.value) })} />
-                <span className="text-xs text-neutral-500">%</span>
+                <span className="text-xs text-neutral-400">%</span>
                 <span className="w-24 text-right text-sm text-neutral-200 tabular-nums">{fmt2(contingency)}</span>
               </div>
             </div>
@@ -681,12 +681,12 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
 
           {/* ---- the sell price. Typed, never generated. ---- */}
           <div className={card + " space-y-3"}>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Your price</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Your price</div>
             <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
-              <div className="text-[11px] font-bold text-neutral-300">{tier.label}</div>
-              <div className="text-[11px] text-neutral-500">{tier.hint}</div>
+              <div className="text-xs font-bold text-neutral-300">{tier.label}</div>
+              <div className="text-xs text-neutral-400">{tier.hint}</div>
               {totalCost > 0 ? (
-                <div className="mt-1.5 text-[11px] text-neutral-400">
+                <div className="mt-1.5 text-xs text-neutral-400">
                   For reference, this tier usually lands between{" "}
                   <span className="font-bold text-neutral-200">{fmt$(totalCost * tier.lo)}</span> and{" "}
                   <span className="font-bold text-neutral-200">{fmt$(totalCost * tier.hi)}</span>. Your call.
@@ -705,11 +705,11 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
               <>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Net profit</div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Net profit</div>
                     <div className={`text-lg font-bold tabular-nums ${profit < 0 ? "text-red-400" : "text-emerald-400"}`}>{fmt2(profit)}</div>
                   </div>
                   <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Margin</div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Margin</div>
                     <div className={`text-lg font-bold tabular-nums ${marginPct < 20 ? "text-amber-400" : "text-emerald-400"}`}>{marginPct.toFixed(1)}%</div>
                   </div>
                 </div>
@@ -739,7 +739,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
       {step === "send" ? (
         <div className="space-y-3">
           <div className={card + " space-y-2"}>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">What gets created</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">What gets created</div>
             <Row k="Job name" v={e.title || "—"} />
             <Row k="Customer" v={e.customer || "—"} />
             <Row k="Property" v={e.location || "—"} />
@@ -755,7 +755,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
             <textarea rows={6} className={inp} value={e.scope_override ?? scopeText}
               onChange={(ev) => setE({ ...e, scope_override: ev.target.value })}
               onBlur={(ev) => patch({ scope_override: ev.target.value })} />
-            <p className="mt-1 text-[11px] text-neutral-600">
+            <p className="mt-1 text-xs text-neutral-500">
               One line per division. This lands on the client hub page and in jobs.scope_of_work.
             </p>
           </div>
@@ -773,7 +773,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
                 }}>{copied ? "Copied ✓" : "Copy link"}</button>
                 <a href={`/?job=${e.job_id}`} className={btn}>📂 Open job file</a>
               </div>
-              <p className="text-[11px] text-neutral-500">
+              <p className="text-xs text-neutral-400">
                 Email the link or read it out on the phone. The daily sweep will nudge you at day 3, 7 and 14 if it goes quiet.
               </p>
               <div className="flex gap-1.5 pt-1">
@@ -795,7 +795,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
 function Row({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex justify-between gap-3 text-sm">
-      <span className="text-neutral-500 shrink-0">{k}</span>
+      <span className="text-neutral-400 shrink-0">{k}</span>
       <span className="text-neutral-200 text-right truncate">{v}</span>
     </div>
   );
@@ -812,11 +812,11 @@ function PaverFloor({ jobType, dimensions, sell }: { jobType?: string; dimension
   if (!isPaver || !sqft || !sell) return null;
   const psf = sell / sqft;
   if (psf >= 35) {
-    return <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-200">
+    return <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
       {fmt2(psf)}/sq ft over {sqft.toLocaleString()} sq ft — above the $35 floor.
     </div>;
   }
-  return <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">
+  return <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
     ⚠ {fmt2(psf)}/sq ft over {sqft.toLocaleString()} sq ft — under the $35/sq ft floor for paver work. Price up.
   </div>;
 }
@@ -851,9 +851,9 @@ function LineRow({ l, book, workers, onSave, onLearn, onDelete }: any) {
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-2.5 space-y-2">
       <div className="flex items-center gap-2">
-        <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${meta.cls}`}>{meta.icon} {d.category}</span>
+        <span className={`rounded-md border px-1.5 py-0.5 text-xs font-bold ${meta.cls}`}>{meta.icon} {d.category}</span>
         <div className="ml-auto text-sm font-bold text-white tabular-nums">{fmt2(amount)}</div>
-        <button onClick={onDelete} className="text-neutral-600 hover:text-red-400 text-sm px-1">✕</button>
+        <button onClick={onDelete} className="text-neutral-500 hover:text-red-400 text-sm px-1">✕</button>
       </div>
 
       {d.category === "Labor" ? (
@@ -892,20 +892,20 @@ function LineRow({ l, book, workers, onSave, onLearn, onDelete }: any) {
       {calc ? <QtyCalc onApply={(qty: number, unit: string) => { setD({ ...d, qty, unit }); onSave({ qty, unit }); setCalc(false); }} /> : null}
 
       {d.category === "Labor" && d.description === "Adam" && d.unit === "hr" && amount > 400 ? (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-200">
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200">
           ⚠ {fmt2(amount)} at $35/hr is over Adam's $400 day cap. Confirm which applies on this job.
         </div>
       ) : null}
       {stale ? (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-200">
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200">
           ⚠ Last confirmed {new Date(item.last_confirmed).toLocaleDateString("en-US", { month: "short", year: "numeric" })} — over 6 months. Check it before you rely on it.
         </div>
       ) : null}
       {isNew && Number(d.unit_cost) > 0 ? (
-        <div className="text-[11px] text-emerald-400">＋ New to the price book — it'll be saved when you leave the cost field.</div>
+        <div className="text-xs text-emerald-400">＋ New to the price book — it'll be saved when you leave the cost field.</div>
       ) : null}
 
-      <input className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-[11px] text-neutral-300 placeholder:text-neutral-600"
+      <input className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-300 placeholder:text-neutral-500"
         value={d.scope_line ?? ""} placeholder="Scope line the client reads (optional)"
         onChange={(ev) => setD({ ...d, scope_line: ev.target.value })}
         onBlur={(ev) => onSave({ scope_line: ev.target.value })} />
@@ -928,8 +928,8 @@ function QtyCalc({ onApply }: { onApply: (qty: number, unit: string) => void }) 
   const out = (label: string, val: number, unit: string) => (
     <button onClick={() => onApply(Math.round(val * wf * 100) / 100, unit)}
       className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-left hover:border-neutral-500">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{label}</div>
-      <div className="text-sm font-bold text-white tabular-nums">{(val * wf).toFixed(2)} <span className="text-[11px] font-normal text-neutral-500">{unit}</span></div>
+      <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">{label}</div>
+      <div className="text-sm font-bold text-white tabular-nums">{(val * wf).toFixed(2)} <span className="text-xs font-normal text-neutral-400">{unit}</span></div>
     </button>
   );
 
@@ -947,7 +947,7 @@ function QtyCalc({ onApply }: { onApply: (qty: number, unit: string) => void }) 
           {din > 0 ? out("Volume", cuyd, "cu yd") : <div />}
           {din > 0 ? out("Weight", tons, "ton") : <div />}
         </div>
-      ) : <div className="text-[11px] text-neutral-600">Enter length and width. Tap a result to use it as the quantity.</div>}
+      ) : <div className="text-xs text-neutral-500">Enter length and width. Tap a result to use it as the quantity.</div>}
     </div>
   );
 }

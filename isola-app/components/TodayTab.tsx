@@ -148,18 +148,18 @@ export default function TodayTab() {
     const d = draftByTask[t.id];
     return (
       <div key={t.id} className="flex items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2.5">
-        <button onClick={() => doneTask(t)} aria-label="Done" className="w-5 h-5 shrink-0 rounded-md border border-neutral-600 text-[11px] text-transparent hover:text-emerald-300">✓</button>
+        <button onClick={() => doneTask(t)} aria-label="Done" className="w-5 h-5 shrink-0 rounded-md border border-neutral-600 text-xs text-transparent hover:text-emerald-300">✓</button>
         <div className="min-w-0 flex-1">
           <div className="text-sm text-white truncate">{t.title}</div>
-          <div className="text-[11px] text-neutral-500 truncate">
+          <div className="text-xs text-neutral-400 truncate">
             {late ? <span className="text-red-400 font-semibold">{daysSince(t.due_date)}d overdue · </span> : null}
             {j ? <Link href={`/?job=${j.id}`} className="underline decoration-neutral-700 underline-offset-2">{j.job_name || j.customer}</Link> : "No job"}
           </div>
         </div>
         {d && d.status === "drafted" ? (
-          <a href={GMAIL_DRAFTS} target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-emerald-500/40 px-2 py-1 text-[10px] font-bold text-emerald-300">📝 Draft ready</a>
+          <a href={GMAIL_DRAFTS} target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-emerald-500/40 px-2 py-1 text-xs font-bold text-emerald-300">📝 Draft ready</a>
         ) : m ? (
-          <a href={m.href} className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-bold ${m.to ? "border-neutral-600 text-white" : "border-amber-500/40 text-amber-300"}`} title={m.to ?? "No email on file for this customer"}>{isReview ? "⭐ " : "✉️ "}{m.to ? (isReview ? "Ask" : "Email") : "No email"}</a>
+          <a href={m.href} className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-bold ${m.to ? "border-neutral-600 text-white" : "border-amber-500/40 text-amber-300"}`} title={m.to ?? "No email on file for this customer"}>{isReview ? "⭐ " : "✉️ "}{m.to ? (isReview ? "Ask" : "Email") : "No email"}</a>
         ) : null}
       </div>
     );
@@ -199,7 +199,7 @@ export default function TodayTab() {
     <div className="pt-4 space-y-4">
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight text-white">{greeting}, Mike</h1>
-        <p className="text-sm text-neutral-500">{dateStr}</p>
+        <p className="text-sm text-neutral-400">{dateStr}</p>
       </div>
 
       <MyClock />
@@ -207,19 +207,19 @@ export default function TodayTab() {
       <div className="grid grid-cols-3 gap-2 text-center">
         <a href="#go" className={`rounded-xl border p-3 ${stops.length ? "border-blue-500/40" : "border-neutral-800"} bg-neutral-900`}>
           <div className="text-2xl font-bold tabular-nums text-white">{stops.length}</div>
-          <div className="mt-0.5 text-[10px] uppercase tracking-wide text-neutral-500">Stops today</div>
+          <div className="mt-0.5 text-xs uppercase tracking-wide text-neutral-400">Stops today</div>
         </a>
         <a href="#do" className={`rounded-xl border p-3 ${overdue.length ? "border-red-500/50" : "border-neutral-800"} bg-neutral-900`}>
           <div className={`text-2xl font-bold tabular-nums ${overdue.length ? "text-red-300" : "text-white"}`}>{doCount}</div>
-          <div className="mt-0.5 text-[10px] uppercase tracking-wide text-neutral-500">To do{overdue.length ? ` · ${overdue.length} late` : ""}</div>
+          <div className="mt-0.5 text-xs uppercase tracking-wide text-neutral-400">To do{overdue.length ? ` · ${overdue.length} late` : ""}</div>
         </a>
         <a href="#money" className={`rounded-xl border p-3 ${late$ ? "border-amber-500/50" : "border-neutral-800"} bg-neutral-900`}>
           <div className={`text-2xl font-bold tabular-nums ${late$ ? "text-amber-300" : "text-white"}`}>{fmt$(late$)}</div>
-          <div className="mt-0.5 text-[10px] uppercase tracking-wide text-neutral-500">Overdue $</div>
+          <div className="mt-0.5 text-xs uppercase tracking-wide text-neutral-400">Overdue $</div>
         </a>
       </div>
 
-      {loading ? <p className="text-sm text-neutral-500">Loading…</p> : null}
+      {loading ? <p className="text-sm text-neutral-400">Loading…</p> : null}
 
       {/* 1 — WHERE YOU'RE GOING */}
       <div id="go" className={card}>
@@ -228,15 +228,15 @@ export default function TodayTab() {
           <Link href="/schedule" className="text-xs text-blue-300 font-semibold">Calendar →</Link>
         </div>
         {stops.length === 0 ? (
-          <p className="text-sm text-neutral-500">Nothing on the calendar today.{nextUp.length ? ` Next up: ${nextUp.map((e) => `${fmtDate(e.entry_date).replace(/,.*/, "")} ${e.job_id ? (jobById[e.job_id]?.job_name || jobById[e.job_id]?.customer || "") : e.label}`).join(" · ")}` : ""}</p>
+          <p className="text-sm text-neutral-400">Nothing on the calendar today.{nextUp.length ? ` Next up: ${nextUp.map((e) => `${fmtDate(e.entry_date).replace(/,.*/, "")} ${e.job_id ? (jobById[e.job_id]?.job_name || jobById[e.job_id]?.customer || "") : e.label}`).join(" · ")}` : ""}</p>
         ) : (
           <div className="space-y-1.5">
             {stops.map(({ e, j }, i) => (
               <Link key={e.id} href={j ? `/?job=${j.id}` : "/schedule"} className="flex items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2.5 hover:border-neutral-600">
-                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-500/20 text-blue-200 text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
+                <span className="w-5 h-5 shrink-0 rounded-full bg-blue-500/20 text-blue-200 text-xs font-bold flex items-center justify-center">{i + 1}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-white truncate">{j ? (j.job_name || j.customer) : e.label}</span>
-                  <span className="block text-[11px] text-neutral-500 truncate">{[j?.location, e.assignee].filter(Boolean).join(" · ")}</span>
+                  <span className="block text-xs text-neutral-400 truncate">{[j?.location, e.assignee].filter(Boolean).join(" · ")}</span>
                 </span>
               </Link>
             ))}
@@ -245,7 +245,7 @@ export default function TodayTab() {
         {routeUrl ? (
           <a href={routeUrl} target="_blank" rel="noreferrer" className="mt-2.5 flex items-center justify-center rounded-xl bg-white text-neutral-900 py-2 text-xs font-bold">🧭 Start the route — {addrs.length} stop{addrs.length === 1 ? "" : "s"}</a>
         ) : null}
-        {unscheduled ? <Link href="/schedule" className="mt-2 block text-[11px] text-amber-300">{unscheduled} booked job{unscheduled === 1 ? "" : "s"} still need a date →</Link> : null}
+        {unscheduled ? <Link href="/schedule" className="mt-2 block text-xs text-amber-300">{unscheduled} booked job{unscheduled === 1 ? "" : "s"} still need a date →</Link> : null}
       </div>
 
       {/* 2 — DO TODAY */}
@@ -254,29 +254,29 @@ export default function TodayTab() {
           <h2 className={h2}>✅ Do today</h2>
           <Link href="/tasks" className="text-xs text-blue-300 font-semibold">All tasks →</Link>
         </div>
-        {!loading && doCount === 0 ? <p className="text-sm text-neutral-500">Nothing due. <Link href="/gameplan" className="text-blue-300">Write the game plan →</Link></p> : null}
+        {!loading && doCount === 0 ? <p className="text-sm text-neutral-400">Nothing due. <Link href="/gameplan" className="text-blue-300">Write the game plan →</Link></p> : null}
         {overdue.length ? (
           <div className="mb-3">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-red-400 mb-1.5">Overdue · {overdue.length}</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-red-400 mb-1.5">Overdue · {overdue.length}</div>
             <div className="space-y-1.5">{overdue.map((t) => taskRow(t, true))}</div>
           </div>
         ) : null}
         {dueToday.length ? (
           <div className="mb-3">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300 mb-1.5">Due today · {dueToday.length}</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-amber-300 mb-1.5">Due today · {dueToday.length}</div>
             <div className="space-y-1.5">{dueToday.map((t) => taskRow(t, false))}</div>
           </div>
         ) : null}
         {gpOpen.length ? (
           <div className="mb-1">
             <div className="flex items-baseline justify-between mb-1.5">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Game plan{plan?.headline ? ` — ${plan.headline}` : ""}</div>
-              <Link href="/gameplan" className="text-[10px] text-neutral-500">edit</Link>
+              <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Game plan{plan?.headline ? ` — ${plan.headline}` : ""}</div>
+              <Link href="/gameplan" className="text-xs text-neutral-400">edit</Link>
             </div>
             <div className="space-y-1.5">
               {gpOpen.map((i) => (
                 <div key={i.id} className="flex items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2">
-                  <button onClick={() => doneItem(i)} aria-label="Done" className="w-5 h-5 shrink-0 rounded-md border border-neutral-600 text-[11px] text-transparent hover:text-emerald-300">✓</button>
+                  <button onClick={() => doneItem(i)} aria-label="Done" className="w-5 h-5 shrink-0 rounded-md border border-neutral-600 text-xs text-transparent hover:text-emerald-300">✓</button>
                   <span className="text-sm text-white truncate">{i.body}</span>
                 </div>
               ))}
@@ -285,7 +285,7 @@ export default function TodayTab() {
         ) : null}
         {!reviewUrl && tasks.some((t) => t.auto_key === "complete:review") ? (
           <div className="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-2.5">
-            <div className="text-[11px] text-amber-200 mb-1.5">⭐ Paste your Google review link once and every review ask includes it. (Google Business Profile → "Ask for reviews" → copy link)</div>
+            <div className="text-xs text-amber-200 mb-1.5">⭐ Paste your Google review link once and every review ask includes it. (Google Business Profile → "Ask for reviews" → copy link)</div>
             <div className="flex gap-2">
               <input value={reviewDraft} onChange={(e) => setReviewDraft(e.target.value)} placeholder="https://g.page/r/…/review"
                 className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-2.5 py-1.5 text-xs" />
@@ -293,7 +293,7 @@ export default function TodayTab() {
             </div>
           </div>
         ) : null}
-        {mktDue ? <Link href="/marketing/campaign?due=1" className="mt-2 block text-[11px] text-amber-300">{mktDue} marketing follow-up{mktDue === 1 ? "" : "s"} due →</Link> : null}
+        {mktDue ? <Link href="/marketing/campaign?due=1" className="mt-2 block text-xs text-amber-300">{mktDue} marketing follow-up{mktDue === 1 ? "" : "s"} due →</Link> : null}
       </div>
 
       {/* 3 — MONEY COMING IN */}
@@ -305,16 +305,16 @@ export default function TodayTab() {
         <div className="grid grid-cols-2 gap-2 mb-3 text-center">
           <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-2.5">
             <div className="text-xl font-extrabold tabular-nums text-white">{fmt$(owed)}</div>
-            <div className="text-[10px] uppercase tracking-wide text-neutral-500 mt-0.5">Owed to you</div>
+            <div className="text-xs uppercase tracking-wide text-neutral-400 mt-0.5">Owed to you</div>
           </div>
           <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-2.5">
             <div className={`text-xl font-extrabold tabular-nums ${late$ ? "text-amber-300" : "text-white"}`}>{fmt$(late$)}</div>
-            <div className="text-[10px] uppercase tracking-wide text-neutral-500 mt-0.5">Overdue · {lateInv.length}</div>
+            <div className="text-xs uppercase tracking-wide text-neutral-400 mt-0.5">Overdue · {lateInv.length}</div>
           </div>
         </div>
         {toInvoice.length ? (
           <div className="mb-3">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-red-400 mb-1.5">Done, not invoiced · {toInvoice.length}</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-red-400 mb-1.5">Done, not invoiced · {toInvoice.length}</div>
             <div className="space-y-1.5">
               {toInvoice.map((j) => (
                 <Link key={j.id} href={`/?job=${j.id}`} className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 hover:border-neutral-600">
@@ -327,7 +327,7 @@ export default function TodayTab() {
         ) : null}
         {lateInv.length ? (
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300 mb-1.5">Overdue invoices</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-amber-300 mb-1.5">Overdue invoices</div>
             <div className="space-y-1.5">
               {lateInv.map((i, idx) => {
                 const m = invoiceMail(i);
@@ -336,22 +336,22 @@ export default function TodayTab() {
                   <div key={idx} className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm text-white truncate">{i.customer}</div>
-                      <div className="text-[11px] text-neutral-500">#{i.ref} · {money$(Number(i.amount))} · <span className={i.days_overdue > 30 ? "text-red-400" : "text-amber-300"}>{i.days_overdue}d late</span></div>
+                      <div className="text-xs text-neutral-400">#{i.ref} · {money$(Number(i.amount))} · <span className={i.days_overdue > 30 ? "text-red-400" : "text-amber-300"}>{i.days_overdue}d late</span></div>
                     </div>
                     {d && d.status === "drafted" ? (
-                      <a href={GMAIL_DRAFTS} target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-emerald-500/40 px-2 py-1 text-[10px] font-bold text-emerald-300">📝 Draft ready</a>
+                      <a href={GMAIL_DRAFTS} target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-emerald-500/40 px-2 py-1 text-xs font-bold text-emerald-300">📝 Draft ready</a>
                     ) : m ? (
-                      <a href={m.href} className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-bold ${m.to ? "border-neutral-600 text-white" : "border-amber-500/40 text-amber-300"}`} title={m.to ?? "No email on file"}>✉️ Remind</a>
+                      <a href={m.href} className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-bold ${m.to ? "border-neutral-600 text-white" : "border-amber-500/40 text-amber-300"}`} title={m.to ?? "No email on file"}>✉️ Remind</a>
                     ) : null}
                   </div>
                 );
               })}
             </div>
           </div>
-        ) : (!loading && !toInvoice.length ? <p className="text-sm text-neutral-500">Nothing overdue.</p> : null)}
+        ) : (!loading && !toInvoice.length ? <p className="text-sm text-neutral-400">Nothing overdue.</p> : null)}
         {billedAhead.length ? (
           <div className="mt-3">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">In QuickBooks, job not done yet · {billedAhead.length}</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">In QuickBooks, job not done yet · {billedAhead.length}</div>
             <div className="space-y-1">
               {billedAhead.map((i, idx) => { const j = jobForRef(i.ref); return (
                 <Link key={idx} href={j ? `/?job=${j.id}` : "/money"} className="flex justify-between text-xs text-neutral-400 hover:text-neutral-200">
@@ -360,7 +360,7 @@ export default function TodayTab() {
                 </Link>
               ); })}
             </div>
-            <p className="text-[10px] text-neutral-600 mt-1">Not chased and not counted as overdue. When the job's marked Complete it moves up to "Send the invoice" — update the invoice date in QuickBooks before sending.</p>
+            <p className="text-xs text-neutral-500 mt-1">Not chased and not counted as overdue. When the job's marked Complete it moves up to "Send the invoice" — update the invoice date in QuickBooks before sending.</p>
           </div>
         ) : null}
         {thmBal != null ? (
@@ -369,7 +369,7 @@ export default function TodayTab() {
             <span className="text-xs font-bold text-white tabular-nums">{fmt$(thmBal)} →</span>
           </Link>
         ) : null}
-        <p className="text-[10px] text-neutral-600 mt-2">QuickBooks snapshot {snapAt ? new Date(snapAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"} · ask Claude to "refresh the money panel" for the latest.</p>
+        <p className="text-xs text-neutral-500 mt-2">QuickBooks snapshot {snapAt ? new Date(snapAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"} · ask Claude to "refresh the money panel" for the latest.</p>
       </div>
 
       {/* 4 — PIPELINE */}

@@ -99,7 +99,7 @@ export default function MoneyTab() {
     setBusy(""); setLinking(null); load();
   }
 
-  if (loading) return <p className="pt-4 text-sm text-neutral-500">Loading…</p>;
+  if (loading) return <p className="pt-4 text-sm text-neutral-400">Loading…</p>;
 
   // Once a job is marked collected its invoice drops off the money list entirely —
   // the QuickBooks snapshot is a cache and still carries it until the next refresh.
@@ -134,16 +134,16 @@ export default function MoneyTab() {
           <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${dot(i.days_overdue)}`} />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-white truncate">{j ? jobLabel(j) : i.customer}</div>
-            <div className="text-xs text-neutral-500 truncate">{j ? i.customer : "no job linked yet"}</div>
+            <div className="text-xs text-neutral-400 truncate">{j ? i.customer : "no job linked yet"}</div>
           </div>
           <div className="shrink-0 text-right">
             <div className="text-sm font-bold tabular-nums text-white">{money(i.amount)}</div>
-            <span className={`text-[10px] font-bold px-1.5 py-px rounded-full border ${late ? "border-red-500/40 bg-red-500/10 text-red-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"}`}>
+            <span className={`text-xs font-bold px-1.5 py-px rounded-full border ${late ? "border-red-500/40 bg-red-500/10 text-red-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"}`}>
               {late ? "NOT COLLECTED" : "OPEN"}
             </span>
           </div>
         </div>
-        <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-neutral-500">
+        <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-neutral-400">
           {i.ref ? <span>Invoice <span className="text-neutral-300">#{i.ref}</span></span> : <span />}
           <span className="text-right">
             Due <span className={late ? "text-red-300 font-semibold" : "text-neutral-300"}>{fmtDate(i.due)}</span>
@@ -156,7 +156,7 @@ export default function MoneyTab() {
             <>
               <Link href={`/?job=${j.id}`} className={btn}>📂 Open job file</Link>
               <button onClick={(e) => { e.preventDefault(); markCollected(j, Number(i.amount)); }} disabled={busy === j.id}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-emerald-500/50 bg-emerald-500/10 text-emerald-300 disabled:opacity-50">
+                className="px-2.5 py-1 rounded-lg text-xs font-bold border border-emerald-500/50 bg-emerald-500/10 text-emerald-300 disabled:opacity-50">
                 {busy === j.id ? "…" : "✓ Mark collected"}
               </button>
             </>
@@ -184,8 +184,8 @@ export default function MoneyTab() {
       {snap ? (
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900/95 p-4">
           <div className="flex items-baseline justify-between mb-2">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Aging</div>
-            <span className="text-[10px] text-neutral-600">QuickBooks · as of {fmtDate(snap.as_of)}</span>
+            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Aging</div>
+            <span className="text-xs text-neutral-500">QuickBooks · as of {fmtDate(snap.as_of)}</span>
           </div>
           <div className="flex h-2.5 rounded-full overflow-hidden bg-neutral-800">
             {buckets.current > 0 ? <div className="bg-emerald-400" style={{ width: (buckets.current / (openAR || 1)) * 100 + "%" }} /> : null}
@@ -194,50 +194,50 @@ export default function MoneyTab() {
             {buckets.d61_90 > 0 ? <div className="bg-orange-400" style={{ width: (buckets.d61_90 / (openAR || 1)) * 100 + "%" }} /> : null}
             {buckets.d91_plus > 0 ? <div className="bg-red-400" style={{ width: (buckets.d91_plus / (openAR || 1)) * 100 + "%" }} /> : null}
           </div>
-          <div className="text-[10px] text-neutral-500 mt-1.5">🟢 current {fmt$(buckets.current)} · 🟡 1–30 {fmt$(buckets.d1_30)} · 🟠 31–90 {fmt$(buckets.d31_60 + buckets.d61_90)} · 🔴 91+ {fmt$(buckets.d91_plus)}</div>
+          <div className="text-xs text-neutral-400 mt-1.5">🟢 current {fmt$(buckets.current)} · 🟡 1–30 {fmt$(buckets.d1_30)} · 🟠 31–90 {fmt$(buckets.d31_60 + buckets.d61_90)} · 🔴 91+ {fmt$(buckets.d91_plus)}</div>
         </div>
       ) : (
-        <p className="text-sm text-neutral-500">No QuickBooks snapshot yet — ask Claude to refresh the money panel.</p>
+        <p className="text-sm text-neutral-400">No QuickBooks snapshot yet — ask Claude to refresh the money panel.</p>
       )}
 
       {overdueList.length ? (
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-widest text-red-300 mb-1.5">Overdue — money not collected</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-red-300 mb-1.5">Overdue — money not collected</div>
           <div className="space-y-1.5">{overdueList.map(invoiceRow)}</div>
         </div>
       ) : null}
 
       {currentList.length ? (
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Not yet due</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Not yet due</div>
           <div className="space-y-1.5">{currentList.map(invoiceRow)}</div>
         </div>
       ) : null}
 
       {billedAhead.length ? (
         <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">In QuickBooks, job not done yet · {billedAhead.length}</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">In QuickBooks, job not done yet · {billedAhead.length}</div>
           {billedAhead.map((i, idx) => (
             <div key={idx} className="flex justify-between text-xs text-neutral-400"><span className="truncate">#{i.ref} · {i.customer}</span><span className="shrink-0 tabular-nums">{fmt$(Number(i.amount))}</span></div>
           ))}
-          <p className="text-[10px] text-neutral-600 mt-1">Not counted as owed or overdue until the job is marked Complete.</p>
+          <p className="text-xs text-neutral-500 mt-1">Not counted as owed or overdue until the job is marked Complete.</p>
         </div>
       ) : null}
 
       {unbilled.length ? (
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300 mb-1.5">⚠️ Complete but not invoiced</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-amber-300 mb-1.5">⚠️ Complete but not invoiced</div>
           <div className="space-y-1.5">
             {unbilled.map((j) => (
               <Link key={j.id} href={`/?job=${j.id}`} className="block rounded-xl border border-amber-500/40 bg-amber-500/5 px-3.5 py-2.5 hover:border-amber-400">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-white truncate">{jobLabel(j)}</div>
-                    <div className="text-xs text-neutral-500">completed {j.completed_date ? fmtDate(j.completed_date) : "—"} — not billed yet</div>
+                    <div className="text-xs text-neutral-400">completed {j.completed_date ? fmtDate(j.completed_date) : "—"} — not billed yet</div>
                   </div>
                   {j.price ? <div className="shrink-0 text-sm font-bold tabular-nums text-amber-300">{j.price}</div> : null}
                 </div>
-                <div className="mt-1 text-[11px] text-neutral-600">Terms: {termsFor(j)} · 📂 open job file</div>
+                <div className="mt-1 text-xs text-neutral-500">Terms: {termsFor(j)} · 📂 open job file</div>
               </Link>
             ))}
           </div>
@@ -250,8 +250,8 @@ export default function MoneyTab() {
             onClick={() => setShowCollected(!showCollected)}
             className="w-full flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2 mb-1.5 hover:border-neutral-600"
           >
-            <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">✓ Collected · {collected.length}</span>
-            <span className="text-[11px] text-neutral-500 tabular-nums">{fmt$(collectedTotal)} · {showCollected ? "hide" : "show"}</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-emerald-300">✓ Collected · {collected.length}</span>
+            <span className="text-xs text-neutral-400 tabular-nums">{fmt$(collectedTotal)} · {showCollected ? "hide" : "show"}</span>
           </button>
           <div className={showCollected ? "space-y-1.5" : "hidden"}>
             {collected.map((j) => (
@@ -259,13 +259,13 @@ export default function MoneyTab() {
                 <div className="flex items-center justify-between gap-2">
                   <Link href={`/?job=${j.id}`} className="min-w-0 flex-1">
                     <div className="text-sm font-semibold text-white truncate">{jobLabel(j)}</div>
-                    <div className="text-[11px] text-neutral-500">
+                    <div className="text-xs text-neutral-400">
                       paid {fmtDate(j.paid_date)}{j.qbo_invoice_ref ? ` · #${j.qbo_invoice_ref}` : ""}{j.paid_method ? ` · ${j.paid_method}` : ""}
                     </div>
                   </Link>
                   <div className="shrink-0 text-right">
                     <div className="text-sm font-bold tabular-nums text-emerald-300">{money(Number(j.paid_amount) || parsePrice(j.price))}</div>
-                    <button onClick={() => unmarkCollected(j)} className="text-[10px] text-neutral-600 underline">undo</button>
+                    <button onClick={() => unmarkCollected(j)} className="text-xs text-neutral-500 underline">undo</button>
                   </div>
                 </div>
               </div>
@@ -279,13 +279,13 @@ export default function MoneyTab() {
         <span className="text-sm font-bold text-white tabular-nums">{thmBal == null ? "…" : money(thmBal)} →</span>
       </Link>
 
-      <p className="text-xs text-neutral-600">Snapshot pulled from QuickBooks{snapDate ? " " + new Date(snapDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}. Ask Claude to &quot;refresh the money panel&quot; any time — it also refreshes with the Monday digest.</p>
+      <p className="text-xs text-neutral-500">Snapshot pulled from QuickBooks{snapDate ? " " + new Date(snapDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}. Ask Claude to &quot;refresh the money panel&quot; any time — it also refreshes with the Monday digest.</p>
 
       {linking ? (
         <div className="fixed inset-0 z-50 bg-black/85 overflow-y-auto p-3" onClick={() => setLinking(null)}>
           <div className="mx-auto max-w-sm rounded-2xl border border-neutral-800 bg-neutral-950 p-4 my-6" onClick={(e) => e.stopPropagation()}>
             <div className="text-sm font-bold text-white">Which job is this?</div>
-            <div className="text-[11px] text-neutral-500 mt-0.5 mb-3">
+            <div className="text-xs text-neutral-400 mt-0.5 mb-3">
               {linking.customer} · {money(linking.amount)}{linking.ref ? ` · #${linking.ref}` : ""}
             </div>
             <div className="space-y-1 max-h-[60vh] overflow-y-auto">
@@ -296,11 +296,11 @@ export default function MoneyTab() {
                   <button key={j.id} onClick={() => linkInvoice(j.id, linking)} disabled={busy === j.id}
                     className="w-full text-left rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 hover:border-neutral-600 disabled:opacity-50">
                     <div className="text-xs font-semibold text-white truncate">{jobLabel(j)}</div>
-                    <div className="text-[11px] text-neutral-500">{[j.job, j.price, j.status].filter(Boolean).join(" · ")}</div>
+                    <div className="text-xs text-neutral-400">{[j.job, j.price, j.status].filter(Boolean).join(" · ")}</div>
                   </button>
                 ))}
             </div>
-            <button onClick={() => setLinking(null)} className="mt-3 w-full text-xs text-neutral-500 underline">Cancel</button>
+            <button onClick={() => setLinking(null)} className="mt-3 w-full text-xs text-neutral-400 underline">Cancel</button>
           </div>
         </div>
       ) : null}
@@ -308,14 +308,14 @@ export default function MoneyTab() {
   );
 }
 
-const btn = "px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500";
+const btn = "px-2.5 py-1 rounded-lg text-xs font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500";
 
 function Tile({ v, l, tone }: { v: string; l: string; tone?: "amber" | "green" }) {
   const b = tone === "amber" ? "border-amber-500/50" : tone === "green" ? "border-emerald-500/50" : "border-neutral-800";
   const c = tone === "amber" ? "text-amber-300" : tone === "green" ? "text-emerald-300" : "text-white";
   return (
     <div className={`rounded-2xl border ${b} bg-neutral-900/95 p-3 text-center`}>
-      <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{l}</div>
+      <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">{l}</div>
       <div className={`text-xl font-extrabold tabular-nums mt-1 ${c}`}>{v}</div>
     </div>
   );

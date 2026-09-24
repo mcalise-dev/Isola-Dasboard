@@ -52,8 +52,8 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">✅ Checklist</div>
-        <button onClick={() => setPickOpen(!pickOpen)} className="text-[11px] font-semibold text-neutral-400 hover:text-neutral-200 underline">
+        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">✅ Checklist</div>
+        <button onClick={() => setPickOpen(!pickOpen)} className="text-xs font-semibold text-neutral-400 hover:text-neutral-200 underline">
           {pickOpen ? "close" : "use a template"}
         </button>
       </div>
@@ -64,16 +64,16 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
             <button key={t.id} onClick={() => applyTemplate(t)} disabled={busy}
               className="w-full text-left rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 hover:border-neutral-600 disabled:opacity-50">
               <div className="text-xs font-semibold text-white">{t.name}</div>
-              <div className="text-[11px] text-neutral-500">{(t.checklist?.length ?? 0)} steps{t.job_type ? " · " + t.job_type : ""}</div>
+              <div className="text-xs text-neutral-400">{(t.checklist?.length ?? 0)} steps{t.job_type ? " · " + t.job_type : ""}</div>
             </button>
           ))}
-          {templates.length === 0 ? <p className="text-xs text-neutral-600">No templates saved yet.</p> : null}
+          {templates.length === 0 ? <p className="text-xs text-neutral-500">No templates saved yet.</p> : null}
         </div>
       ) : null}
 
       {items.length ? (
         <div className="mb-2">
-          <div className="flex items-center justify-between text-[11px] text-neutral-500 mb-1">
+          <div className="flex items-center justify-between text-xs text-neutral-400 mb-1">
             <span>{done} of {items.length} done</span><span>{pct}%</span>
           </div>
           <div className="h-1.5 rounded-full bg-neutral-800 overflow-hidden">
@@ -86,22 +86,22 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
         {items.map((it) => (
           <div key={it.id} className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-1.5">
             <button onClick={() => toggle(it)}
-              className={`shrink-0 w-4 h-4 rounded border flex items-center justify-center text-[10px] ${it.done ? "bg-emerald-500 border-emerald-500 text-black" : "border-neutral-600"}`}>
+              className={`shrink-0 w-4 h-4 rounded border flex items-center justify-center text-xs ${it.done ? "bg-emerald-500 border-emerald-500 text-black" : "border-neutral-600"}`}>
               {it.done ? "✓" : ""}
             </button>
-            <span className={`flex-1 text-xs ${it.done ? "text-neutral-600 line-through" : "text-neutral-200"}`}>{it.label}</span>
+            <span className={`flex-1 text-xs ${it.done ? "text-neutral-500 line-through" : "text-neutral-200"}`}>{it.label}</span>
             <button onClick={() => remove(it)} className="shrink-0 text-neutral-700 hover:text-red-400 text-xs">✕</button>
           </div>
         ))}
-        {items.length === 0 && !pickOpen ? <p className="text-xs text-neutral-600">Nothing on the list yet.</p> : null}
+        {items.length === 0 && !pickOpen ? <p className="text-xs text-neutral-500">Nothing on the list yet.</p> : null}
       </div>
 
       <div className="flex gap-1.5 mt-2">
         <input value={adding} onChange={(e) => setAdding(e.target.value)} placeholder="Add a step…"
           onKeyDown={(e) => e.key === "Enter" && add(adding)}
-          className="flex-1 rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500" />
+          className="flex-1 rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500" />
         <button onClick={() => add(adding)} disabled={busy || !adding.trim()}
-          className="rounded-lg border border-neutral-700 px-3 text-[11px] font-semibold text-neutral-300 disabled:opacity-40">Add</button>
+          className="rounded-lg border border-neutral-700 px-3 text-xs font-semibold text-neutral-300 disabled:opacity-40">Add</button>
       </div>
     </div>
   );

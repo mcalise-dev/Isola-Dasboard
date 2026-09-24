@@ -69,11 +69,11 @@ export default function MktTasksTab() {
       { key: "overdue", label: "Overdue", cls: "text-red-400", items: [] },
       { key: "today", label: "Today", cls: "text-amber-300", items: [] },
       { key: "upcoming", label: "Upcoming", cls: "text-neutral-400", items: [] },
-      { key: "Short term", label: "Short term", cls: "text-neutral-500", items: [] },
-      { key: "Ongoing", label: "Ongoing", cls: "text-neutral-500", items: [] },
-      { key: "Long term", label: "Long term", cls: "text-neutral-500", items: [] },
-      { key: "Someday", label: "Someday", cls: "text-neutral-600", items: [] },
-      { key: "nodate", label: "No date", cls: "text-neutral-600", items: [] },
+      { key: "Short term", label: "Short term", cls: "text-neutral-400", items: [] },
+      { key: "Ongoing", label: "Ongoing", cls: "text-neutral-400", items: [] },
+      { key: "Long term", label: "Long term", cls: "text-neutral-400", items: [] },
+      { key: "Someday", label: "Someday", cls: "text-neutral-500", items: [] },
+      { key: "nodate", label: "No date", cls: "text-neutral-500", items: [] },
     ];
     const find = (k: string) => buckets.find((b) => b.key === k)!;
     openTasks.forEach((t) => {
@@ -119,12 +119,12 @@ export default function MktTasksTab() {
     const c = t.contact_id ? contactById[t.contact_id] : null;
     return (
       <div key={t.id} className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900 px-3.5 py-3">
-        <button onClick={() => toggle(t)} aria-label="Toggle done" className={`w-5 h-5 shrink-0 rounded-md border flex items-center justify-center text-[11px] ${t.done ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300" : "border-neutral-600 text-transparent"}`}>
+        <button onClick={() => toggle(t)} aria-label="Toggle done" className={`w-5 h-5 shrink-0 rounded-md border flex items-center justify-center text-xs ${t.done ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300" : "border-neutral-600 text-transparent"}`}>
           ✓
         </button>
         <div className="flex-1 min-w-0">
-          <div className={`text-sm ${t.done ? "line-through text-neutral-500" : "text-white"}`}>{t.title}</div>
-          <div className="text-xs text-neutral-500 truncate">
+          <div className={`text-sm ${t.done ? "line-through text-neutral-400" : "text-white"}`}>{t.title}</div>
+          <div className="text-xs text-neutral-400 truncate">
             {t.due_date ? (
               <span className={!t.done && t.due_date <= todayISO() ? "text-red-400 font-semibold" : "text-neutral-400"}>
                 {!t.done && t.due_date < todayISO() ? "Overdue · " : "Due "}{fmtDue(t.due_date)}
@@ -135,9 +135,9 @@ export default function MktTasksTab() {
           </div>
         </div>
         {!t.done ? (
-          <span className={`shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${PRIO_CLS[t.priority] ?? PRIO_CLS.medium}`}>{t.priority}</span>
+          <span className={`shrink-0 text-xs font-bold uppercase px-2 py-0.5 rounded-full border ${PRIO_CLS[t.priority] ?? PRIO_CLS.medium}`}>{t.priority}</span>
         ) : null}
-        <button onClick={() => remove(t)} className="shrink-0 text-neutral-600 hover:text-red-400 text-sm" aria-label="Delete">✕</button>
+        <button onClick={() => remove(t)} className="shrink-0 text-neutral-500 hover:text-red-400 text-sm" aria-label="Delete">✕</button>
       </div>
     );
   }
@@ -175,22 +175,22 @@ export default function MktTasksTab() {
         </div>
       </div>
 
-      {loading ? <p className="text-neutral-500 text-sm">Loading…</p> : null}
+      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
       <div className="space-y-4">
         {sections.map((s) => (
           <div key={s.key}>
-            <div className={`flex items-baseline gap-2 pb-1.5 text-[11px] font-bold uppercase tracking-widest ${s.cls}`}>
-              {s.label}<span className="text-neutral-600 font-semibold">{s.items.length}</span>
+            <div className={`flex items-baseline gap-2 pb-1.5 text-xs font-bold uppercase tracking-widest ${s.cls}`}>
+              {s.label}<span className="text-neutral-500 font-semibold">{s.items.length}</span>
             </div>
             <div className="space-y-2">{s.items.map(row)}</div>
           </div>
         ))}
       </div>
-      {!loading && openTasks.length === 0 ? <p className="text-neutral-500 text-sm">No marketing tasks yet. Add the week&apos;s outreach here.</p> : null}
+      {!loading && openTasks.length === 0 ? <p className="text-neutral-400 text-sm">No marketing tasks yet. Add the week&apos;s outreach here.</p> : null}
 
       {doneTasks.length ? (
         <div className="mt-6">
-          <button onClick={() => setShowDone(!showDone)} className="text-xs font-semibold uppercase tracking-wide text-neutral-600">
+          <button onClick={() => setShowDone(!showDone)} className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
             {showDone ? "Hide" : "Show"} completed ({doneTasks.length})
           </button>
           {showDone ? <div className="space-y-2 mt-2.5">{doneTasks.map(row)}</div> : null}

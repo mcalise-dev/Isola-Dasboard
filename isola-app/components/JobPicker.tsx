@@ -47,9 +47,9 @@ export default function JobPicker({ jobs, value, onChange, placeholder = "Tag a 
   if (picked && !open) {
     return (
       <div className={`flex items-center gap-2 rounded-lg border border-neutral-600 bg-neutral-950 px-3 py-2 ${className}`}>
-        <span className="min-w-0 flex-1 truncate text-sm text-white">🔗 {picked.job_name || picked.customer}<span className="text-neutral-500">{picked.job_name ? " · " + picked.customer : ""}</span></span>
-        <button type="button" onClick={() => setOpen(true)} className="shrink-0 text-[11px] font-semibold text-neutral-400">change</button>
-        <button type="button" onClick={() => choose("")} className="shrink-0 text-neutral-500 hover:text-red-400 text-sm" aria-label="Clear job">✕</button>
+        <span className="min-w-0 flex-1 truncate text-sm text-white">🔗 {picked.job_name || picked.customer}<span className="text-neutral-400">{picked.job_name ? " · " + picked.customer : ""}</span></span>
+        <button type="button" onClick={() => setOpen(true)} className="shrink-0 text-xs font-semibold text-neutral-400">change</button>
+        <button type="button" onClick={() => choose("")} className="shrink-0 text-neutral-400 hover:text-red-400 text-sm" aria-label="Clear job">✕</button>
       </div>
     );
   }
@@ -61,24 +61,24 @@ export default function JobPicker({ jobs, value, onChange, placeholder = "Tag a 
         onKeyDown={(e) => { if (e.key === "Enter" && matches[0]) { e.preventDefault(); choose(matches[0].id); } if (e.key === "Escape") setOpen(false); }} />
       {open ? (
         <div className="absolute z-30 left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl">
-          {!q ? <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-500">{recent.length ? "Recent & active" : "Active jobs"} — keep typing to narrow</div> : null}
+          {!q ? <div className="px-3 pt-2 pb-1 text-xs font-bold uppercase tracking-widest text-neutral-400">{recent.length ? "Recent & active" : "Active jobs"} — keep typing to narrow</div> : null}
           {matches.map((j) => (
             <button type="button" key={j.id} onMouseDown={(e) => e.preventDefault()} onClick={() => choose(j.id)}
               className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-neutral-800 active:bg-neutral-800">
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm text-white">{j.priority ? "★ " : ""}{j.job_name || j.customer}</span>
-                <span className="block truncate text-[11px] text-neutral-500">{[j.job_name ? j.customer : null, j.location].filter(Boolean).join(" · ")}</span>
+                <span className="block truncate text-xs text-neutral-400">{[j.job_name ? j.customer : null, j.location].filter(Boolean).join(" · ")}</span>
               </span>
-              <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${STATUS_META[j.status]?.cls ?? ""}`}>{STATUS_META[j.status]?.label ?? j.status}</span>
+              <span className={`shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-full border ${STATUS_META[j.status]?.cls ?? ""}`}>{STATUS_META[j.status]?.label ?? j.status}</span>
             </button>
           ))}
-          {!matches.length ? <div className="px-3 py-3 text-xs text-neutral-500">No {showOld ? "" : "active "}job matches “{q}”.</div> : null}
+          {!matches.length ? <div className="px-3 py-3 text-xs text-neutral-400">No {showOld ? "" : "active "}job matches “{q}”.</div> : null}
           <div className="flex items-center justify-between border-t border-neutral-800 px-3 py-2">
-            <label className="flex items-center gap-1.5 text-[11px] text-neutral-400">
+            <label className="flex items-center gap-1.5 text-xs text-neutral-400">
               <input type="checkbox" checked={showOld} onChange={(e) => setShowOld(e.target.checked)} /> show old jobs
             </label>
-            {value ? <button type="button" onClick={() => choose("")} className="text-[11px] text-neutral-400">No job</button>
-              : <button type="button" onClick={() => setOpen(false)} className="text-[11px] text-neutral-400">Close</button>}
+            {value ? <button type="button" onClick={() => choose("")} className="text-xs text-neutral-400">No job</button>
+              : <button type="button" onClick={() => setOpen(false)} className="text-xs text-neutral-400">Close</button>}
           </div>
         </div>
       ) : null}

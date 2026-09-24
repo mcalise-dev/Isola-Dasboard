@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { undoable } from "@/components/Toaster";
 import { createClient } from "@/lib/supabase/client";
 import { Job, jobLabel, todayISO } from "@/lib/format";
 import JobPicker from "@/components/JobPicker";
@@ -122,10 +123,14 @@ export default function GamePlanTab() {
     loadPlan(date);
   }
 
-  async function remove(it: Item) {
-    if (!confirm("Delete this line?")) return;
-    await supabase.from("game_plan_items").delete().eq("id", it.id);
-    loadPlan(date);
+  function remove(it: Item) {
+    const prev = items;
+    undoable({
+      text: "Line deleted",
+      hide: () => setItems(prev.filter((x) => x.id !== it.id)),
+      restore: () => setItems(prev),
+      commit: () => supabase.from("game_plan_items").delete().eq("id", it.id),
+    });
   }
 
   async function saveHeader() {
@@ -190,7 +195,7 @@ export default function GamePlanTab() {
             className="w-9 h-9 shrink-0 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-bold">‹</button>
           <div className="flex-1 min-w-0 text-center">
             <div className="text-sm font-extrabold text-white truncate">{longDate(date)}</div>
-            <div className="text-[11px] text-neutral-500">{isToday ? "Today" : plan ? "Saved plan" : "No plan yet"}</div>
+            <div className="text-xs text-neutral-400">{isToday ? "Today" : plan ? "Saved plan" : "No plan yet"}</div>
           </div>
           <button onClick={() => setDate(shiftDate(date, 1))} aria-label="Next day"
             className="w-9 h-9 shrink-0 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-bold">›</button>
@@ -207,7 +212,7 @@ export default function GamePlanTab() {
           value={headline} onChange={(e) => setHeadline(e.target.value)} onBlur={saveHeader} />
         {items.length ? (
           <div>
-            <div className="flex items-baseline justify-between text-[11px] font-bold uppercase tracking-widest text-neutral-500 mb-1">
+            <div className="flex items-baseline justify-between text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1">
               <span>{doneCount} of {items.length} done</span><span className="tabular-nums">{pct}%</span>
             </div>
             <div className="h-2 rounded-full bg-neutral-800 overflow-hidden">
@@ -228,15 +233,15 @@ export default function GamePlanTab() {
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={carryOver} className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-semibold text-neutral-300">↩︎ Carry over unfinished</button>
-          {plan ? <button onClick={deletePlan} className="rounded-lg border border-neutral-800 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:text-red-400">Delete this plan</button> : null}
-          {saving ? <span className="text-xs text-neutral-600 self-center">Saving…</span> : null}
+          {plan ? <button onClick={deletePlan} className="rounded-lg border border-neutral-800 px-3 py-1.5 text-xs font-semibold text-neutral-500 hover:text-red-400">Delete this plan</button> : null}
+          {saving ? <span className="text-xs text-neutral-500 self-center">Saving…</span> : null}
         </div>
       </div>
 
       {/* On the schedule that day */}
       {sched.length ? (
         <div>
-          <div className="pb-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500">On the schedule</div>
+          <div className="pb-1.5 text-xs font-bold uppercase tracking-widest text-neutral-400">On the schedule</div>
           <div className="space-y-2">
             {sched.map((s) => (
               <div key={s.id} className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5">
@@ -250,27 +255,27 @@ export default function GamePlanTab() {
       ) : null}
 
       {/* The plan */}
-      {loading ? <p className="text-neutral-500 text-sm">Loading…</p> : null}
+      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
       {!loading && !items.length ? (
-        <p className="text-neutral-500 text-sm">Nothing written down for {shortDate(date)} yet — type the day out above.</p>
+        <p className="text-neutral-400 text-sm">Nothing written down for {shortDate(date)} yet — type the day out above.</p>
       ) : null}
       <div className="space-y-2">
         {items.map((it) => (
           <div key={it.id} className="flex items-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900 px-3.5 py-3">
             <button onClick={() => toggle(it)} aria-label="Toggle done"
-              className={`w-5 h-5 mt-0.5 shrink-0 rounded-md border flex items-center justify-center text-[11px] ${it.done ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300" : "border-neutral-600 text-transparent"}`}>✓</button>
+              className={`w-5 h-5 mt-0.5 shrink-0 rounded-md border flex items-center justify-center text-xs ${it.done ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300" : "border-neutral-600 text-transparent"}`}>✓</button>
             <div className="flex-1 min-w-0">
-              <div className={`text-sm whitespace-pre-wrap break-words ${it.done ? "line-through text-neutral-500" : "text-white"}`}>{it.body}</div>
-              {it.job_id && jobById[it.job_id] ? <div className="text-xs text-neutral-500 truncate">{jobLabel(jobById[it.job_id])}</div> : null}
+              <div className={`text-sm whitespace-pre-wrap break-words ${it.done ? "line-through text-neutral-400" : "text-white"}`}>{it.body}</div>
+              {it.job_id && jobById[it.job_id] ? <div className="text-xs text-neutral-400 truncate">{jobLabel(jobById[it.job_id])}</div> : null}
             </div>
-            <button onClick={() => remove(it)} className="shrink-0 text-neutral-600 hover:text-red-400 text-sm" aria-label="Delete">✕</button>
+            <button onClick={() => remove(it)} className="shrink-0 text-neutral-500 hover:text-red-400 text-sm" aria-label="Delete">✕</button>
           </div>
         ))}
       </div>
 
       {/* Notes */}
       <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-3.5">
-        <div className="pb-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500">Notes for the day</div>
+        <div className="pb-1.5 text-xs font-bold uppercase tracking-widest text-neutral-400">Notes for the day</div>
         <textarea className={`${input} w-full h-24 resize-y`} placeholder="Anything that isn't a checkbox — who's on what, what to watch, what to order."
           value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveHeader} />
       </div>
@@ -278,7 +283,7 @@ export default function GamePlanTab() {
       {/* Recent plans */}
       {recent.length ? (
         <div>
-          <div className="pb-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500">Recent game plans</div>
+          <div className="pb-1.5 text-xs font-bold uppercase tracking-widest text-neutral-400">Recent game plans</div>
           <div className="flex flex-wrap gap-2">
             {recent.map((r) => (
               <button key={r.plan_date} onClick={() => setDate(r.plan_date)}

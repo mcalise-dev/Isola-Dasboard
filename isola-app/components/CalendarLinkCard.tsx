@@ -28,8 +28,8 @@ export default function CalendarLinkCard() {
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 mb-3 overflow-hidden">
       <button onClick={toggle} className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left">
-        <span className="text-[10px] text-neutral-600 w-3">{open ? "▾" : "▸"}</span>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">📱 On my phone's calendar</span>
+        <span className="text-xs text-neutral-500 w-3">{open ? "▾" : "▸"}</span>
+        <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">📱 On my phone's calendar</span>
       </button>
       {open ? (
         <div className="px-3.5 pb-3.5 space-y-2">
@@ -38,8 +38,8 @@ export default function CalendarLinkCard() {
             <a href={webcal} className="rounded-lg bg-white text-neutral-900 py-2 text-center text-xs font-bold">🍎 iPhone calendar</a>
             <a href={google} target="_blank" rel="noreferrer" className="rounded-lg border border-neutral-600 py-2 text-center text-xs font-bold text-white">Google Calendar</a>
           </div>
-          <button onClick={copy} className="w-full rounded-lg border border-neutral-700 py-1.5 text-[11px] font-semibold text-neutral-300">{copied ? "✓ Link copied" : "Copy the link"}</button>
-          <p className="text-[10px] text-neutral-600">iPhone checks for changes about every 15–30 min (Settings → Calendar → Accounts → Isola Jobs → Fetch). Google Calendar only re-checks a few times a day. Keep this link private — anyone with it can see the schedule.</p>
+          <button onClick={copy} className="w-full rounded-lg border border-neutral-700 py-1.5 text-xs font-semibold text-neutral-300">{copied ? "✓ Link copied" : "Copy the link"}</button>
+          <p className="text-xs text-neutral-500">iPhone checks for changes about every 15–30 min (Settings → Calendar → Accounts → Isola Jobs → Fetch). Google Calendar only re-checks a few times a day. Keep this link private — anyone with it can see the schedule.</p>
         </div>
       ) : null}
     </div>

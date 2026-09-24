@@ -53,7 +53,7 @@ export default function CrewTab() {
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   }
 
-  if (loading) return <p className="pt-4 text-sm text-neutral-500">Loading…</p>;
+  if (loading) return <p className="pt-4 text-sm text-neutral-400">Loading…</p>;
 
   const onClock = punches.filter((p) => !p.clock_out);
   const today = new Date().toDateString();
@@ -72,29 +72,29 @@ export default function CrewTab() {
       </div>
 
       <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3.5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Crew clock-in link</div>
+        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Crew clock-in link</div>
         <div className="mt-1 text-xs text-neutral-400 break-all">{clockUrl}</div>
         <div className="flex gap-1.5 mt-2">
           <button onClick={copyClock} className={btn}>{copied ? "Copied ✓" : "Copy link"}</button>
           <a href="/clock" target="_blank" rel="noopener noreferrer" className={btn}>Open</a>
         </div>
-        <p className="mt-2 text-[11px] text-neutral-600">Send this to the guys once — they save it to their home screen and punch in with their PIN. Hours post to the job automatically.</p>
+        <p className="mt-2 text-xs text-neutral-500">Send this to the guys once — they save it to their home screen and punch in with their PIN. Hours post to the job automatically.</p>
       </div>
 
       {onClock.length ? (
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300 mb-1.5">On the clock right now</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-amber-300 mb-1.5">On the clock right now</div>
           <div className="space-y-1.5">
             {onClock.map((p) => (
               <div key={p.id} className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3.5 py-2.5 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-sm font-bold text-white">{wName(p.worker_id)}</div>
                   <div className="text-xs text-neutral-300 truncate">{jName(p.job_id)}</div>
-                  <div className="text-[11px] text-neutral-500">in at {t12(p.clock_in)}</div>
+                  <div className="text-xs text-neutral-400">in at {t12(p.clock_in)}</div>
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-lg font-extrabold text-white tabular-nums">{hhmm(p.clock_in)}</div>
-                  <button onClick={() => forceOut(p)} className="text-[10px] text-neutral-400 underline">clock out</button>
+                  <button onClick={() => forceOut(p)} className="text-xs text-neutral-400 underline">clock out</button>
                 </div>
               </div>
             ))}
@@ -103,9 +103,9 @@ export default function CrewTab() {
       ) : null}
 
       <div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Last 14 days</div>
+        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Last 14 days</div>
         <div className="space-y-1">
-          {unpaid.length === 0 ? <p className="text-xs text-neutral-600">No punches yet.</p> : null}
+          {unpaid.length === 0 ? <p className="text-xs text-neutral-500">No punches yet.</p> : null}
           {unpaid.map((p) => {
             const w = wRow(p.worker_id);
             const hrs = (new Date(p.clock_out).getTime() - new Date(p.clock_in).getTime()) / 3600000;
@@ -114,14 +114,14 @@ export default function CrewTab() {
               <div key={p.id} className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-xs font-semibold text-white">{wName(p.worker_id)} · <span className="text-neutral-400 font-normal">{jName(p.job_id)}</span></div>
-                  <div className="text-[11px] text-neutral-600">
+                  <div className="text-xs text-neutral-500">
                     {new Date(p.clock_in).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {t12(p.clock_in)}–{t12(p.clock_out)}
                     {p.job_cost_id ? "" : " · not costed"}
                   </div>
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-xs font-bold text-white tabular-nums">{hrs.toFixed(2)} h</div>
-                  <div className="text-[11px] text-neutral-500 tabular-nums">{money(amt)}</div>
+                  <div className="text-xs text-neutral-400 tabular-nums">{money(amt)}</div>
                 </div>
               </div>
             );
@@ -131,17 +131,17 @@ export default function CrewTab() {
 
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Crew &amp; PINs</div>
-          <button onClick={() => setEditing({})} className="text-[11px] font-semibold text-neutral-300 underline">+ Add</button>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Crew &amp; PINs</div>
+          <button onClick={() => setEditing({})} className="text-xs font-semibold text-neutral-300 underline">+ Add</button>
         </div>
         <div className="space-y-1">
           {workers.map((w) => (
             <button key={w.id} onClick={() => setEditing(w)} className="w-full text-left rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 flex items-center justify-between gap-2 hover:border-neutral-600">
               <div>
-                <div className={`text-xs font-semibold ${w.active ? "text-white" : "text-neutral-600 line-through"}`}>{w.name}</div>
-                <div className="text-[11px] text-neutral-600">PIN {w.pin}</div>
+                <div className={`text-xs font-semibold ${w.active ? "text-white" : "text-neutral-500 line-through"}`}>{w.name}</div>
+                <div className="text-xs text-neutral-500">PIN {w.pin}</div>
               </div>
-              <div className="text-[11px] text-neutral-400 tabular-nums">
+              <div className="text-xs text-neutral-400 tabular-nums">
                 {w.rate ? `$${w.rate}/${w.rate_type === "daily" ? "day" : "hr"}` : "no rate"}
               </div>
             </button>
@@ -158,7 +158,7 @@ function Tile({ v, l, tone }: { v: string; l: string; tone?: "amber" }) {
   return (
     <div className={`rounded-xl border ${tone === "amber" ? "border-amber-500/50" : "border-neutral-800"} bg-neutral-900 p-2.5 text-center`}>
       <div className={`text-base font-bold leading-none ${tone === "amber" ? "text-amber-300" : "text-white"}`}>{v}</div>
-      <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">{l}</div>
+      <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">{l}</div>
     </div>
   );
 }
@@ -187,7 +187,7 @@ function WorkerEditor({ supabase, worker, onClose, onSaved }: any) {
       <div className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-bold text-white">{worker ? "Edit crew member" : "Add crew member"}</div>
-          <button onClick={onClose} className="text-neutral-500 text-lg leading-none">✕</button>
+          <button onClick={onClose} className="text-neutral-400 text-lg leading-none">✕</button>
         </div>
         <div className="space-y-2.5">
           <F l="Name"><input value={f.name} onChange={set("name")} className={inp} /></F>
@@ -212,8 +212,8 @@ function WorkerEditor({ supabase, worker, onClose, onSaved }: any) {
   );
 }
 
-const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500";
-const btn = "px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500 whitespace-nowrap";
+const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500";
+const btn = "px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500 whitespace-nowrap";
 function F({ l, children }: { l: string; children: React.ReactNode }) {
-  return <label className="block"><span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">{l}</span>{children}</label>;
+  return <label className="block"><span className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">{l}</span>{children}</label>;
 }

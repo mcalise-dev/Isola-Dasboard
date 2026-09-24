@@ -60,8 +60,8 @@ export default function CustomerProfile({ id }: { id: string }) {
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
 
-  if (loading) return <p className="pt-4 text-sm text-neutral-500">Loading…</p>;
-  if (!c) return <p className="pt-4 text-sm text-neutral-500">Customer not found. <Link href="/customers" className="underline">Back to customers</Link></p>;
+  if (loading) return <p className="pt-4 text-sm text-neutral-400">Loading…</p>;
+  if (!c) return <p className="pt-4 text-sm text-neutral-400">Customer not found. <Link href="/customers" className="underline">Back to customers</Link></p>;
 
   const t = TYPES[c.client_type] ?? TYPES.residential;
   const names = [c.name, ...(c.qbo_names ?? [])].map((n: string) => n.toLowerCase());
@@ -103,7 +103,7 @@ export default function CustomerProfile({ id }: { id: string }) {
 
   return (
     <div className="pt-1 space-y-4">
-      <Link href="/customers" className="text-[11px] text-neutral-500 hover:text-neutral-300">‹ All customers</Link>
+      <Link href="/customers" className="text-xs text-neutral-400 hover:text-neutral-300">‹ All customers</Link>
 
       {/* header */}
       <div>
@@ -111,19 +111,19 @@ export default function CustomerProfile({ id }: { id: string }) {
           <div className="min-w-0">
             <h1 className="text-xl font-extrabold text-white leading-tight">{c.name}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${t.cls}`}>{t.label}</span>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-400">
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${t.cls}`}>{t.label}</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-400">
                 {c.kind === "individual" ? "Individual" : "Company"}
               </span>
               {(c.tags ?? []).map((tag: string) => (
-                <span key={tag} className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-neutral-700 bg-neutral-900 text-neutral-300">{tag}</span>
+                <span key={tag} className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 bg-neutral-900 text-neutral-300">{tag}</span>
               ))}
-              {c.archived ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-red-500/40 text-red-300">Archived</span> : null}
+              {c.archived ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-red-500/40 text-red-300">Archived</span> : null}
             </div>
           </div>
-          <button onClick={() => setEditing(true)} className="shrink-0 rounded-lg border border-neutral-700 px-3 py-1.5 text-[11px] font-semibold text-neutral-300 hover:border-neutral-500">Edit</button>
+          <button onClick={() => setEditing(true)} className="shrink-0 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:border-neutral-500">Edit</button>
         </div>
-        <p className="mt-1.5 text-[11px] text-neutral-500">{t.hint}</p>
+        <p className="mt-1.5 text-xs text-neutral-400">{t.hint}</p>
       </div>
 
       {/* the numbers that matter */}
@@ -136,18 +136,18 @@ export default function CustomerProfile({ id }: { id: string }) {
 
       {myInvoices.length ? (
         <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Open invoices — QuickBooks</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Open invoices — QuickBooks</div>
           <div className="space-y-1">
             {myInvoices.map((i: any) => (
               <div key={i.ref} className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-neutral-300 truncate">#{i.ref}<span className="text-neutral-600"> · due {i.due}</span></span>
+                <span className="text-neutral-300 truncate">#{i.ref}<span className="text-neutral-500"> · due {i.due}</span></span>
                 <span className={`shrink-0 font-bold tabular-nums ${i.days_overdue > 0 ? "text-red-300" : "text-neutral-200"}`}>
                   {money(Number(i.amount))}{i.days_overdue > 0 ? ` · ${i.days_overdue}d late` : ""}
                 </span>
               </div>
             ))}
           </div>
-          {ar?.as_of ? <p className="mt-1.5 text-[10px] text-neutral-600">As of {ar.as_of}</p> : null}
+          {ar?.as_of ? <p className="mt-1.5 text-xs text-neutral-500">As of {ar.as_of}</p> : null}
         </div>
       ) : null}
 
@@ -164,17 +164,17 @@ export default function CustomerProfile({ id }: { id: string }) {
       </Card>
 
       {/* additional contacts */}
-      <Card title={`People — ${contacts.length}`} action={<button onClick={() => setContactEdit({})} className="text-[11px] font-semibold text-neutral-400 underline">+ Add</button>}>
-        {contacts.length === 0 ? <p className="text-xs text-neutral-600">Just the main contact.</p> : null}
+      <Card title={`People — ${contacts.length}`} action={<button onClick={() => setContactEdit({})} className="text-xs font-semibold text-neutral-400 underline">+ Add</button>}>
+        {contacts.length === 0 ? <p className="text-xs text-neutral-500">Just the main contact.</p> : null}
         <div className="space-y-1">
           {contacts.map((p) => (
             <div key={p.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-white">
-                  {p.name}{p.role ? <span className="text-neutral-500 font-normal"> · {p.role}</span> : null}
-                  {p.is_billing ? <span className="ml-1.5 text-[9px] font-bold px-1.5 py-px rounded-full border border-emerald-500/40 text-emerald-300">BILLING</span> : null}
+                  {p.name}{p.role ? <span className="text-neutral-400 font-normal"> · {p.role}</span> : null}
+                  {p.is_billing ? <span className="ml-1.5 text-xs font-bold px-1.5 py-px rounded-full border border-emerald-500/40 text-emerald-300">BILLING</span> : null}
                 </div>
-                <div className="text-[11px] text-neutral-500 truncate">{[p.phone, p.email].filter(Boolean).join(" · ") || "—"}</div>
+                <div className="text-xs text-neutral-400 truncate">{[p.phone, p.email].filter(Boolean).join(" · ") || "—"}</div>
               </div>
               <div className="shrink-0 flex gap-1.5">
                 {p.phone ? <a href={`tel:${tel(p.phone)}`} className={btn}>📞</a> : null}
@@ -186,8 +186,8 @@ export default function CustomerProfile({ id }: { id: string }) {
       </Card>
 
       {/* properties */}
-      <Card title={`Properties — ${props.length}`} action={<button onClick={() => setPropEdit({})} className="text-[11px] font-semibold text-neutral-400 underline">+ Add</button>}>
-        {props.length === 0 ? <p className="text-xs text-neutral-600">No properties yet.</p> : null}
+      <Card title={`Properties — ${props.length}`} action={<button onClick={() => setPropEdit({})} className="text-xs font-semibold text-neutral-400 underline">+ Add</button>}>
+        {props.length === 0 ? <p className="text-xs text-neutral-500">No properties yet.</p> : null}
         <div className="space-y-1">
           {props.map((p) => (
             <div key={p.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
@@ -195,11 +195,11 @@ export default function CustomerProfile({ id }: { id: string }) {
                 <div className="min-w-0">
                   {p.label ? <div className="text-xs font-bold text-white">{p.label}</div> : null}
                   <div className={`text-xs ${p.label ? "text-neutral-400" : "font-semibold text-white"} truncate`}>{p.address}</div>
-                  <div className="text-[11px] text-neutral-600">
+                  <div className="text-xs text-neutral-500">
                     {[p.city, p.state, p.zip].filter(Boolean).join(", ")}
                     {jobsAt(p.id) ? `${[p.city, p.state, p.zip].filter(Boolean).length ? " · " : ""}${jobsAt(p.id)} job${jobsAt(p.id) === 1 ? "" : "s"}` : ""}
                   </div>
-                  {p.access_notes ? <div className="mt-1 text-[11px] text-amber-300/80">⚠ {p.access_notes}</div> : null}
+                  {p.access_notes ? <div className="mt-1 text-xs text-amber-300/80">⚠ {p.access_notes}</div> : null}
                 </div>
                 <div className="shrink-0 flex gap-1.5">
                   <a href={`https://maps.google.com/?q=${encodeURIComponent([p.address, p.city, p.state].filter(Boolean).join(", "))}`} target="_blank" rel="noopener noreferrer" className={btn}>🧭</a>
@@ -216,14 +216,14 @@ export default function CustomerProfile({ id }: { id: string }) {
       <div className="flex gap-1.5">
         {([["work", "Work"], ["activity", "Activity"], ["notes", "Notes"]] as const).map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)}
-            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border ${tab === k ? "border-white bg-neutral-800 text-white" : "border-neutral-700 text-neutral-400"}`}>{l}</button>
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${tab === k ? "border-white bg-neutral-800 text-white" : "border-neutral-700 text-neutral-400"}`}>{l}</button>
         ))}
       </div>
 
       {tab === "work" ? (
         <div className="space-y-3">
           <Card title={`Jobs — ${jobs.length}`}>
-            {jobs.length === 0 ? <p className="text-xs text-neutral-600">No jobs yet.</p> : null}
+            {jobs.length === 0 ? <p className="text-xs text-neutral-500">No jobs yet.</p> : null}
             <div className="space-y-1">
               {jobs.map((j) => {
                 const m = STATUS_META[j.status] ?? STATUS_META.booked;
@@ -231,11 +231,11 @@ export default function CustomerProfile({ id }: { id: string }) {
                   <div key={j.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className="text-xs font-semibold text-white truncate">{j.job_name || j.location}</div>
-                      <div className="text-[11px] text-neutral-500 truncate">
+                      <div className="text-xs text-neutral-400 truncate">
                         {[j.job, j.price, j.completed_date ? "done " + fmtDate(j.completed_date) : null].filter(Boolean).join(" · ")}
                       </div>
                     </div>
-                    <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${m.cls}`}>{m.label}</span>
+                    <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full border ${m.cls}`}>{m.label}</span>
                   </div>
                 );
               })}
@@ -243,18 +243,18 @@ export default function CustomerProfile({ id }: { id: string }) {
           </Card>
 
           <Card title={`Proposals — ${links.length}`}>
-            {links.length === 0 ? <p className="text-xs text-neutral-600">No client links sent.</p> : null}
+            {links.length === 0 ? <p className="text-xs text-neutral-500">No client links sent.</p> : null}
             <div className="space-y-1">
               {links.map((l) => (
                 <div key={l.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-white truncate">{l.title ?? "Proposal"}</div>
-                    <div className="text-[11px] text-neutral-500">
+                    <div className="text-xs text-neutral-400">
                       {l.price ? money(Number(l.price)) : "no price"} · sent {dt(l.sent_at)}{l.view_count ? ` · opened ${l.view_count}×` : ""}
                     </div>
                   </div>
                   <a href={`/p/${l.token}`} target="_blank" rel="noopener noreferrer"
-                    className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${l.status === "approved" ? "border-emerald-500/40 text-emerald-300" : l.status === "declined" ? "border-neutral-700 text-neutral-500" : "border-blue-500/40 text-blue-300"}`}>
+                    className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full border ${l.status === "approved" ? "border-emerald-500/40 text-emerald-300" : l.status === "declined" ? "border-neutral-700 text-neutral-400" : "border-blue-500/40 text-blue-300"}`}>
                     {l.status}
                   </a>
                 </div>
@@ -263,11 +263,11 @@ export default function CustomerProfile({ id }: { id: string }) {
           </Card>
 
           <Card title={`Site visits — ${visits.length}`}>
-            {visits.length === 0 ? <p className="text-xs text-neutral-600">None logged.</p> : null}
+            {visits.length === 0 ? <p className="text-xs text-neutral-500">None logged.</p> : null}
             <div className="space-y-1">
               {visits.map((v) => (
                 <div key={v.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
-                  <div className="text-[11px] text-neutral-500">{v.visit_date ? fmtDate(v.visit_date) : dt(v.created_at)}</div>
+                  <div className="text-xs text-neutral-400">{v.visit_date ? fmtDate(v.visit_date) : dt(v.created_at)}</div>
                   <div className="text-xs text-neutral-300 whitespace-pre-wrap">{v.observed_conditions ?? v.purpose ?? "—"}</div>
                 </div>
               ))}
@@ -278,16 +278,16 @@ export default function CustomerProfile({ id }: { id: string }) {
 
       {tab === "activity" ? (
         <Card title={`Everything, newest first — ${feed.length}`}>
-          {feed.length === 0 ? <p className="text-xs text-neutral-600">Nothing yet.</p> : null}
+          {feed.length === 0 ? <p className="text-xs text-neutral-500">Nothing yet.</p> : null}
           <div className="space-y-0">
             {feed.map((e, i) => (
               <div key={i} className="flex gap-2.5 py-2 border-b border-neutral-900 last:border-0">
                 <span className="shrink-0 text-sm leading-tight">{e.icon}</span>
                 <div className="min-w-0 flex-1">
                   <div className="text-xs text-neutral-200">{e.text}</div>
-                  {e.sub ? <div className="text-[11px] text-neutral-600 truncate">{e.sub}</div> : null}
+                  {e.sub ? <div className="text-xs text-neutral-500 truncate">{e.sub}</div> : null}
                 </div>
-                <span className="shrink-0 text-[10px] text-neutral-600">{dt(e.at)}</span>
+                <span className="shrink-0 text-xs text-neutral-500">{dt(e.at)}</span>
               </div>
             ))}
           </div>
@@ -298,7 +298,7 @@ export default function CustomerProfile({ id }: { id: string }) {
         <Card title="Notes">
           <div className="space-y-2 mb-3">
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="What should you remember about this customer?"
-              className="w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500" />
+              className="w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500" />
             <div className="flex gap-2 items-center">
               <input type="file" accept="image/*" capture="environment"
                 onChange={async (e) => {
@@ -310,13 +310,13 @@ export default function CustomerProfile({ id }: { id: string }) {
                   cv.getContext("2d")!.drawImage(bm, 0, 0, cv.width, cv.height);
                   setNoteFile({ b64: cv.toDataURL("image/jpeg", 0.72), name: f.name });
                 }}
-                className="flex-1 text-[11px] text-neutral-500 file:mr-2 file:rounded-lg file:border file:border-neutral-700 file:bg-neutral-900 file:px-2 file:py-1 file:text-[11px] file:text-neutral-300" />
+                className="flex-1 text-xs text-neutral-400 file:mr-2 file:rounded-lg file:border file:border-neutral-700 file:bg-neutral-900 file:px-2 file:py-1 file:text-xs file:text-neutral-300" />
               <button onClick={addNote} disabled={!note.trim() && !noteFile} className="rounded-lg bg-white text-black px-4 py-1.5 text-xs font-bold disabled:opacity-40">Save</button>
             </div>
             {noteFile ? <img src={noteFile.b64} alt="" className="h-20 rounded-lg border border-neutral-800" /> : null}
           </div>
           <div className="space-y-1">
-            {comms.length === 0 ? <p className="text-xs text-neutral-600">Nothing logged yet.</p> : null}
+            {comms.length === 0 ? <p className="text-xs text-neutral-500">Nothing logged yet.</p> : null}
             {comms.map((m) => (
               <div key={m.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
                 <div className="flex items-start justify-between gap-2">
@@ -324,7 +324,7 @@ export default function CustomerProfile({ id }: { id: string }) {
                   <button onClick={() => delNote(m.id)} className="shrink-0 text-neutral-700 hover:text-red-400 text-xs">✕</button>
                 </div>
                 {m.attachment_b64 ? <img src={m.attachment_b64} alt="" onClick={() => setLightbox(m.attachment_b64)} className="mt-1.5 h-20 rounded border border-neutral-800 cursor-pointer" /> : null}
-                <div className="text-[10px] text-neutral-600 mt-0.5">{m.kind} · {new Date(m.occurred_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                <div className="text-xs text-neutral-500 mt-0.5">{m.kind} · {new Date(m.occurred_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
               </div>
             ))}
           </div>
@@ -339,14 +339,14 @@ export default function CustomerProfile({ id }: { id: string }) {
   );
 }
 
-const btn = "px-2 py-1 rounded-lg text-[11px] font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500";
-const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500";
+const btn = "px-2 py-1 rounded-lg text-xs font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500";
+const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500";
 
 function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-3.5">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{title}</div>
+        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">{title}</div>
         {action}
       </div>
       {children}
@@ -357,7 +357,7 @@ function Row({ k, v, href }: { k: string; v?: string | null; href?: string }) {
   if (!v) return null;
   return (
     <div className="flex justify-between gap-3 py-1 text-xs border-b border-neutral-900 last:border-0">
-      <span className="text-neutral-500 shrink-0">{k}</span>
+      <span className="text-neutral-400 shrink-0">{k}</span>
       {href ? <a href={href} className="text-neutral-200 underline text-right">{v}</a> : <span className="text-neutral-200 text-right">{v}</span>}
     </div>
   );
@@ -368,12 +368,12 @@ function Tile({ v, l, tone }: { v: string; l: string; tone?: "amber" | "red" }) 
   return (
     <div className={`rounded-xl border ${b} bg-neutral-900 p-2.5 text-center`}>
       <div className={`text-sm font-bold leading-none ${c}`}>{v}</div>
-      <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">{l}</div>
+      <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">{l}</div>
     </div>
   );
 }
 function F({ l, children }: { l: string; children: React.ReactNode }) {
-  return <label className="block"><span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">{l}</span>{children}</label>;
+  return <label className="block"><span className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">{l}</span>{children}</label>;
 }
 function Modal({ title, onClose, children }: any) {
   return (
@@ -381,7 +381,7 @@ function Modal({ title, onClose, children }: any) {
       <div className="mx-auto max-w-lg rounded-2xl border border-neutral-800 bg-neutral-950 p-4 my-4">
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-bold text-white">{title}</div>
-          <button onClick={onClose} className="text-neutral-500 text-lg leading-none">✕</button>
+          <button onClick={onClose} className="text-neutral-400 text-lg leading-none">✕</button>
         </div>
         {children}
       </div>
@@ -522,7 +522,7 @@ function EditContact({ supabase, customerId, p, onClose, onSaved }: any) {
         </label>
         <F l="Notes"><textarea value={f.notes} onChange={set("notes")} rows={2} className={inp} /></F>
         <button onClick={save} disabled={busy} className="w-full rounded-xl bg-white text-black py-2.5 text-sm font-bold disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
-        {p ? <button onClick={del} className="w-full text-xs text-neutral-500 underline">Remove</button> : null}
+        {p ? <button onClick={del} className="w-full text-xs text-neutral-400 underline">Remove</button> : null}
       </div>
     </Modal>
   );

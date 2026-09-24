@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { undoable } from "@/components/Toaster";
 import { createClient } from "@/lib/supabase/client";
 import { Job, jobLabel, money, fmtDate, todayISO } from "@/lib/format";
 
@@ -199,11 +200,19 @@ export default function CostsTab() {
     load();
   }
 
-  async function remove(c: Cost) {
-    if (!confirm("Delete this cost entry?")) return;
-    const { error } = await supabase.from("job_costs").delete().eq("id", c.id);
-    if (error) alert("Delete failed: " + error.message);
-    else { setSheet(null); load(); }
+  function remove(c: Cost) {
+    const prev = costs;
+    setSheet(null);
+    undoable({
+      text: "Cost deleted",
+      hide: () => setCosts(prev.filter((x) => x.id !== c.id)),
+      restore: () => setCosts(prev),
+      commit: async () => {
+        const { error } = await supabase.from("job_costs").delete().eq("id", c.id);
+        if (error) alert("Delete failed: " + error.message);
+        load();
+      },
+    });
   }
 
   function exportCsv() {
@@ -220,7 +229,7 @@ export default function CostsTab() {
   }
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1";
+  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
 
   let lastDay: string | null = null;
 
@@ -230,21 +239,21 @@ export default function CostsTab() {
         <button onClick={() => { setOwedOnly(false); setPendingOnly(false); setMonthOnly(false); setWorkerFilter(null); }}
           className={`rounded-xl border p-2.5 text-left ${noToggles ? "border-neutral-500 bg-neutral-800" : "border-neutral-800 bg-neutral-900"}`}>
           <div className="text-base font-bold text-white leading-none tabular-nums">{money(total)}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">{filter === "all" ? "All costs" : "Job total"}{noToggles ? " ✓" : ""}</div>
+          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">{filter === "all" ? "All costs" : "Job total"}{noToggles ? " ✓" : ""}</div>
         </button>
         <button onClick={() => setMonthOnly(!monthOnly)}
           className={`rounded-xl border p-2.5 text-left ${monthOnly ? "border-sky-400 bg-neutral-800" : "border-neutral-800 bg-neutral-900"}`}>
           <div className="text-base font-bold text-white leading-none tabular-nums">{money(month)}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">This month{monthOnly ? " ✓" : ""}</div>
+          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">This month{monthOnly ? " ✓" : ""}</div>
         </button>
         <button onClick={() => { const next = !owedOnly; setOwedOnly(next); if (!next) setWorkerFilter(null); }} className={`rounded-xl border p-2.5 text-left ${owedOnly ? "border-red-400 bg-neutral-800" : owed > 0 ? "border-red-500/50 bg-neutral-900" : "border-neutral-800 bg-neutral-900"}`}>
           <div className={`text-base font-bold leading-none tabular-nums ${owed > 0 ? "text-red-300" : "text-white"}`}>{money(owed)}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">You owe{owedOnly ? " ✓" : " →"}</div>
+          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">You owe{owedOnly ? " ✓" : " →"}</div>
         </button>
         <button onClick={() => setPendingOnly(!pendingOnly)}
           className={`rounded-xl border p-2.5 text-left ${pendingOnly ? "border-amber-400 bg-neutral-800" : pending > 0 ? "border-amber-500/50 bg-neutral-900" : "border-neutral-800 bg-neutral-900"}`}>
           <div className={`text-base font-bold leading-none tabular-nums ${pending ? "text-amber-300" : "text-white"}`}>{pending}</div>
-          <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">Claude to fill{pendingOnly ? " ✓" : " →"}</div>
+          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">Claude to fill{pendingOnly ? " ✓" : " →"}</div>
         </button>
       </div>
 
@@ -257,7 +266,7 @@ export default function CostsTab() {
                 <span className="w-8 h-8 shrink-0 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-sm">👷</span>
                 <span className="min-w-0">
                   <span className="block font-semibold text-white truncate">{name}</span>
-                  <span className="block text-xs text-neutral-500">{w.hours > 0 ? `${w.hours} hr · ` : ""}{w.n} entr{w.n === 1 ? "y" : "ies"}</span>
+                  <span className="block text-xs text-neutral-400">{w.hours > 0 ? `${w.hours} hr · ` : ""}{w.n} entr{w.n === 1 ? "y" : "ies"}</span>
                 </span>
               </button>
               <span className="shrink-0 font-bold tabular-nums text-red-300">{money(w.amt)}</span>
@@ -269,11 +278,11 @@ export default function CostsTab() {
           ))}
           {owedOther > 0 ? (
             <div className="flex items-center gap-2.5 py-1.5 px-2 -mx-2 border-t border-neutral-800 mt-1 pt-2">
-              <span className="flex-1 text-xs text-neutral-500">Other unpaid (materials, subs, etc.)</span>
+              <span className="flex-1 text-xs text-neutral-400">Other unpaid (materials, subs, etc.)</span>
               <span className="shrink-0 font-semibold tabular-nums text-red-300/80 text-sm">{money(owedOther)}</span>
             </div>
           ) : null}
-          <p className="mt-2 text-[11px] text-neutral-600">Tap a name to see their entries · ✓ Pay marks all their unpaid labor paid</p>
+          <p className="mt-2 text-xs text-neutral-500">Tap a name to see their entries · ✓ Pay marks all their unpaid labor paid</p>
         </div>
       ) : null}
 
@@ -298,7 +307,7 @@ export default function CostsTab() {
 
       {byCat && Object.keys(byCat).length ? (
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 mb-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2.5">By category</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2.5">By category</h3>
           {Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => {
             const max = Math.max(...Object.values(byCat), 1);
             return (
@@ -314,9 +323,9 @@ export default function CostsTab() {
         </div>
       ) : null}
 
-      {loading ? <p className="text-neutral-500 text-sm">Loading…</p> : null}
+      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
       {!loading && shown.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-neutral-700 p-7 text-center text-sm text-neutral-500">
+        <div className="rounded-xl border border-dashed border-neutral-700 p-7 text-center text-sm text-neutral-400">
           No costs yet{filter !== "all" ? " on this job" : ""}.<br />
           Hit <b className="text-neutral-300">Add cost</b>, shoot the receipt or pick photos from your roll, and you're done — Claude reads the rest.
         </div>
@@ -326,7 +335,7 @@ export default function CostsTab() {
         {shown.map((c) => {
           const day = c.entry_date;
           const header = day !== lastDay ? (
-            <div className="pt-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-600">{fmtDate(day)}</div>
+            <div className="pt-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">{fmtDate(day)}</div>
           ) : null;
           lastDay = day;
           return (
@@ -338,22 +347,22 @@ export default function CostsTab() {
                   <img src={c.receipt_b64} alt="Receipt" className="w-12 h-12 shrink-0 rounded-lg object-cover border border-neutral-800"
                     onClick={(e) => { e.stopPropagation(); setViewer(c.receipt_b64); }} />
                 ) : (
-                  <span className="w-12 h-12 shrink-0 rounded-lg border border-neutral-800 bg-neutral-950 flex items-center justify-center text-lg">{c.hours != null || c.worker ? "👷" : <i className="not-italic text-[10px] uppercase text-neutral-600">no rcpt</i>}</span>
+                  <span className="w-12 h-12 shrink-0 rounded-lg border border-neutral-800 bg-neutral-950 flex items-center justify-center text-lg">{c.hours != null || c.worker ? "👷" : <i className="not-italic text-xs uppercase text-neutral-500">no rcpt</i>}</span>
                 )}
                 <span className="flex-1 min-w-0">
                   <span className="block font-semibold text-white truncate">{c.vendor ?? "(vendor pending)"}</span>
-                  <span className="block text-xs text-neutral-500 truncate">
+                  <span className="block text-xs text-neutral-400 truncate">
                     {c.hours != null ? `${c.hours} hr${c.rate != null ? ` × ${money(Number(c.rate)).replace(".00", "")}/hr` : ""}` : (c.category ?? "—")}{filter === "all" ? ` · ${labelFor(c.job_id)}` : ""}{c.notes ? ` · ${c.notes}` : ""}
                   </span>
                 </span>
                 <span className="shrink-0 text-right">
                   <span className={`block font-bold tabular-nums ${c.paid === false ? "text-red-300" : ""}`}>{c.amount != null ? money(Number(c.amount)) : "—"}</span>
                   {c.paid === false ? (
-                    <span className="text-[10px] font-bold uppercase text-red-400">Owed</span>
+                    <span className="text-xs font-bold uppercase text-red-400">Owed</span>
                   ) : c.status === "pending" ? (
-                    <span className="text-[10px] font-bold uppercase text-amber-300">Claude to fill</span>
+                    <span className="text-xs font-bold uppercase text-amber-300">Claude to fill</span>
                   ) : c.by_claude ? (
-                    <span className="text-[10px] font-bold uppercase text-emerald-400">Read by Claude</span>
+                    <span className="text-xs font-bold uppercase text-emerald-400">Read by Claude</span>
                   ) : null}
                 </span>
               </button>
@@ -362,7 +371,7 @@ export default function CostsTab() {
         })}
       </div>
 
-      <p className="mt-5 text-center text-xs text-neutral-600">
+      <p className="mt-5 text-center text-xs text-neutral-500">
         {costs.length} entr{costs.length === 1 ? "y" : "ies"} ·{" "}
         <button onClick={exportCsv} className="text-neutral-400 underline">Export CSV</button>
       </p>
@@ -385,7 +394,7 @@ export default function CostsTab() {
             <div className="flex gap-2 mb-4">
               {(["receipt", "labor"] as const).map((k) => (
                 <button key={k} onClick={() => setForm({ ...form, kind: k, category: k === "labor" ? "Labor" : form.category === "Labor" ? "" : form.category })}
-                  className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.kind === k ? "border-neutral-300 text-white bg-neutral-800" : "border-neutral-700 text-neutral-500"}`}>
+                  className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.kind === k ? "border-neutral-300 text-white bg-neutral-800" : "border-neutral-700 text-neutral-400"}`}>
                   {k === "labor" ? "👷 Labor" : "🧾 Receipt / material"}
                 </button>
               ))}
@@ -411,7 +420,7 @@ export default function CostsTab() {
             <input ref={camRef} type="file" accept="image/*" capture="environment" hidden onChange={pickPhotos} />
             <input ref={libRef} type="file" accept="image/*" multiple hidden onChange={pickPhotos} />
             {form.kind !== "labor" ? (
-              <p className="text-xs text-neutral-500 mb-4 leading-relaxed">
+              <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
                 Shoot it or pull it from your roll — leave the rest blank and <b className="text-amber-300">Claude fills in vendor, amount, and category</b>. Pick several photos at once and each one saves as its own pending receipt.
               </p>
             ) : null}
@@ -429,11 +438,11 @@ export default function CostsTab() {
                   <label className={label}>Paid yet?</label>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setForm({ ...form, paid: true })}
-                      className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.paid !== false ? "border-emerald-500/60 text-emerald-300 bg-neutral-800" : "border-neutral-700 text-neutral-500"}`}>
+                      className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.paid !== false ? "border-emerald-500/60 text-emerald-300 bg-neutral-800" : "border-neutral-700 text-neutral-400"}`}>
                       ✓ Paid
                     </button>
                     <button type="button" onClick={() => setForm({ ...form, paid: false })}
-                      className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.paid === false ? "border-red-500/60 text-red-300 bg-neutral-800" : "border-neutral-700 text-neutral-500"}`}>
+                      className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.paid === false ? "border-red-500/60 text-red-300 bg-neutral-800" : "border-neutral-700 text-neutral-400"}`}>
                       💰 I owe this
                     </button>
                   </div>
@@ -469,11 +478,11 @@ export default function CostsTab() {
                 <label className={label}>Paid yet?</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setForm({ ...form, paid: true })}
-                    className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.paid !== false ? "border-emerald-500/60 text-emerald-300 bg-neutral-800" : "border-neutral-700 text-neutral-500"}`}>
+                    className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.paid !== false ? "border-emerald-500/60 text-emerald-300 bg-neutral-800" : "border-neutral-700 text-neutral-400"}`}>
                     ✓ Paid
                   </button>
                   <button type="button" onClick={() => setForm({ ...form, paid: false })}
-                    className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.paid === false ? "border-red-500/60 text-red-300 bg-neutral-800" : "border-neutral-700 text-neutral-500"}`}>
+                    className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.paid === false ? "border-red-500/60 text-red-300 bg-neutral-800" : "border-neutral-700 text-neutral-400"}`}>
                     💰 Still owe it
                   </button>
                 </div>
