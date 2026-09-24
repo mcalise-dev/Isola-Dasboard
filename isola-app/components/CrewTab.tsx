@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import MyClock from "@/components/MyClock";
 import CrewClock from "@/components/CrewClock";
+import CrewLogins from "@/components/CrewLogins";
 
 const money = (n: any) => (n == null ? "—" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const hhmm = (from: string, to?: string | null) => {
@@ -148,6 +149,8 @@ export default function CrewTab() {
           ))}
         </div>
       </div>
+
+      <CrewLogins workers={workers} />
 
       {editing ? <WorkerEditor supabase={supabase} worker={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} /> : null}
     </div>

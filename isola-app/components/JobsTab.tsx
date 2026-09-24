@@ -7,6 +7,7 @@ import PipelineNumbers from "@/components/PipelineNumbers";
 import MyClock from "@/components/MyClock";import PunchList from "@/components/PunchList";
 import { useRef } from "react";
 import { undoable } from "@/components/Toaster";
+import { HardHat } from "lucide-react";
 import { Phone, Navigation, Pencil, X, MapPin, Hammer, ThumbsUp, CalendarPlus, Play, CheckCircle2, FileText, Banknote, ArrowRight, Briefcase, Plus } from "lucide-react";
 const STATUSES = ["lead", "awaiting", "booked", "progress", "complete", "lost"] as const;const COST_CATEGORIES = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Subcontractor", "Permits", "Other"];
 const PATH: { key: string; label: string }[] = PIPELINE.map((k) => ({ key: k, label: STATUS_META[k].label }));
@@ -299,7 +300,7 @@ export default function JobsTab() {
     supabase.from("job_costs").select("id,entry_date,worker,hours,rate,amount,paid").eq("job_id", viewing.id).eq("category", "Labor").order("entry_date", { ascending: false }).then(({ data }) => setLabor(data ?? []));
     supabase.from("job_costs").select("id,entry_date,vendor,category,amount,notes,status,receipt_b64").eq("job_id", viewing.id).neq("category", "Labor").order("entry_date", { ascending: false }).then(({ data }) => setJcosts(data ?? []));
     supabase.from("jobbooks").select("job_id,updated_at,summary,file_name").eq("job_id", viewing.id).maybeSingle().then(({ data }) => setJobbook(data ?? null));
-    supabase.from("tasks").select("id,title,done,due_date,priority").eq("job_id", viewing.id).order("done").order("created_at", { ascending: false }).then(({ data }) => setJtasks(data ?? []));
+    supabase.from("tasks").select("id,title,done,due_date,priority,crew_visible").eq("job_id", viewing.id).order("done").order("created_at", { ascending: false }).then(({ data }) => setJtasks(data ?? []));
     supabase.from("schedule_entries").select("id,entry_date,assignee").eq("job_id", viewing.id).order("entry_date").then(({ data }: any) => setJsched(data ?? []));
     supabase.from("communications").select("id,kind,direction,body,occurred_at").eq("job_id", viewing.id).order("occurred_at").then(({ data }: any) => setJcomms(data ?? []));
     supabase.from("punch_list").select("due_date").eq("job_id", viewing.id).eq("done", false).then(({ data }: any) => {
@@ -373,7 +374,7 @@ export default function JobsTab() {
   }
 
   async function reloadTasks() {
-    const { data } = await supabase.from("tasks").select("id,title,done,due_date,priority").eq("job_id", viewing!.id).order("done").order("created_at", { ascending: false });
+    const { data } = await supabase.from("tasks").select("id,title,done,due_date,priority,crew_visible").eq("job_id", viewing!.id).order("done").order("created_at", { ascending: false });
     setJtasks(data ?? []);
   }
 
@@ -390,6 +391,13 @@ export default function JobsTab() {
   async function toggleTask(t: any) {
     await supabase.from("tasks").update({ done: !t.done, completed_at: !t.done ? new Date().toISOString() : null }).eq("id", t.id);
     setJtasks(jtasks.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)));
+  }
+
+  // v4.4: which job tasks show up in the crew app
+  async function toggleCrew(t: any) {
+    setJtasks(jtasks.map((x) => (x.id === t.id ? { ...x, crew_visible: !x.crew_visible } : x)));
+    const { error } = await supabase.from("tasks").update({ crew_visible: !t.crew_visible }).eq("id", t.id);
+    if (error) { alert("Save failed: " + error.message); reloadTasks(); }
   }
 
   function removeTask(t: any) {
@@ -1083,6 +1091,10 @@ export default function JobsTab() {
                             <div className={`text-sm ${t.done ? "text-neutral-400 line-through" : "text-white font-semibold"}`}>{t.title}</div>
                             {t.due_date ? <div className="text-xs text-neutral-400">due {fmtDate(t.due_date)}</div> : null}
                           </div>
+                          <button onClick={() => toggleCrew(t)} aria-label={t.crew_visible ? "Hide from crew" : "Show to crew"} title={t.crew_visible ? "Crew can see this — tap to hide" : "Only you see this — tap to show the crew"}
+                            className={`shrink-0 inline-flex items-center gap-1 rounded-lg border px-2 min-h-[32px] text-xs font-semibold ${t.crew_visible ? "border-amber-400/60 bg-amber-400/10 text-amber-200" : "border-neutral-700 text-neutral-500"}`}>
+                            <HardHat size={14} /> {t.crew_visible ? "Crew" : "Me"}
+                          </button>
                           <button onClick={() => removeTask(t)} className="shrink-0 text-neutral-500 hover:text-red-400 text-xs">✕</button>
                         </div>
                       ))}
@@ -1092,7 +1104,7 @@ export default function JobsTab() {
                     <input className={input} placeholder="Add a task for this job…" value={tTitle} onChange={(e) => setTTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addTask(); }} />
                     <button onClick={addTask} disabled={tBusy} className="shrink-0 rounded-lg bg-white text-neutral-900 px-3 text-xs font-bold disabled:opacity-60">{tBusy ? "…" : "+ Add"}</button>
                   </div>
-                  <p className="text-xs text-neutral-500 mt-1.5">Tasks added here also show on the main Tasks tab.</p>
+                  <p className="text-xs text-neutral-500 mt-1.5">Tasks added here also show on the main Tasks tab. Tap “Me” to show a task to the crew; the punch list always shows to crew.</p>
                 </Section>
                 <Section id="punch" title="Punch list"
                   summary={<>{punchStat.open ? `${punchStat.open} open${punchStat.overdue ? ` · ${punchStat.overdue} overdue` : ""}` : "clear"}</>}

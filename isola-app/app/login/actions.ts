@@ -1,14 +1,16 @@
 "use server";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { loginEmail, isCrewUser } from "@/lib/crew";
 
 export async function login(formData: FormData) {
-  const email = String(formData.get("email") ?? "");
+  // crew type just their name; Mike types his email
+  const email = loginEmail(String(formData.get("email") ?? ""));
   const password = String(formData.get("password") ?? "");
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) redirect("/login?error=1");
-  redirect("/home");
+  redirect(isCrewUser(data.user) ? "/field" : "/home");
 }
 
 export async function logout() {

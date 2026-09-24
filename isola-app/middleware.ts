@@ -51,9 +51,17 @@ export async function middleware(request: NextRequest) {
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
+  // v4.4: crew logins only ever see the crew app under /field
+  const crew = user?.app_metadata?.role === "crew";
   if (user && isLogin) {
     const url = request.nextUrl.clone();
-    url.pathname = "/home";
+    url.pathname = crew ? "/field" : "/home";
+    return NextResponse.redirect(url);
+  }
+  if (crew && !path.startsWith("/field")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/field";
+    url.search = "";
     return NextResponse.redirect(url);
   }
   return response;
