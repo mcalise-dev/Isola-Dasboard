@@ -16,12 +16,12 @@ import JobPicker from "@/components/JobPicker";
 
 const inp =
   "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none";
-const lbl = "block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1";
+const lbl = "block text-sm font-semibold text-neutral-300 mb-1";
 const btn =
   "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-200 hover:border-neutral-500";
 const btnPrimary =
   "rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-neutral-900 hover:bg-neutral-200 disabled:opacity-40";
-const card = "rounded-xl border border-neutral-800 bg-neutral-950 p-3.5";
+const card = "rounded-xl bg-white/[0.05] p-3.5";
 
 const WEATHER = ["Clear", "Cloudy", "Rain", "Snow", "Wind", "Hot", "Cold"];
 
@@ -95,7 +95,7 @@ export default function DailyLogTab() {
     setEditing({ ...editing, crew: cur.includes(name) ? cur.filter((c) => c !== name) : [...cur, name] });
   }
 
-  if (loading) return <div className="p-4 text-sm text-neutral-400">Loading…</div>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
 
   const today = logs.filter((l) => l.log_date === todayISO());
   const earlier = logs.filter((l) => l.log_date !== todayISO());
@@ -227,14 +227,14 @@ export default function DailyLogTab() {
 
       {today.length ? (
         <section className="space-y-2">
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Today</div>
+          <div className="text-sm font-semibold text-neutral-300">Today</div>
           {today.map(row)}
         </section>
       ) : null}
 
       {earlier.length ? (
         <section className="space-y-2">
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Earlier</div>
+          <div className="text-sm font-semibold text-neutral-300">Earlier</div>
           {earlier.map(row)}
         </section>
       ) : null}

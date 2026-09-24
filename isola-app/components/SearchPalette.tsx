@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { STATUS_META } from "@/lib/format";
+import { STATUS_META, fmtPrice } from "@/lib/format";
 import { HUBS } from "@/lib/nav";
 import { Search, Briefcase, Building2, FileText, CornerDownLeft, X } from "lucide-react";
 
@@ -76,7 +76,7 @@ export default function SearchPalette() {
     const jobs = data.jobs.filter((j) => !words.length || has(`${j.job_name ?? ""} ${j.customer ?? ""} ${j.location ?? ""} ${j.job ?? ""} ${j.qbo_invoice_ref ?? ""}`));
     jobs.slice(0, words.length ? 8 : 6).forEach((j) => out.push({
       kind: "job", id: j.id, title: j.job_name || j.customer,
-      sub: [j.job_name ? j.customer : null, j.location, j.price].filter(Boolean).join(" · "),
+      sub: [j.job_name ? j.customer : null, j.location, fmtPrice(j.price)].filter(Boolean).join(" · "),
       tag: STATUS_META[j.status]?.label, go: () => openJob(j.id),
     }));
     if (words.length) {
@@ -106,9 +106,9 @@ export default function SearchPalette() {
   const GROUP = { screen: "Screens", job: q ? "Jobs" : "Recent jobs", customer: "Customers", invoice: "Open invoices" } as const;
 
   return (
-    <div className="fixed inset-0 z-[65] bg-black/75 flex justify-center items-start md:pt-[12vh]" onClick={close}>
+    <div className="fixed inset-0 z-[65] bg-black/75 flex justify-center items-start md:pt-[12vh] anim-fade" onClick={close}>
       <div onClick={(e) => e.stopPropagation()} className="w-full md:max-w-xl h-full md:h-auto md:max-h-[70vh] flex flex-col bg-neutral-900 md:border border-neutral-700 md:rounded-2xl overflow-hidden">
-        <div className="flex items-center gap-2 px-3 border-b border-neutral-800 pt-[env(safe-area-inset-top)]">
+        <div className="flex items-center gap-2 px-3 border-b border-white/[0.08] pt-[env(safe-area-inset-top)]">
           <Search size={20} className="text-neutral-400 shrink-0" />
           <input ref={box} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Job, customer, address, invoice #…"
             className="flex-1 bg-transparent min-h-[56px] text-base text-white placeholder:text-neutral-400 focus:outline-none focus-visible:outline-none"
@@ -121,14 +121,14 @@ export default function SearchPalette() {
           <button onClick={close} className="p-2 text-neutral-400" aria-label="Close search"><X size={20} /></button>
         </div>
         <div className="overflow-y-auto flex-1 py-1">
-          {!data ? <p className="px-4 py-6 text-sm text-neutral-400">Loading…</p> : null}
+          {!data ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
           {data && !hits.length ? <p className="px-4 py-6 text-sm text-neutral-400">Nothing matches “{q}”.</p> : null}
           {hits.map((h, i) => {
             const Icon = ICON[h.kind];
             const head = i === 0 || hits[i - 1].kind !== h.kind;
             return (
               <div key={h.kind + h.id}>
-                {head ? <div className="px-4 pt-3 pb-1 text-xs font-bold uppercase tracking-wider text-neutral-400">{GROUP[h.kind]}</div> : null}
+                {head ? <div className="px-4 pt-3 pb-1 text-xs font-bold text-neutral-400">{GROUP[h.kind]}</div> : null}
                 <button onClick={h.go} onMouseEnter={() => setSel(i)}
                   className={`w-full flex items-center gap-3 px-4 min-h-[52px] text-left ${i === sel ? "bg-neutral-800" : ""}`}>
                   <Icon size={18} className="text-neutral-400 shrink-0" />

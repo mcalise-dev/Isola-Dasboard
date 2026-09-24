@@ -115,18 +115,18 @@ export default function CrmTab() {
   }
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
+  const label = "block text-sm font-semibold text-neutral-400 mb-1";
 
   const shownCompanyCount = shown.length;
   return (
     <div>
-      <div className="sticky top-[57px] z-20 -mx-4 px-4 pt-2 pb-2 bg-black/95 backdrop-blur border-b border-neutral-800 mb-3">
+      <div className="sticky top-[57px] z-20 -mx-4 px-4 pt-2 pb-2 bg-black/95 backdrop-blur border-b border-white/[0.08] mb-3">
         <div className="flex gap-2 mb-2">
           <select className={`${input} flex-1 min-w-0 font-semibold`} value={fSector} onChange={(e) => { setFSector(e.target.value); setFCompany(""); }}>
             <option value="">All sectors</option>
-            <option value="Medical">🏥 Medical</option>
-            <option value="Commercial">🏢 Commercial</option>
-            <option value="Banks">🏦 Banks</option>
+            <option value="Medical">Medical</option>
+            <option value="Commercial">Commercial</option>
+            <option value="Banks">Banks</option>
           </select>
           <select className={`${input} flex-1 min-w-0 font-semibold`} value={fTier} onChange={(e) => { setFTier(e.target.value); setFCompany(""); }}>
             <option value="">All grades</option>
@@ -150,21 +150,21 @@ export default function CrmTab() {
       </div>
 
       <div className="grid grid-cols-4 gap-2 mb-4">
-        <button onClick={() => { setFTier(""); setFStage(""); setQ(""); setFDueOnly(false); setFTouchedOnly(false); setFCompany(""); setFSector(""); }} className="rounded-xl border border-neutral-800 bg-neutral-900 p-2.5 text-center hover:border-neutral-500">
+        <button onClick={() => { setFTier(""); setFStage(""); setQ(""); setFDueOnly(false); setFTouchedOnly(false); setFCompany(""); setFSector(""); }} className="rounded-xl border border-white/[0.07] bg-neutral-900 p-2.5 text-center hover:border-neutral-500">
           <div className="text-lg font-bold leading-none tabular-nums text-white">{shownCompanyCount}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">Companies</div>
+          <div className="mt-1 text-sm text-neutral-400">Companies</div>
         </button>
-        <button onClick={() => { setFTier(""); setFStage(""); setQ(""); setFDueOnly(false); setFTouchedOnly(false); setFCompany(""); }} className="rounded-xl border border-neutral-800 bg-neutral-900 p-2.5 text-center hover:border-neutral-500">
+        <button onClick={() => { setFTier(""); setFStage(""); setQ(""); setFDueOnly(false); setFTouchedOnly(false); setFCompany(""); }} className="rounded-xl border border-white/[0.07] bg-neutral-900 p-2.5 text-center hover:border-neutral-500">
           <div className="text-lg font-bold leading-none tabular-nums text-white">{all.length}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">Contacts →</div>
+          <div className="mt-1 text-sm text-neutral-400">Contacts →</div>
         </button>
-        <button onClick={() => setFTouchedOnly(!fTouchedOnly)} className={`rounded-xl border p-2.5 text-center hover:border-neutral-400 ${fTouchedOnly ? "border-neutral-300 bg-neutral-800" : "border-neutral-800 bg-neutral-900"}`}>
+        <button onClick={() => setFTouchedOnly(!fTouchedOnly)} className={`rounded-xl border p-2.5 text-center hover:border-neutral-400 ${fTouchedOnly ? "border-neutral-300 bg-neutral-800" : "border-white/[0.08] bg-neutral-900"}`}>
           <div className="text-lg font-bold leading-none tabular-nums text-white">{touched}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">Touched{fTouchedOnly ? " ✓" : " →"}</div>
+          <div className="mt-1 text-sm text-neutral-400">Touched{fTouchedOnly ? " ✓" : " →"}</div>
         </button>
-        <button onClick={() => setFDueOnly(!fDueOnly)} className={`rounded-xl border p-2.5 text-center hover:border-amber-400 ${fDueOnly ? "border-amber-400 bg-neutral-800" : due > 0 ? "border-amber-500/50 bg-neutral-900" : "border-neutral-800 bg-neutral-900"}`}>
+        <button onClick={() => setFDueOnly(!fDueOnly)} className={`rounded-xl border p-2.5 text-center hover:border-amber-400 ${fDueOnly ? "border-amber-400 bg-neutral-800" : due > 0 ? "border-amber-500/50 bg-neutral-900" : "border-white/[0.08] bg-neutral-900"}`}>
           <div className={`text-lg font-bold leading-none tabular-nums ${due > 0 || fDueOnly ? "text-amber-300" : "text-white"}`}>{due}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">Due{fDueOnly ? " ✓" : " →"}</div>
+          <div className="mt-1 text-sm text-neutral-400">Due{fDueOnly ? " ✓" : " →"}</div>
         </button>
       </div>
 
@@ -173,7 +173,7 @@ export default function CrmTab() {
         <button onClick={() => startEdit("new")} className="shrink-0 rounded-lg bg-white text-neutral-900 px-3 text-sm font-semibold">+ Add</button>
       </div>
 
-      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
+      {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
       {!loading && shown.length === 0 ? <p className="text-neutral-400 text-sm">Nothing matches.</p> : null}
 
       <div className="space-y-2.5">
@@ -181,7 +181,7 @@ export default function CrmTab() {
           const first = ps[0];
           const prevTier = idx > 0 ? (shown[idx - 1][1][0].tier ?? "—") : null;
           const tierHeader = !fTier && (first.tier ?? "—") !== prevTier ? (
-            <div className="pt-3 pb-1 text-xs font-bold uppercase tracking-widest text-neutral-400">
+            <div className="pt-3 pb-1 text-sm font-semibold text-neutral-300">
               {first.tier === "Client" ? "★ Clients" : first.tier === "Broker" ? "Brokers / referral sources" : `Grade ${first.tier ?? "—"}`}
             </div>
           ) : null;
@@ -190,7 +190,7 @@ export default function CrmTab() {
           return (
             <div key={co}>
               {tierHeader}
-              <div className="rounded-xl border border-neutral-800 bg-neutral-900">
+              <div className="rounded-xl border border-white/[0.07] bg-neutral-900">
               <button className="w-full text-left px-4 py-3" onClick={() => setOpen(isOpen ? null : co)}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -198,16 +198,16 @@ export default function CrmTab() {
                     <div className="text-xs text-neutral-400 truncate">{ps.length} contact{ps.length === 1 ? "" : "s"}{first.buildings ? ` · ${first.buildings.split("·")[0].trim()}` : ""}</div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {dueN ? <span className="text-xs font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">{dueN} due</span> : null}
+                    {dueN ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">{dueN} due</span> : null}
                     <span className={`text-xs font-bold px-2 py-0.5 rounded border ${first.tier === "Client" ? "bg-white text-neutral-900 border-white" : "border-neutral-600 text-neutral-300"}`}>{first.tier ?? "—"}</span>
                   </div>
                 </div>
               </button>
               {isOpen ? (
-                <div className="border-t border-neutral-800 px-4 py-3 space-y-3">
-                  {first.buildings ? <p className="text-xs text-neutral-400"><span className="text-neutral-500 uppercase font-semibold">RI buildings: </span>{first.buildings}</p> : null}
+                <div className="border-t border-white/[0.08] px-4 py-3 space-y-3">
+                  {first.buildings ? <p className="text-xs text-neutral-400"><span className="text-neutral-500 font-semibold">RI buildings: </span>{first.buildings}</p> : null}
                   {ps.map((c) => (
-                    <button key={c.id} onClick={() => setViewing(c)} className="w-full text-left flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2.5 hover:border-neutral-600">
+                    <button key={c.id} onClick={() => setViewing(c)} className="w-full text-left flex items-center gap-3 rounded-lg bg-white/[0.05] px-3 py-2.5 hover:border-neutral-600">
                       <span className="w-8 h-8 shrink-0 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-xs font-bold text-neutral-300">{c.name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</span>
                       <span className="flex-1 min-w-0">
                         <span className="block text-sm font-semibold text-white truncate">{c.name}</span>
@@ -221,7 +221,7 @@ export default function CrmTab() {
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => startEdit("new", co)} className="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-300">+ Contact at {co}</button>
                     {first.tier === "Client" ? (
-                      <button onClick={() => convertCompany(co, ps, false)} className="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-400">↩ Back to prospect</button>
+                      <button onClick={() => convertCompany(co, ps, false)} className="rounded-lg border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-400">Back to prospect</button>
                     ) : (
                       <button onClick={() => convertCompany(co, ps, true)} className="rounded-lg bg-white text-neutral-900 px-2.5 py-1.5 text-xs font-semibold">★ Convert to Client</button>
                     )}
@@ -240,9 +240,9 @@ export default function CrmTab() {
         const curIdx = PATH.indexOf(v.stage);
         const isEmail = (v.email ?? "").includes("@") && !(v.email ?? "").includes("*");
         return (
-          <div className="fixed inset-0 z-40 bg-black/80 flex items-end sm:items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) setViewing(null); }}>
-            <div className="w-full max-w-lg max-h-[94vh] overflow-y-auto bg-neutral-900 border border-neutral-800 rounded-t-2xl sm:rounded-2xl">
-              <div className="sticky top-0 bg-neutral-900 border-b border-neutral-800 px-5 pt-4 pb-3 z-10">
+          <div className="fixed inset-0 z-40 bg-black/80 flex items-end sm:items-center justify-center anim-fade" onClick={(e) => { if (e.target === e.currentTarget) setViewing(null); }}>
+            <div className="w-full max-w-lg max-h-[94vh] overflow-y-auto bg-neutral-900 border border-white/[0.08] rounded-t-2xl sm:rounded-2xl anim-sheet">
+              <div className="sticky top-0 bg-neutral-900 border-b border-white/[0.08] px-5 pt-4 pb-3 z-10">
                 <div className="flex items-start gap-3">
                   <span className="w-11 h-11 shrink-0 rounded-full bg-neutral-800 border border-neutral-600 flex items-center justify-center text-sm font-bold text-white">{v.name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</span>
                   <div className="min-w-0 flex-1">
@@ -254,18 +254,18 @@ export default function CrmTab() {
                 </div>
                 <div className="grid grid-cols-4 gap-2 mt-3">
                   {v.phone && /\d{3}/.test(v.phone) ? (
-                    <a href={`tel:${v.phone.replace(/[^0-9+]/g, "").slice(0, 11)}`} className="rounded-lg bg-white text-neutral-900 py-1.5 text-center text-xs font-bold">📞 Call</a>
-                  ) : <span className="rounded-lg border border-neutral-800 py-1.5 text-center text-xs text-neutral-500">📞 Call</span>}
+                    <a href={`tel:${v.phone.replace(/[^0-9+]/g, "").slice(0, 11)}`} className="rounded-lg bg-white text-neutral-900 py-1.5 text-center text-xs font-bold">Call</a>
+                  ) : <span className="rounded-lg border border-white/[0.08] py-1.5 text-center text-xs text-neutral-500">Call</span>}
                   {isEmail ? (
-                    <a href={`mailto:${v.email}`} className="rounded-lg bg-white text-neutral-900 py-1.5 text-center text-xs font-bold">✉️ Email</a>
-                  ) : <span className="rounded-lg border border-neutral-800 py-1.5 text-center text-xs text-neutral-500">✉️ Email</span>}
-                  <a href={`/marketing/campaign?c=${v.id}`} className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">📣 Campaign</a>
-                  <button onClick={() => { setViewing(null); startEdit(v); }} className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">✏️ Edit</button>
+                    <a href={`mailto:${v.email}`} className="rounded-lg bg-white text-neutral-900 py-1.5 text-center text-xs font-bold">Email</a>
+                  ) : <span className="rounded-lg border border-white/[0.08] py-1.5 text-center text-xs text-neutral-500">Email</span>}
+                  <a href={`/marketing/campaign?c=${v.id}`} className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">Campaign</a>
+                  <button onClick={() => { setViewing(null); startEdit(v); }} className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">Edit</button>
                 </div>
               </div>
               <div className="px-5 py-4 space-y-4">
                 <div>
-                  <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Pipeline stage</div>
+                  <div className="text-sm font-semibold text-neutral-300 mb-1.5">Pipeline stage</div>
                   <div className="flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none]">
                     {PATH.map((s, i) => (
                       <button key={s} onClick={() => patch(v, { stage: s, last_touch: v.last_touch ?? (s === "Not started" ? v.last_touch : todayISO()) } as any)}
@@ -293,8 +293,8 @@ export default function CrmTab() {
                     <input className={input} placeholder="e.g. send one-pager" defaultValue={v.next_action ?? ""} onBlur={(e) => { if (e.target.value !== (v.next_action ?? "")) patch(v, { next_action: e.target.value || null } as any); }} />
                   </div>
                 </div>
-                <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-3.5 space-y-2 text-sm">
-                  <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">About</div>
+                <div className="rounded-xl bg-white/[0.05] p-3.5 space-y-2 text-sm">
+                  <div className="text-sm font-semibold text-neutral-300">About</div>
                   {v.phone ? <p><span className="text-neutral-400">Phone: </span><span className="text-neutral-200">{v.phone}</span></p> : null}
                   {v.email ? <p className="break-all"><span className="text-neutral-400">Email/LinkedIn: </span><span className="text-neutral-200">{v.email}</span></p> : null}
                   {v.company ? <p><span className="text-neutral-400">Company: </span><span className="text-neutral-200">{v.company}</span></p> : null}
@@ -309,8 +309,8 @@ export default function CrmTab() {
       })() : null}
 
       {editing ? (
-        <div className="fixed inset-0 z-40 bg-black/70 flex items-end sm:items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) setEditing(null); }}>
-          <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-neutral-900 border border-neutral-800 rounded-t-2xl sm:rounded-2xl p-5">
+        <div className="fixed inset-0 z-40 bg-black/70 flex items-end sm:items-center justify-center anim-fade" onClick={(e) => { if (e.target === e.currentTarget) setEditing(null); }}>
+          <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-neutral-900 border border-white/[0.08] rounded-t-2xl sm:rounded-2xl p-5 anim-sheet">
             <h2 className="font-bold text-white mb-4">{editing === "new" ? "Add contact" : "Edit contact"}</h2>
             <div className="space-y-3">
               <div><label className={label}>Name *</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>

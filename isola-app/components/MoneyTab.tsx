@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { money, fmtDate, jobLabel, parsePrice, todayISO } from "@/lib/format";
+import { money, fmtDate, jobLabel, parsePrice, todayISO, fmtPrice } from "@/lib/format";
 
 type Inv = { customer: string; ref?: string; due: string; amount: number; days_overdue: number };
 type Snap = {
@@ -49,7 +49,7 @@ export default function MoneyTab() {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   const fmt$ = (n: number) => "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  const dot = (d: number) => (d > 90 ? "bg-red-400" : d > 60 ? "bg-orange-400" : d > 30 ? "bg-amber-400" : d > 0 ? "bg-yellow-400" : "bg-emerald-400");
+  const dot = (d: number) => (d > 90 ? "bg-red-400" : d > 60 ? "bg-amber-400" : d > 30 ? "bg-amber-400" : d > 0 ? "bg-amber-400" : "bg-emerald-400");
 
   // which customer record does this QuickBooks name belong to?
   const custFor = (qname: string) => {
@@ -99,7 +99,7 @@ export default function MoneyTab() {
     setBusy(""); setLinking(null); load();
   }
 
-  if (loading) return <p className="pt-4 text-sm text-neutral-400">Loading…</p>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
 
   // Once a job is marked collected its invoice drops off the money list entirely —
   // the QuickBooks snapshot is a cache and still carries it until the next refresh.
@@ -154,20 +154,20 @@ export default function MoneyTab() {
         <div className="mt-2 flex gap-1.5">
           {j ? (
             <>
-              <Link href={`/?job=${j.id}`} className={btn}>📂 Open job file</Link>
+              <Link href={`/?job=${j.id}`} className={btn}>Open job file</Link>
               <button onClick={(e) => { e.preventDefault(); markCollected(j, Number(i.amount)); }} disabled={busy === j.id}
                 className="px-2.5 py-1 rounded-lg text-xs font-bold border border-emerald-500/50 bg-emerald-500/10 text-emerald-300 disabled:opacity-50">
                 {busy === j.id ? "…" : "✓ Mark collected"}
               </button>
             </>
           ) : (
-            <button onClick={() => setLinking(i)} className={btn}>🔗 Link to a job</button>
+            <button onClick={() => setLinking(i)} className={btn}>Link to a job</button>
           )}
         </div>
       </>
     );
     return (
-      <div key={i.ref ?? idx} className={`rounded-xl border px-3.5 py-2.5 ${late ? "border-red-500/30 bg-neutral-950" : "border-neutral-800 bg-neutral-950"}`}>
+      <div key={i.ref ?? idx} className={`rounded-xl border px-3.5 py-2.5 ${late ? "border-red-500/30 bg-neutral-950" : "border-white/[0.08] bg-neutral-950"}`}>
         {body}
       </div>
     );
@@ -182,19 +182,19 @@ export default function MoneyTab() {
       </div>
 
       {snap ? (
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/95 p-4">
+        <div className="rounded-2xl border border-white/[0.07] bg-neutral-900/95 p-4">
           <div className="flex items-baseline justify-between mb-2">
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Aging</div>
+            <div className="text-sm font-semibold text-neutral-300">Aging</div>
             <span className="text-xs text-neutral-500">QuickBooks · as of {fmtDate(snap.as_of)}</span>
           </div>
           <div className="flex h-2.5 rounded-full overflow-hidden bg-neutral-800">
             {buckets.current > 0 ? <div className="bg-emerald-400" style={{ width: (buckets.current / (openAR || 1)) * 100 + "%" }} /> : null}
-            {buckets.d1_30 > 0 ? <div className="bg-yellow-400" style={{ width: (buckets.d1_30 / (openAR || 1)) * 100 + "%" }} /> : null}
+            {buckets.d1_30 > 0 ? <div className="bg-amber-400" style={{ width: (buckets.d1_30 / (openAR || 1)) * 100 + "%" }} /> : null}
             {buckets.d31_60 > 0 ? <div className="bg-amber-400" style={{ width: (buckets.d31_60 / (openAR || 1)) * 100 + "%" }} /> : null}
-            {buckets.d61_90 > 0 ? <div className="bg-orange-400" style={{ width: (buckets.d61_90 / (openAR || 1)) * 100 + "%" }} /> : null}
+            {buckets.d61_90 > 0 ? <div className="bg-amber-400" style={{ width: (buckets.d61_90 / (openAR || 1)) * 100 + "%" }} /> : null}
             {buckets.d91_plus > 0 ? <div className="bg-red-400" style={{ width: (buckets.d91_plus / (openAR || 1)) * 100 + "%" }} /> : null}
           </div>
-          <div className="text-xs text-neutral-400 mt-1.5">🟢 current {fmt$(buckets.current)} · 🟡 1–30 {fmt$(buckets.d1_30)} · 🟠 31–90 {fmt$(buckets.d31_60 + buckets.d61_90)} · 🔴 91+ {fmt$(buckets.d91_plus)}</div>
+          <div className="text-xs text-neutral-400 mt-1.5">current {fmt$(buckets.current)} · 1–30 {fmt$(buckets.d1_30)} · 31–90 {fmt$(buckets.d31_60 + buckets.d61_90)} · 91+ {fmt$(buckets.d91_plus)}</div>
         </div>
       ) : (
         <p className="text-sm text-neutral-400">No QuickBooks snapshot yet — ask Claude to refresh the money panel.</p>
@@ -202,21 +202,21 @@ export default function MoneyTab() {
 
       {overdueList.length ? (
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-red-300 mb-1.5">Overdue — money not collected</div>
+          <div className="text-sm font-semibold text-red-300 mb-1.5">Overdue — money not collected</div>
           <div className="space-y-1.5">{overdueList.map(invoiceRow)}</div>
         </div>
       ) : null}
 
       {currentList.length ? (
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Not yet due</div>
+          <div className="text-sm font-semibold text-neutral-300 mb-1.5">Not yet due</div>
           <div className="space-y-1.5">{currentList.map(invoiceRow)}</div>
         </div>
       ) : null}
 
       {billedAhead.length ? (
-        <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">In QuickBooks, job not done yet · {billedAhead.length}</div>
+        <div className="mb-4 rounded-xl border border-white/[0.07] bg-neutral-900 p-3">
+          <div className="text-sm font-semibold text-neutral-300 mb-1.5">In QuickBooks, job not done yet · {billedAhead.length}</div>
           {billedAhead.map((i, idx) => (
             <div key={idx} className="flex justify-between text-xs text-neutral-400"><span className="truncate">#{i.ref} · {i.customer}</span><span className="shrink-0 tabular-nums">{fmt$(Number(i.amount))}</span></div>
           ))}
@@ -226,7 +226,7 @@ export default function MoneyTab() {
 
       {unbilled.length ? (
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-amber-300 mb-1.5">⚠️ Complete but not invoiced</div>
+          <div className="text-sm font-semibold text-amber-300 mb-1.5">Complete but not invoiced</div>
           <div className="space-y-1.5">
             {unbilled.map((j) => (
               <Link key={j.id} href={`/?job=${j.id}`} className="block rounded-xl border border-amber-500/40 bg-amber-500/5 px-3.5 py-2.5 hover:border-amber-400">
@@ -235,9 +235,9 @@ export default function MoneyTab() {
                     <div className="text-sm font-semibold text-white truncate">{jobLabel(j)}</div>
                     <div className="text-xs text-neutral-400">completed {j.completed_date ? fmtDate(j.completed_date) : "—"} — not billed yet</div>
                   </div>
-                  {j.price ? <div className="shrink-0 text-sm font-bold tabular-nums text-amber-300">{j.price}</div> : null}
+                  {j.price ? <div className="shrink-0 text-sm font-bold tabular-nums text-amber-300">{fmtPrice(j.price)}</div> : null}
                 </div>
-                <div className="mt-1 text-xs text-neutral-500">Terms: {termsFor(j)} · 📂 open job file</div>
+                <div className="mt-1 text-xs text-neutral-500">Terms: {termsFor(j)} · open job file</div>
               </Link>
             ))}
           </div>
@@ -248,9 +248,9 @@ export default function MoneyTab() {
         <div>
           <button
             onClick={() => setShowCollected(!showCollected)}
-            className="w-full flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2 mb-1.5 hover:border-neutral-600"
+            className="w-full flex items-center justify-between rounded-xl bg-white/[0.05] px-3.5 py-2 mb-1.5 hover:border-neutral-600"
           >
-            <span className="text-xs font-bold uppercase tracking-widest text-emerald-300">✓ Collected · {collected.length}</span>
+            <span className="text-sm font-semibold text-emerald-300">✓ Collected · {collected.length}</span>
             <span className="text-xs text-neutral-400 tabular-nums">{fmt$(collectedTotal)} · {showCollected ? "hide" : "show"}</span>
           </button>
           <div className={showCollected ? "space-y-1.5" : "hidden"}>
@@ -274,16 +274,16 @@ export default function MoneyTab() {
         </div>
       ) : null}
 
-      <Link href="/thm" className="flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 hover:border-neutral-600">
-        <span className="text-sm font-semibold text-white">🤝 THM tab — Invoice #94</span>
+      <Link href="/thm" className="flex items-center justify-between rounded-xl bg-white/[0.05] px-3.5 py-2.5 hover:border-neutral-600">
+        <span className="text-sm font-semibold text-white">THM tab — Invoice #94</span>
         <span className="text-sm font-bold text-white tabular-nums">{thmBal == null ? "…" : money(thmBal)} →</span>
       </Link>
 
       <p className="text-xs text-neutral-500">Snapshot pulled from QuickBooks{snapDate ? " " + new Date(snapDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}. Ask Claude to &quot;refresh the money panel&quot; any time — it also refreshes with the Monday digest.</p>
 
       {linking ? (
-        <div className="fixed inset-0 z-50 bg-black/85 overflow-y-auto p-3" onClick={() => setLinking(null)}>
-          <div className="mx-auto max-w-sm rounded-2xl border border-neutral-800 bg-neutral-950 p-4 my-6" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-black/85 overflow-y-auto p-3 anim-fade" onClick={() => setLinking(null)}>
+          <div className="mx-auto max-w-sm rounded-2xl bg-white/[0.05] p-4 my-6" onClick={(e) => e.stopPropagation()}>
             <div className="text-sm font-bold text-white">Which job is this?</div>
             <div className="text-xs text-neutral-400 mt-0.5 mb-3">
               {linking.customer} · {money(linking.amount)}{linking.ref ? ` · #${linking.ref}` : ""}
@@ -294,7 +294,7 @@ export default function MoneyTab() {
                 .sort((a, b) => parsePrice(b.price) - parsePrice(a.price))
                 .map((j) => (
                   <button key={j.id} onClick={() => linkInvoice(j.id, linking)} disabled={busy === j.id}
-                    className="w-full text-left rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 hover:border-neutral-600 disabled:opacity-50">
+                    className="w-full text-left rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2 hover:border-neutral-600 disabled:opacity-50">
                     <div className="text-xs font-semibold text-white truncate">{jobLabel(j)}</div>
                     <div className="text-xs text-neutral-400">{[j.job, j.price, j.status].filter(Boolean).join(" · ")}</div>
                   </button>
@@ -311,11 +311,11 @@ export default function MoneyTab() {
 const btn = "px-2.5 py-1 rounded-lg text-xs font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500";
 
 function Tile({ v, l, tone }: { v: string; l: string; tone?: "amber" | "green" }) {
-  const b = tone === "amber" ? "border-amber-500/50" : tone === "green" ? "border-emerald-500/50" : "border-neutral-800";
+  const b = tone === "amber" ? "border-amber-500/50" : tone === "green" ? "border-emerald-500/50" : "border-white/[0.08]";
   const c = tone === "amber" ? "text-amber-300" : tone === "green" ? "text-emerald-300" : "text-white";
   return (
     <div className={`rounded-2xl border ${b} bg-neutral-900/95 p-3 text-center`}>
-      <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">{l}</div>
+      <div className="text-sm font-semibold text-neutral-300">{l}</div>
       <div className={`text-xl font-extrabold tabular-nums mt-1 ${c}`}>{v}</div>
     </div>
   );

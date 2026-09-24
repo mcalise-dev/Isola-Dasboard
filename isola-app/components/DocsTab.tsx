@@ -16,22 +16,22 @@ import { fmtDate, todayISO } from "@/lib/format";
 
 const inp =
   "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none";
-const lbl = "block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1";
+const lbl = "block text-sm font-semibold text-neutral-300 mb-1";
 const btn =
   "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-200 hover:border-neutral-500";
 const btnPrimary =
   "rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-neutral-900 hover:bg-neutral-200 disabled:opacity-40";
-const card = "rounded-xl border border-neutral-800 bg-neutral-950 p-3.5";
+const card = "rounded-xl bg-white/[0.05] p-3.5";
 
 const TYPES: { key: string; label: string; icon: string; hint: string }[] = [
-  { key: "coi", label: "Insurance (COI)", icon: "🛡️", hint: "Certificate of insurance — the one PMs ask for" },
-  { key: "lien_waiver", label: "Lien waiver", icon: "✍️", hint: "Partial or final, signed at payment" },
-  { key: "permit", label: "Permit", icon: "📋", hint: "Per town — proposals say permits are not included" },
-  { key: "contract", label: "Signed contract", icon: "📄", hint: "Executed proposal or agreement" },
-  { key: "w9", label: "W-9", icon: "🧾", hint: "Yours, or a sub's for 1099 season" },
-  { key: "warranty", label: "Warranty", icon: "🔧", hint: "What's covered and until when" },
-  { key: "license", label: "License", icon: "🎫", hint: "RI / MA contractor registration" },
-  { key: "other", label: "Other", icon: "📎", hint: "" },
+  { key: "coi", label: "Insurance (COI)", icon: "", hint: "Certificate of insurance — the one PMs ask for" },
+  { key: "lien_waiver", label: "Lien waiver", icon: "", hint: "Partial or final, signed at payment" },
+  { key: "permit", label: "Permit", icon: "", hint: "Per town — proposals say permits are not included" },
+  { key: "contract", label: "Signed contract", icon: "", hint: "Executed proposal or agreement" },
+  { key: "w9", label: "W-9", icon: "", hint: "Yours, or a sub's for 1099 season" },
+  { key: "warranty", label: "Warranty", icon: "", hint: "What's covered and until when" },
+  { key: "license", label: "License", icon: "", hint: "RI / MA contractor registration" },
+  { key: "other", label: "Other", icon: "", hint: "" },
 ];
 
 export default function DocsTab() {
@@ -121,7 +121,7 @@ export default function DocsTab() {
     load();
   }
 
-  if (loading) return <div className="p-4 text-sm text-neutral-400">Loading…</div>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
 
   return (
     <div className="pb-28 space-y-4">
@@ -135,7 +135,7 @@ export default function DocsTab() {
 
       {expiring.length ? (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 space-y-1.5">
-          <div className="text-xs font-bold uppercase tracking-widest text-amber-300">Expiring or expired</div>
+          <div className="text-sm font-semibold text-amber-300">Expiring or expired</div>
           {expiring.map((d) => {
             const n = daysLeft(d)!;
             return (
@@ -200,7 +200,7 @@ export default function DocsTab() {
 
           <div className="flex items-center gap-2">
             <label className={btn + " cursor-pointer"}>
-              📎 Attach file or photo
+              Attach file or photo
               <input type="file" accept="image/*,application/pdf" className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) attach(f); e.currentTarget.value = ""; }} />
             </label>

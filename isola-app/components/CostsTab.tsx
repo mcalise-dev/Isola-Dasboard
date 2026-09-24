@@ -229,7 +229,7 @@ export default function CostsTab() {
   }
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
+  const label = "block text-sm font-semibold text-neutral-400 mb-1";
 
   let lastDay: string | null = null;
 
@@ -237,33 +237,33 @@ export default function CostsTab() {
     <div>
       <div className="grid grid-cols-4 gap-2 mb-4">
         <button onClick={() => { setOwedOnly(false); setPendingOnly(false); setMonthOnly(false); setWorkerFilter(null); }}
-          className={`rounded-xl border p-2.5 text-left ${noToggles ? "border-neutral-500 bg-neutral-800" : "border-neutral-800 bg-neutral-900"}`}>
+          className={`rounded-xl border p-2.5 text-left ${noToggles ? "border-neutral-500 bg-neutral-800" : "border-white/[0.08] bg-neutral-900"}`}>
           <div className="text-base font-bold text-white leading-none tabular-nums">{money(total)}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">{filter === "all" ? "All costs" : "Job total"}{noToggles ? " ✓" : ""}</div>
+          <div className="mt-1 text-sm text-neutral-400">{filter === "all" ? "All costs" : "Job total"}{noToggles ? " ✓" : ""}</div>
         </button>
         <button onClick={() => setMonthOnly(!monthOnly)}
-          className={`rounded-xl border p-2.5 text-left ${monthOnly ? "border-sky-400 bg-neutral-800" : "border-neutral-800 bg-neutral-900"}`}>
+          className={`rounded-xl border p-2.5 text-left ${monthOnly ? "border-neutral-400 bg-neutral-800" : "border-white/[0.08] bg-neutral-900"}`}>
           <div className="text-base font-bold text-white leading-none tabular-nums">{money(month)}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">This month{monthOnly ? " ✓" : ""}</div>
+          <div className="mt-1 text-sm text-neutral-400">This month{monthOnly ? " ✓" : ""}</div>
         </button>
-        <button onClick={() => { const next = !owedOnly; setOwedOnly(next); if (!next) setWorkerFilter(null); }} className={`rounded-xl border p-2.5 text-left ${owedOnly ? "border-red-400 bg-neutral-800" : owed > 0 ? "border-red-500/50 bg-neutral-900" : "border-neutral-800 bg-neutral-900"}`}>
+        <button onClick={() => { const next = !owedOnly; setOwedOnly(next); if (!next) setWorkerFilter(null); }} className={`rounded-xl border p-2.5 text-left ${owedOnly ? "border-red-400 bg-neutral-800" : owed > 0 ? "border-red-500/50 bg-neutral-900" : "border-white/[0.08] bg-neutral-900"}`}>
           <div className={`text-base font-bold leading-none tabular-nums ${owed > 0 ? "text-red-300" : "text-white"}`}>{money(owed)}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">You owe{owedOnly ? " ✓" : " →"}</div>
+          <div className="mt-1 text-sm text-neutral-400">You owe{owedOnly ? " ✓" : " →"}</div>
         </button>
         <button onClick={() => setPendingOnly(!pendingOnly)}
-          className={`rounded-xl border p-2.5 text-left ${pendingOnly ? "border-amber-400 bg-neutral-800" : pending > 0 ? "border-amber-500/50 bg-neutral-900" : "border-neutral-800 bg-neutral-900"}`}>
+          className={`rounded-xl border p-2.5 text-left ${pendingOnly ? "border-amber-400 bg-neutral-800" : pending > 0 ? "border-amber-500/50 bg-neutral-900" : "border-white/[0.08] bg-neutral-900"}`}>
           <div className={`text-base font-bold leading-none tabular-nums ${pending ? "text-amber-300" : "text-white"}`}>{pending}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">Claude to fill{pendingOnly ? " ✓" : " →"}</div>
+          <div className="mt-1 text-sm text-neutral-400">Claude to fill{pendingOnly ? " ✓" : " →"}</div>
         </button>
       </div>
 
       {owedOnly && (Object.keys(owedWorkers).length > 0 || owedOther > 0) ? (
         <div className="rounded-xl border border-red-500/40 bg-neutral-900 p-4 mb-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-red-300 mb-2.5">You owe your workers</h3>
+          <h3 className="text-sm font-semibold text-red-300 mb-2.5">You owe your workers</h3>
           {Object.entries(owedWorkers).sort((a, b) => b[1].amt - a[1].amt).map(([name, w]) => (
             <div key={name} className={`flex items-center gap-2.5 py-1.5 rounded-lg px-2 -mx-2 ${workerFilter === name ? "bg-neutral-800" : ""}`}>
               <button onClick={() => setWorkerFilter(workerFilter === name ? null : name)} className="flex-1 min-w-0 flex items-center gap-2.5 text-left">
-                <span className="w-8 h-8 shrink-0 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-sm">👷</span>
+                <span className="w-8 h-8 shrink-0 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-sm"></span>
                 <span className="min-w-0">
                   <span className="block font-semibold text-white truncate">{name}</span>
                   <span className="block text-xs text-neutral-400">{w.hours > 0 ? `${w.hours} hr · ` : ""}{w.n} entr{w.n === 1 ? "y" : "ies"}</span>
@@ -277,7 +277,7 @@ export default function CostsTab() {
             </div>
           ))}
           {owedOther > 0 ? (
-            <div className="flex items-center gap-2.5 py-1.5 px-2 -mx-2 border-t border-neutral-800 mt-1 pt-2">
+            <div className="flex items-center gap-2.5 py-1.5 px-2 -mx-2 border-t border-white/[0.08] mt-1 pt-2">
               <span className="flex-1 text-xs text-neutral-400">Other unpaid (materials, subs, etc.)</span>
               <span className="shrink-0 font-semibold tabular-nums text-red-300/80 text-sm">{money(owedOther)}</span>
             </div>
@@ -306,8 +306,8 @@ export default function CostsTab() {
       </div>
 
       {byCat && Object.keys(byCat).length ? (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 mb-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2.5">By category</h3>
+        <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-4 mb-3">
+          <h3 className="text-sm font-semibold text-neutral-400 mb-2.5">By category</h3>
           {Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => {
             const max = Math.max(...Object.values(byCat), 1);
             return (
@@ -323,7 +323,7 @@ export default function CostsTab() {
         </div>
       ) : null}
 
-      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
+      {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
       {!loading && shown.length === 0 ? (
         <div className="rounded-xl border border-dashed border-neutral-700 p-7 text-center text-sm text-neutral-400">
           No costs yet{filter !== "all" ? " on this job" : ""}.<br />
@@ -335,19 +335,19 @@ export default function CostsTab() {
         {shown.map((c) => {
           const day = c.entry_date;
           const header = day !== lastDay ? (
-            <div className="pt-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">{fmtDate(day)}</div>
+            <div className="pt-2 text-sm font-semibold text-neutral-500">{fmtDate(day)}</div>
           ) : null;
           lastDay = day;
           return (
             <div key={c.id}>
               {header}
               <button onClick={() => openSheet(c)}
-                className={`w-full text-left flex items-center gap-3 rounded-xl border bg-neutral-900 px-3 py-2.5 ${c.status === "pending" ? "border-amber-500/50" : "border-neutral-800"}`}>
+                className={`w-full text-left flex items-center gap-3 rounded-xl border bg-neutral-900 px-3 py-2.5 ${c.status === "pending" ? "border-amber-500/50" : "border-white/[0.08]"}`}>
                 {c.receipt_b64 ? (
-                  <img src={c.receipt_b64} alt="Receipt" className="w-12 h-12 shrink-0 rounded-lg object-cover border border-neutral-800"
+                  <img src={c.receipt_b64} alt="Receipt" className="w-12 h-12 shrink-0 rounded-lg object-cover border border-white/[0.08]"
                     onClick={(e) => { e.stopPropagation(); setViewer(c.receipt_b64); }} />
                 ) : (
-                  <span className="w-12 h-12 shrink-0 rounded-lg border border-neutral-800 bg-neutral-950 flex items-center justify-center text-lg">{c.hours != null || c.worker ? "👷" : <i className="not-italic text-xs uppercase text-neutral-500">no rcpt</i>}</span>
+                  <span className="w-12 h-12 shrink-0 rounded-lg bg-white/[0.05] flex items-center justify-center text-lg">{c.hours != null || c.worker ? "" : <i className="not-italic text-sm text-neutral-500">no rcpt</i>}</span>
                 )}
                 <span className="flex-1 min-w-0">
                   <span className="block font-semibold text-white truncate">{c.vendor ?? "(vendor pending)"}</span>
@@ -358,11 +358,11 @@ export default function CostsTab() {
                 <span className="shrink-0 text-right">
                   <span className={`block font-bold tabular-nums ${c.paid === false ? "text-red-300" : ""}`}>{c.amount != null ? money(Number(c.amount)) : "—"}</span>
                   {c.paid === false ? (
-                    <span className="text-xs font-bold uppercase text-red-400">Owed</span>
+                    <span className="text-sm font-semibold text-red-400">Owed</span>
                   ) : c.status === "pending" ? (
-                    <span className="text-xs font-bold uppercase text-amber-300">Claude to fill</span>
+                    <span className="text-sm font-semibold text-amber-300">Claude to fill</span>
                   ) : c.by_claude ? (
-                    <span className="text-xs font-bold uppercase text-emerald-400">Read by Claude</span>
+                    <span className="text-sm font-semibold text-emerald-400">Read by Claude</span>
                   ) : null}
                 </span>
               </button>
@@ -379,7 +379,7 @@ export default function CostsTab() {
       <div className="fixed bottom-20 right-4 z-30 flex gap-2">
         <button onClick={() => openSheet("new", "labor")}
           className="rounded-full bg-neutral-800 text-white border border-neutral-600 font-bold text-sm px-4 py-3.5 shadow-lg shadow-black/50">
-          👷 Labor
+          Labor
         </button>
         <button onClick={() => openSheet("new")}
           className="rounded-full bg-white text-neutral-900 font-bold text-sm px-5 py-3.5 shadow-lg shadow-black/50">
@@ -388,20 +388,20 @@ export default function CostsTab() {
       </div>
 
       {sheet ? (
-        <div className="fixed inset-0 z-40 bg-black/70 flex items-end sm:items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) setSheet(null); }}>
-          <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-neutral-900 border border-neutral-800 rounded-t-2xl sm:rounded-2xl p-5">
+        <div className="fixed inset-0 z-40 bg-black/70 flex items-end sm:items-center justify-center anim-fade" onClick={(e) => { if (e.target === e.currentTarget) setSheet(null); }}>
+          <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-neutral-900 border border-white/[0.08] rounded-t-2xl sm:rounded-2xl p-5 anim-sheet">
             <h2 className="font-bold text-white mb-3">{sheet === "new" ? (form.kind === "labor" ? "Log labor" : "Add cost") : "Edit cost"}</h2>
             <div className="flex gap-2 mb-4">
               {(["receipt", "labor"] as const).map((k) => (
                 <button key={k} onClick={() => setForm({ ...form, kind: k, category: k === "labor" ? "Labor" : form.category === "Labor" ? "" : form.category })}
                   className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.kind === k ? "border-neutral-300 text-white bg-neutral-800" : "border-neutral-700 text-neutral-400"}`}>
-                  {k === "labor" ? "👷 Labor" : "🧾 Receipt / material"}
+                  {k === "labor" ? "Labor" : "Receipt / material"}
                 </button>
               ))}
             </div>
             {form.kind !== "labor" && form.receipt_b64 ? (
               <div className="relative mb-3">
-                <img src={form.receipt_b64} alt="Receipt preview" className="w-full max-h-56 object-contain rounded-xl border border-neutral-800 bg-neutral-950" />
+                <img src={form.receipt_b64} alt="Receipt preview" className="w-full max-h-56 object-contain rounded-xl bg-white/[0.05]" />
                 <button onClick={() => setForm({ ...form, receipt_b64: null })}
                   className="absolute top-2 right-2 rounded-lg bg-black/70 text-white text-xs px-2.5 py-1">Remove</button>
               </div>
@@ -409,11 +409,11 @@ export default function CostsTab() {
               <div className="grid grid-cols-2 gap-2 mb-3">
                 <button onClick={() => camRef.current?.click()} disabled={busy}
                   className="rounded-xl border-2 border-dashed border-neutral-700 bg-neutral-950 py-3.5 text-sm font-semibold text-neutral-400 disabled:opacity-50">
-                  📸 Camera
+                  Camera
                 </button>
                 <button onClick={() => libRef.current?.click()} disabled={busy}
                   className="rounded-xl border-2 border-dashed border-neutral-700 bg-neutral-950 py-3.5 text-sm font-semibold text-neutral-400 disabled:opacity-50">
-                  🖼 Photos
+                  Photos
                 </button>
               </div>
             ) : null}
@@ -443,7 +443,7 @@ export default function CostsTab() {
                     </button>
                     <button type="button" onClick={() => setForm({ ...form, paid: false })}
                       className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.paid === false ? "border-red-500/60 text-red-300 bg-neutral-800" : "border-neutral-700 text-neutral-400"}`}>
-                      💰 I owe this
+                      I owe this
                     </button>
                   </div>
                 </div>
@@ -483,7 +483,7 @@ export default function CostsTab() {
                   </button>
                   <button type="button" onClick={() => setForm({ ...form, paid: false })}
                     className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${form.paid === false ? "border-red-500/60 text-red-300 bg-neutral-800" : "border-neutral-700 text-neutral-400"}`}>
-                    💰 Still owe it
+                    Still owe it
                   </button>
                 </div>
               </div>
@@ -504,7 +504,7 @@ export default function CostsTab() {
       ) : null}
 
       {viewer ? (
-        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setViewer(null)}>
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 cursor-zoom-out anim-fade" onClick={() => setViewer(null)}>
           <img src={viewer} alt="Receipt" className="max-w-full max-h-full rounded-lg" />
         </div>
       ) : null}

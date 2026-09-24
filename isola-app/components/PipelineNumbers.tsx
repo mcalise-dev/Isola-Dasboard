@@ -44,16 +44,16 @@ export default function PipelineNumbers({ jobs, compact = false }: { jobs: any[]
   const toggle = () => setOpen((o) => { try { localStorage.setItem("isola.numbers", o ? "0" : "1"); } catch {} return !o; });
   const s = pipelineStats(jobs);
 
-  const tile = "rounded-xl border border-neutral-800 bg-neutral-950 p-2.5";
+  const tile = "rounded-xl bg-white/[0.05] p-2.5";
   const big = "text-lg font-extrabold tabular-nums text-white leading-none";
-  const small = "mt-1 text-xs uppercase tracking-wide text-neutral-400 leading-tight";
+  const small = "mt-1 text-sm text-neutral-400 leading-tight";
 
   if (compact) {
     return (
-      <Link href="/" className="block rounded-2xl border border-neutral-800 bg-neutral-900/95 p-4 hover:border-neutral-600">
+      <Link href="/" className="block rounded-2xl border border-white/[0.07] bg-neutral-900/95 p-4 hover:border-neutral-600">
         <div className="flex items-baseline justify-between mb-2.5">
-          <h2 className="text-sm font-extrabold tracking-widest text-white uppercase">📈 Pipeline</h2>
-          <span className="text-xs text-blue-300 font-semibold">Jobs →</span>
+          <h2 className="text-sm font-extrabold text-white">Pipeline</h2>
+          <span className="text-xs text-neutral-300 font-semibold">Jobs →</span>
         </div>
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className={tile}><div className={big}>{fmt$(s.sent$)}</div><div className={small}>In Sent · {s.sentN}</div></div>
@@ -65,10 +65,10 @@ export default function PipelineNumbers({ jobs, compact = false }: { jobs: any[]
   }
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 mb-4 overflow-hidden">
+    <div className="rounded-xl border border-white/[0.07] bg-neutral-900 mb-4 overflow-hidden">
       <button onClick={toggle} className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left">
         <span className="text-xs text-neutral-500 w-3">{open ? "▾" : "▸"}</span>
-        <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">📈 Numbers</span>
+        <span className="text-sm font-semibold text-neutral-300">Numbers</span>
         <span className="ml-auto text-xs text-neutral-400 tabular-nums">{fmt$(s.sent$)} in Sent · {s.winRate == null ? "win rate —" : `${s.winRate}% won`}</span>
       </button>
       {open ? (
@@ -87,7 +87,7 @@ export default function PipelineNumbers({ jobs, compact = false }: { jobs: any[]
             <div className={tile}><div className={`${big} ${s.avgOut != null && s.avgOut > 14 ? "text-amber-300" : ""}`}>{s.avgOut == null ? "—" : s.avgOut + "d"}</div><div className={small}>Avg age of Sent</div></div>
           </div>
           <div className={tile}>
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1">Why jobs are lost</div>
+            <div className="text-sm font-semibold text-neutral-300 mb-1">Why jobs are lost</div>
             {s.topReasons.length ? s.topReasons.map(([r, n]) => (
               <div key={r} className="flex justify-between text-xs text-neutral-300"><span>{r}</span><span className="tabular-nums text-neutral-400">{n}</span></div>
             )) : <div className="text-xs text-neutral-400">Nothing marked lost yet. Mark declined work Lost with a reason and this fills in.</div>}

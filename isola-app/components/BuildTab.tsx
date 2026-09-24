@@ -33,11 +33,11 @@ const CATS = ["Material", "Labor", "Equipment", "Disposal", "Subcontract", "Othe
 type Cat = (typeof CATS)[number];
 
 const CAT_META: Record<string, { icon: string; cls: string }> = {
-  Material: { icon: "🧱", cls: "bg-sky-500/15 text-sky-300 border-sky-500/30" },
-  Labor: { icon: "👷", cls: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
-  Equipment: { icon: "🚜", cls: "bg-violet-500/15 text-violet-300 border-violet-500/30" },
-  Disposal: { icon: "🗑️", cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30" },
-  Subcontract: { icon: "🤝", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
+  Material: { icon: "", cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30" },
+  Labor: { icon: "", cls: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
+  Equipment: { icon: "", cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30" },
+  Disposal: { icon: "", cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30" },
+  Subcontract: { icon: "", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
   Other: { icon: "•", cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30" },
 };
 
@@ -56,12 +56,12 @@ const STALE_DAYS = 183; // ~6 months — flag any cost older than this before re
 
 const inp =
   "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none";
-const lbl = "block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1";
+const lbl = "block text-sm font-semibold text-neutral-300 mb-1";
 const btn =
   "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-200 hover:border-neutral-500";
 const btnPrimary =
   "rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-neutral-900 hover:bg-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed";
-const card = "rounded-xl border border-neutral-800 bg-neutral-950 p-3.5";
+const card = "rounded-xl bg-white/[0.05] p-3.5";
 
 type Est = any;
 type Line = any;
@@ -123,7 +123,7 @@ export default function BuildTab() {
     if (openId === e.id) setOpenId(null);
   }
 
-  if (loading) return <div className="p-4 text-sm text-neutral-400">Loading…</div>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
 
   if (open) {
     return (
@@ -150,8 +150,8 @@ export default function BuildTab() {
   const decided = sent.filter((e) => e.status === "won" || e.status === "lost").length;
 
   const tile = (label: string, value: string, sub?: string) => (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2.5">
-      <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">{label}</div>
+    <div className="rounded-xl bg-white/[0.05] px-3 py-2.5">
+      <div className="text-sm font-semibold text-neutral-300">{label}</div>
       <div className="text-xl font-bold text-white leading-tight">{value}</div>
       {sub ? <div className="text-xs text-neutral-400">{sub}</div> : null}
     </div>
@@ -163,7 +163,7 @@ export default function BuildTab() {
     return (
       <div key={e.id} role="button" tabIndex={0} onClick={() => setOpenId(e.id)}
         onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") setOpenId(e.id); }}
-        className="w-full text-left rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-3 hover:border-neutral-600 cursor-pointer">
+        className="w-full text-left rounded-xl bg-white/[0.05] px-3.5 py-3 hover:border-neutral-600 cursor-pointer">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-semibold text-white truncate">{e.title || "Untitled build"}</div>
@@ -175,7 +175,7 @@ export default function BuildTab() {
             <div className="text-right">
               {sell > 0 ? <div className="text-sm font-bold text-white">{fmt$(sell)}</div> : null}
               {cost > 0 && !sell ? <div className="text-xs text-neutral-400">cost {fmt$(cost)}</div> : null}
-              <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+              <div className="text-sm font-semibold text-neutral-500">
                 {e.status === "draft" ? e.step : e.status}
               </div>
             </div>
@@ -216,25 +216,25 @@ export default function BuildTab() {
 
       {ready.length ? (
         <section className="space-y-2">
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Priced — ready to send</div>
+          <div className="text-sm font-semibold text-neutral-300">Priced — ready to send</div>
           {ready.map(row)}
         </section>
       ) : null}
       {pricing.length ? (
         <section className="space-y-2">
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Pricing</div>
+          <div className="text-sm font-semibold text-neutral-300">Pricing</div>
           {pricing.map(row)}
         </section>
       ) : null}
       {walking.length ? (
         <section className="space-y-2">
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Walking</div>
+          <div className="text-sm font-semibold text-neutral-300">Walking</div>
           {walking.map(row)}
         </section>
       ) : null}
       {sent.length ? (
         <section className="space-y-2">
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Sent</div>
+          <div className="text-sm font-semibold text-neutral-300">Sent</div>
           {sent.slice(0, 12).map(row)}
         </section>
       ) : null}
@@ -472,9 +472,9 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
 
   /* ---------- render ---------- */
   const STEPS = [
-    { key: "walk", label: "Walk", icon: "📍" },
-    { key: "price", label: "Price", icon: "🧮" },
-    { key: "send", label: "Send", icon: "📤" },
+    { key: "walk", label: "Walk", icon: "" },
+    { key: "price", label: "Price", icon: "" },
+    { key: "send", label: "Send", icon: "" },
   ];
 
   return (
@@ -490,7 +490,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
       <div className="grid grid-cols-3 gap-1.5">
         {STEPS.map((s) => (
           <button key={s.key} onClick={() => { setStep(s.key); if (e.status === "draft") patch({ step: s.key }); }}
-            className={`rounded-lg border px-2 py-2 text-xs font-bold ${step === s.key ? "border-neutral-300 bg-neutral-800 text-white" : "border-neutral-800 bg-neutral-950 text-neutral-400"}`}>
+            className={`rounded-lg border px-2 py-2 text-xs font-bold ${step === s.key ? "border-neutral-300 bg-neutral-800 text-white" : "border-white/[0.08] bg-neutral-950 text-neutral-400"}`}>
             <span className="mr-1">{s.icon}</span>{s.label}
           </button>
         ))}
@@ -518,7 +518,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
                 {customers.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               {cust ? (
-                <div className="mt-1.5 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5">
+                <div className="mt-1.5 rounded-lg border border-white/[0.07] bg-neutral-900 px-2.5 py-1.5">
                   <div className="text-xs font-bold text-neutral-300">{tier.label}</div>
                   <div className="text-xs text-neutral-400">{tier.hint}</div>
                 </div>
@@ -573,7 +573,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
           </div>
 
           <div className={card + " space-y-3"}>
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">What you saw</div>
+            <div className="text-sm font-semibold text-neutral-300">What you saw</div>
             <div>
               <label className={lbl}>Observed conditions</label>
               <textarea rows={4} className={inp} value={e.observed_conditions ?? ""}
@@ -594,7 +594,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
                 onChange={(ev) => setE({ ...e, access_notes: ev.target.value })}
                 onBlur={(ev) => patch({ access_notes: ev.target.value })} />
             </div>
-            <label className="flex items-center gap-2.5 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2.5">
+            <label className="flex items-center gap-2.5 rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2.5">
               <input type="checkbox" checked={!!e.hand_dig} onChange={(ev) => patch({ hand_dig: ev.target.checked })} className="w-4 h-4" />
               <span className="text-sm font-semibold text-white">Hand-dig corridor — no equipment access</span>
             </label>
@@ -607,9 +607,9 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
 
           <div className={card + " space-y-2"}>
             <div className="flex items-center justify-between">
-              <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Photos ({photos.length})</div>
+              <div className="text-sm font-semibold text-neutral-300">Photos ({photos.length})</div>
               <label className={btn + " cursor-pointer"}>
-                📷 Add
+                Add
                 <input type="file" accept="image/*" capture="environment" className="hidden"
                   onChange={(ev) => { const f = ev.target.files?.[0]; if (f) addPhoto(f); ev.currentTarget.value = ""; }} />
               </label>
@@ -634,7 +634,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
         <div className="space-y-3">
           {templates.length ? (
             <div className={card}>
-              <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-2">Start from a scope</div>
+              <div className="text-sm font-semibold text-neutral-300 mb-2">Start from a scope</div>
               <div className="flex flex-wrap gap-1.5">
                 {templates.map((t: any) => (
                   <button key={t.id} onClick={() => useTemplate(t)} className={btn}>{t.name}</button>
@@ -657,14 +657,14 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
           </div>
 
           <div className={card + " space-y-2"}>
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Cost basis</div>
+            <div className="text-sm font-semibold text-neutral-300">Cost basis</div>
             {byCat.map((b) => (
               <div key={b.cat} className="flex justify-between text-sm">
                 <span className="text-neutral-400">{CAT_META[b.cat].icon} {b.cat}</span>
                 <span className="text-neutral-200 tabular-nums">{fmt2(b.total)}</span>
               </div>
             ))}
-            <div className="flex items-center justify-between gap-2 pt-1 border-t border-neutral-800">
+            <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/[0.08]">
               <span className="text-sm text-neutral-400">Contingency</span>
               <div className="flex items-center gap-1.5">
                 <input type="number" className="w-16 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-white text-right"
@@ -673,7 +673,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
                 <span className="w-24 text-right text-sm text-neutral-200 tabular-nums">{fmt2(contingency)}</span>
               </div>
             </div>
-            <div className="flex justify-between border-t border-neutral-800 pt-2">
+            <div className="flex justify-between border-t border-white/[0.08] pt-2">
               <span className="text-sm font-bold text-white">Total cost</span>
               <span className="text-lg font-bold text-white tabular-nums">{fmt2(totalCost)}</span>
             </div>
@@ -681,8 +681,8 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
 
           {/* ---- the sell price. Typed, never generated. ---- */}
           <div className={card + " space-y-3"}>
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Your price</div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
+            <div className="text-sm font-semibold text-neutral-300">Your price</div>
+            <div className="rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2">
               <div className="text-xs font-bold text-neutral-300">{tier.label}</div>
               <div className="text-xs text-neutral-400">{tier.hint}</div>
               {totalCost > 0 ? (
@@ -704,12 +704,12 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
             {sell > 0 ? (
               <>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
-                    <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Net profit</div>
+                  <div className="rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2">
+                    <div className="text-sm font-semibold text-neutral-300">Net profit</div>
                     <div className={`text-lg font-bold tabular-nums ${profit < 0 ? "text-red-400" : "text-emerald-400"}`}>{fmt2(profit)}</div>
                   </div>
-                  <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
-                    <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Margin</div>
+                  <div className="rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2">
+                    <div className="text-sm font-semibold text-neutral-300">Margin</div>
                     <div className={`text-lg font-bold tabular-nums ${marginPct < 20 ? "text-amber-400" : "text-emerald-400"}`}>{marginPct.toFixed(1)}%</div>
                   </div>
                 </div>
@@ -739,7 +739,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
       {step === "send" ? (
         <div className="space-y-3">
           <div className={card + " space-y-2"}>
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">What gets created</div>
+            <div className="text-sm font-semibold text-neutral-300">What gets created</div>
             <Row k="Job name" v={e.title || "—"} />
             <Row k="Customer" v={e.customer || "—"} />
             <Row k="Property" v={e.location || "—"} />
@@ -771,7 +771,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
                   navigator.clipboard?.writeText(`${window.location.origin}/p/${link.token}`);
                   setCopied(true); setTimeout(() => setCopied(false), 1800);
                 }}>{copied ? "Copied ✓" : "Copy link"}</button>
-                <a href={`/?job=${e.job_id}`} className={btn}>📂 Open job file</a>
+                <a href={`/?job=${e.job_id}`} className={btn}>Open job file</a>
               </div>
               <p className="text-xs text-neutral-400">
                 Email the link or read it out on the phone. The daily sweep will nudge you at day 3, 7 and 14 if it goes quiet.
@@ -817,7 +817,7 @@ function PaverFloor({ jobType, dimensions, sell }: { jobType?: string; dimension
     </div>;
   }
   return <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-    ⚠ {fmt2(psf)}/sq ft over {sqft.toLocaleString()} sq ft — under the $35/sq ft floor for paver work. Price up.
+    {fmt2(psf)}/sq ft over {sqft.toLocaleString()} sq ft — under the $35/sq ft floor for paver work. Price up.
   </div>;
 }
 
@@ -849,7 +849,7 @@ function LineRow({ l, book, workers, onSave, onLearn, onDelete }: any) {
   }
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-2.5 space-y-2">
+    <div className="rounded-xl bg-white/[0.05] p-2.5 space-y-2">
       <div className="flex items-center gap-2">
         <span className={`rounded-md border px-1.5 py-0.5 text-xs font-bold ${meta.cls}`}>{meta.icon} {d.category}</span>
         <div className="ml-auto text-sm font-bold text-white tabular-nums">{fmt2(amount)}</div>
@@ -886,26 +886,26 @@ function LineRow({ l, book, workers, onSave, onLearn, onDelete }: any) {
         <MoneyInput className={inp + " text-right"} value={d.unit_cost ?? 0}
           onChange={(v) => setD({ ...d, unit_cost: v })}
           onBlur={(v) => { onSave({ unit_cost: Number(v || 0) }); setTimeout(onLearn, 150); }} />
-        <button onClick={() => setCalc(!calc)} className="px-1.5 text-lg" title="Quantity calculator">🧮</button>
+        <button onClick={() => setCalc(!calc)} className="px-1.5 text-lg" title="Quantity calculator"></button>
       </div>
 
       {calc ? <QtyCalc onApply={(qty: number, unit: string) => { setD({ ...d, qty, unit }); onSave({ qty, unit }); setCalc(false); }} /> : null}
 
       {d.category === "Labor" && d.description === "Adam" && d.unit === "hr" && amount > 400 ? (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200">
-          ⚠ {fmt2(amount)} at $35/hr is over Adam's $400 day cap. Confirm which applies on this job.
+          {fmt2(amount)} at $35/hr is over Adam's $400 day cap. Confirm which applies on this job.
         </div>
       ) : null}
       {stale ? (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200">
-          ⚠ Last confirmed {new Date(item.last_confirmed).toLocaleDateString("en-US", { month: "short", year: "numeric" })} — over 6 months. Check it before you rely on it.
+          Last confirmed {new Date(item.last_confirmed).toLocaleDateString("en-US", { month: "short", year: "numeric" })} — over 6 months. Check it before you rely on it.
         </div>
       ) : null}
       {isNew && Number(d.unit_cost) > 0 ? (
         <div className="text-xs text-emerald-400">＋ New to the price book — it'll be saved when you leave the cost field.</div>
       ) : null}
 
-      <input className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-300 placeholder:text-neutral-500"
+      <input className="w-full rounded-lg border border-white/[0.07] bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-300 placeholder:text-neutral-500"
         value={d.scope_line ?? ""} placeholder="Scope line the client reads (optional)"
         onChange={(ev) => setD({ ...d, scope_line: ev.target.value })}
         onBlur={(ev) => onSave({ scope_line: ev.target.value })} />
@@ -928,7 +928,7 @@ function QtyCalc({ onApply }: { onApply: (qty: number, unit: string) => void }) 
   const out = (label: string, val: number, unit: string) => (
     <button onClick={() => onApply(Math.round(val * wf * 100) / 100, unit)}
       className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-left hover:border-neutral-500">
-      <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">{label}</div>
+      <div className="text-sm font-semibold text-neutral-300">{label}</div>
       <div className="text-sm font-bold text-white tabular-nums">{(val * wf).toFixed(2)} <span className="text-xs font-normal text-neutral-400">{unit}</span></div>
     </button>
   );

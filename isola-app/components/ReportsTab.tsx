@@ -20,7 +20,7 @@ import { createClient } from "@/lib/supabase/client";
    ============================================================ */
 
 const fmt0 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
-const card = "rounded-xl border border-neutral-800 bg-neutral-950 p-3.5";
+const card = "rounded-xl bg-white/[0.05] p-3.5";
 
 type Drill = { kind: "tile" | "type"; key: string; label: string } | null;
 
@@ -48,7 +48,7 @@ export default function ReportsTab() {
     /* eslint-disable-next-line */
   }, []);
 
-  if (loading) return <div className="p-4 text-sm text-neutral-400">Loading…</div>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
 
   const priced = fin.filter((f) => Number(f.contract_total) > 0);
   const withCosts = priced.filter((f) => Number(f.actual_cost) > 0);
@@ -124,8 +124,8 @@ export default function ReportsTab() {
 
   const tile = (key: string, label: string, value: string, sub: string, tone?: string) => (
     <button key={key} onClick={() => toggle("tile", key, label)}
-      className={`rounded-xl border px-3 py-2.5 text-left ${isOpen("tile", key) ? "border-neutral-300 bg-neutral-900" : "border-neutral-800 bg-neutral-950 hover:border-neutral-600"}`}>
-      <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">{label}</div>
+      className={`rounded-xl border px-3 py-2.5 text-left ${isOpen("tile", key) ? "border-neutral-300 bg-neutral-900" : "border-white/[0.08] bg-neutral-950 hover:border-neutral-600"}`}>
+      <div className="text-sm font-semibold text-neutral-300">{label}</div>
       <div className={`text-xl font-bold leading-tight tabular-nums ${tone ?? "text-white"}`}>{value}</div>
       <div className="text-xs text-neutral-400">{sub}</div>
     </button>
@@ -138,7 +138,7 @@ export default function ReportsTab() {
     return (
       <div className="rounded-xl border border-neutral-300/30 bg-neutral-900 p-3 space-y-2">
         <div className="flex items-center justify-between">
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-300">
+          <div className="text-sm font-semibold text-neutral-300">
             {drill.label} — {jobs.length} job{jobs.length === 1 ? "" : "s"}
           </div>
           <button onClick={() => setDrill(null)} className="text-xs font-semibold text-neutral-400 underline">Close</button>
@@ -149,7 +149,7 @@ export default function ReportsTab() {
           </p>
         ) : jobs.map((f) => (
           <a key={f.job_id} href={`/billing?job=${f.job_id}`}
-            className="block rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-2 hover:border-neutral-600">
+            className="block rounded-lg bg-white/[0.05] px-2.5 py-2 hover:border-neutral-600">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-white truncate">{f.job_name || "—"}</div>
@@ -205,7 +205,7 @@ export default function ReportsTab() {
       {withCosts.length ? (
         <div className={card}>
           <div className="flex justify-between items-baseline">
-            <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">True margin</span>
+            <span className="text-sm font-semibold text-neutral-300">True margin</span>
             <span className="text-2xl font-bold text-white tabular-nums">{trueMargin.toFixed(1)}%</span>
           </div>
           <p className="mt-1 text-xs text-neutral-500 leading-relaxed">
@@ -217,7 +217,7 @@ export default function ReportsTab() {
 
       {qboAR > 0 ? (
         <div className={card + " space-y-1.5"}>
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Against QuickBooks</div>
+          <div className="text-sm font-semibold text-neutral-300">Against QuickBooks</div>
           <div className="flex justify-between text-sm">
             <span className="text-neutral-400">QuickBooks A/R</span>
             <span className="text-neutral-200 tabular-nums">{fmt0(qboAR)}</span>
@@ -226,7 +226,7 @@ export default function ReportsTab() {
             <span className="text-neutral-400">Owed on jobs in this app</span>
             <span className="text-neutral-200 tabular-nums">{fmt0(owedReal)}</span>
           </div>
-          <div className="flex justify-between border-t border-neutral-800 pt-1.5 text-sm">
+          <div className="flex justify-between border-t border-white/[0.08] pt-1.5 text-sm">
             <span className="text-neutral-400">Invoiced with no job here</span>
             <span className="text-neutral-200 tabular-nums">{fmt0(unlinkedAR)}</span>
           </div>
@@ -247,7 +247,7 @@ export default function ReportsTab() {
       {missing.length ? (
         <button onClick={() => toggle("tile", "missing", "Priced jobs with no costs")}
           className={`w-full text-left rounded-xl border p-3 ${isOpen("tile", "missing") ? "border-amber-400 bg-amber-500/15" : "border-amber-500/40 bg-amber-500/10"}`}>
-          <div className="text-xs font-bold uppercase tracking-widest text-amber-300">
+          <div className="text-sm font-semibold text-amber-300">
             {missing.length} priced job{missing.length === 1 ? "" : "s"} with no costs logged
           </div>
           <p className="mt-1 text-xs text-amber-100/80 leading-relaxed">
@@ -260,7 +260,7 @@ export default function ReportsTab() {
 
       {/* ---- where the money actually is ---- */}
       <div className={card + " space-y-2"}>
-        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Margin by work type</div>
+        <div className="text-sm font-semibold text-neutral-300">Margin by work type</div>
         {typeRows.length === 0 ? (
           <p className="text-xs text-neutral-500">Nothing to show until at least one job has costs logged against it.</p>
         ) : typeRows.map((r) => (
@@ -282,7 +282,7 @@ export default function ReportsTab() {
 
       {/* ---- estimate vs actual ---- */}
       <div className={card + " space-y-2"}>
-        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Estimate vs actual</div>
+        <div className="text-sm font-semibold text-neutral-300">Estimate vs actual</div>
         {variance.length === 0 ? (
           <p className="text-xs text-neutral-500">
             Fills in once a job priced in the Build tab is finished with its costs logged. This is the
@@ -303,7 +303,7 @@ export default function ReportsTab() {
 
       {/* ---- win rate ---- */}
       <div className={card + " space-y-2"}>
-        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Win rate by client type</div>
+        <div className="text-sm font-semibold text-neutral-300">Win rate by client type</div>
         {Object.keys(byClient).length === 0 ? (
           <p className="text-xs text-neutral-500">Mark builds won or lost on the Build tab and this fills in.</p>
         ) : Object.entries(byClient).map(([k, v]) => (

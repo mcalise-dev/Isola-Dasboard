@@ -22,9 +22,9 @@ const BAR: Record<string, string> = {
   complete: "border-l-emerald-400",
 };
 const DOTBG: Record<string, string> = {
-  lead: "bg-violet-400",
+  lead: "bg-neutral-400",
   awaiting: "bg-neutral-500",
-  booked: "bg-blue-400",
+  booked: "bg-neutral-400",
   progress: "bg-amber-400",
   complete: "bg-emerald-400",
 };
@@ -524,7 +524,7 @@ export default function JobsTab() {
   }
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1";
+  const label = "block text-sm font-semibold text-neutral-500 mb-1";
 
   return (
     <div>
@@ -532,7 +532,7 @@ export default function JobsTab() {
         {STATUSES.map((s) => (
           <button key={s} onClick={() => setStatusFilter(statusFilter === s ? "active" : s)} className={`rounded-xl border p-2.5 text-center ${statusFilter === s ? "border-neutral-400 bg-neutral-800" : "border-neutral-800 bg-neutral-900"}`}>
             <div className="text-lg font-bold text-white leading-none">{counts[s]}</div>
-            <div className="mt-1 text-[10px] uppercase tracking-wide text-neutral-500">{STATUS_META[s].label}</div>
+            <div className="mt-1 text-sm text-neutral-500">{STATUS_META[s].label}</div>
           </button>
         ))}
       </div>
@@ -625,17 +625,17 @@ export default function JobsTab() {
                 </div>
                 <div className="grid grid-cols-4 gap-2 mt-3">
                   {tel.length >= 7 ? (
-                    <a href={`tel:${tel.slice(0, 11)}`} className="rounded-lg bg-white text-neutral-900 py-1.5 text-center text-xs font-bold">📞 Call</a>
-                  ) : <span className="rounded-lg border border-neutral-800 py-1.5 text-center text-xs text-neutral-600">📞 Call</span>}
+                    <a href={`tel:${tel.slice(0, 11)}`} className="rounded-lg bg-white text-neutral-900 py-1.5 text-center text-xs font-bold">Call</a>
+                  ) : <span className="rounded-lg border border-neutral-800 py-1.5 text-center text-xs text-neutral-600">Call</span>}
                   {v.location ? (
-                    <a href={`https://maps.google.com/?q=${encodeURIComponent(v.location)}`} target="_blank" rel="noreferrer" className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">🧭 Map</a>
-                  ) : <span className="rounded-lg border border-neutral-800 py-1.5 text-center text-xs text-neutral-600">🧭 Map</span>}
-                  <a href="/costs" className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">🧾 Costs</a>
-                  <button onClick={() => { setViewing(null); startEdit(v); }} className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">✏️ Edit</button>
+                    <a href={`https://maps.google.com/?q=${encodeURIComponent(v.location)}`} target="_blank" rel="noreferrer" className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">Map</a>
+                  ) : <span className="rounded-lg border border-neutral-800 py-1.5 text-center text-xs text-neutral-600">Map</span>}
+                  <a href="/costs" className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">Costs</a>
+                  <button onClick={() => { setViewing(null); startEdit(v); }} className="rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white">Edit</button>
                 </div>
                 {Object.keys(draft).length ? (
                   <div className="flex gap-2 mt-2">
-                    <button onClick={saveDraft} className="flex-1 rounded-lg bg-emerald-400 text-neutral-900 py-2 text-sm font-bold">💾 Save changes</button>
+                    <button onClick={saveDraft} className="flex-1 rounded-lg bg-emerald-400 text-neutral-900 py-2 text-sm font-bold">Save changes</button>
                     <button onClick={() => setDraft({})} className="rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-300">Discard</button>
                   </div>
                 ) : savedFlash ? (
@@ -644,7 +644,7 @@ export default function JobsTab() {
               </div>
               <div className="px-5 py-4 space-y-4">
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Job status</div>
+                  <div className="text-sm font-semibold text-neutral-500 mb-1.5">Job status</div>
                   <div className="flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none]">
                     {PATH.map((s, i) => (
                       <button key={s.key} onClick={() => setStatus(v, s.key)}
@@ -655,12 +655,12 @@ export default function JobsTab() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Proposal</div>
+                  <div className="text-sm font-semibold text-neutral-500 mb-1.5">Proposal</div>
                   <div className="flex gap-1.5 flex-wrap">
                     {["sent", "signed", "declined"].map((p) => (
                       <button key={p} onClick={() => setProposal(v, (v as any).proposal_status === p ? "none" : p)}
                         className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border ${(v as any).proposal_status === p ? "bg-white text-neutral-900 border-white" : "border-neutral-700 text-neutral-300"}`}>
-                        {p === "sent" ? "📤 Sent" : p === "signed" ? "✍️ Signed" : "🚫 Declined"}
+                        {p === "sent" ? "Sent" : p === "signed" ? "Signed" : "Declined"}
                       </button>
                     ))}
                   </div>
@@ -670,15 +670,15 @@ export default function JobsTab() {
                   })() : null}
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Money</div>
+                  <div className="text-sm font-semibold text-neutral-500 mb-1.5">Money</div>
                   <div className="flex gap-1.5 flex-wrap">
                     <button onClick={() => setMoney(v, "invoiced_date", (v as any).invoiced_date ? null : new Date().toISOString().slice(0, 10))}
                       className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border ${(v as any).invoiced_date ? "bg-white text-neutral-900 border-white" : "border-neutral-700 text-neutral-300"}`}>
-                      🧾 Invoiced{(v as any).invoiced_date ? " " + fmtDate((v as any).invoiced_date) : ""}
+                      Invoiced{(v as any).invoiced_date ? " " + fmtDate((v as any).invoiced_date) : ""}
                     </button>
                     <button onClick={() => setMoney(v, "paid_date", (v as any).paid_date ? null : new Date().toISOString().slice(0, 10))}
                       className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border ${(v as any).paid_date ? "bg-emerald-400 text-neutral-900 border-emerald-400" : "border-neutral-700 text-neutral-300"}`}>
-                      💵 Paid{(v as any).paid_date ? " " + fmtDate((v as any).paid_date) : ""}
+                      Paid{(v as any).paid_date ? " " + fmtDate((v as any).paid_date) : ""}
                     </button>
                   </div>
                   {(() => {
@@ -695,7 +695,7 @@ export default function JobsTab() {
                   })()}
                 </div>
                 <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-3.5 space-y-2 text-sm">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Details</div>
+                  <div className="text-sm font-semibold text-neutral-500">Details</div>
                   {v.price ? <p><span className="text-neutral-500">Price: </span><span className="text-white font-semibold">{v.price}</span></p> : null}
                   {v.contact_name || v.contact_phone ? <p><span className="text-neutral-500">Contact: </span><span className="text-neutral-200">{[v.contact_name, v.contact_phone].filter(Boolean).join(" · ")}</span></p> : null}
                   {v.quoted_date ? <p><span className="text-neutral-500">Quoted: </span><span className="text-neutral-200">{fmtDate(v.quoted_date)}</span></p> : null}
@@ -707,11 +707,11 @@ export default function JobsTab() {
                 <JobChecklist jobId={v.id} jobType={v.job} />
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">📒 Jobbook</div>
+                    <div className="text-sm font-semibold text-neutral-500">Jobbook</div>
                     <div className="flex items-center gap-2">
-                      {jobbook?.file_b64 ? <button onClick={downloadJobbook} className="text-[11px] font-semibold text-white border border-neutral-600 rounded-lg px-2.5 py-1">⬇︎ Download</button> : null}
+                      {jobbook?.file_b64 ? <button onClick={downloadJobbook} className="text-[11px] font-semibold text-white border border-neutral-600 rounded-lg px-2.5 py-1">Download</button> : null}
                       <label className="text-[11px] font-semibold text-white border border-neutral-600 rounded-lg px-2.5 py-1 cursor-pointer">
-                        {jbBusy ? "Uploading…" : jobbook?.file_b64 ? "⬆︎ Replace file" : "⬆︎ Upload xlsx"}
+                        {jbBusy ? "Uploading…" : jobbook?.file_b64 ? "Replace file" : "Upload xlsx"}
                         <input type="file" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadJobbookFile(f); e.target.value = ""; }} />
                       </label>
                     </div>
@@ -734,7 +734,7 @@ export default function JobsTab() {
                   )}
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Materials &amp; costs{jcosts.length ? ` — $${jcosts.reduce((a: number, c: any) => a + Number(c.amount ?? 0), 0).toLocaleString()}` : ""}</div>
+                  <div className="text-sm font-semibold text-neutral-500 mb-1.5">Materials &amp; costs{jcosts.length ? ` — $${jcosts.reduce((a: number, c: any) => a + Number(c.amount ?? 0), 0).toLocaleString()}` : ""}</div>
                   {jcosts.length ? (
                     <div className="space-y-1.5 mb-2">
                       {jcosts.map((c: any) => (
@@ -767,14 +767,14 @@ export default function JobsTab() {
                     <input className={input} placeholder="Notes (optional)" value={cForm.notes} onChange={(e) => setCForm({ ...cForm, notes: e.target.value })} />
                     <div className="grid grid-cols-2 gap-2">
                       <label className={`rounded-lg border py-2 text-center text-xs font-semibold cursor-pointer ${cReceipt ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-neutral-600 text-white"}`}>
-                        {cReceipt ? "✓ Receipt attached" : "📷 Camera"}
+                        {cReceipt ? "✓ Receipt attached" : "Camera"}
                         <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) pickReceipt(f); e.target.value = ""; }} />
                       </label>
                       {cReceipt ? (
                         <button onClick={() => setCReceipt("")} className="rounded-lg border border-neutral-700 py-2 text-xs font-semibold text-neutral-400">Remove photo</button>
                       ) : (
                         <label className="rounded-lg border border-neutral-600 py-2 text-center text-xs font-semibold text-white cursor-pointer">
-                          🖼 Photos
+                          Photos
                           <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) pickReceipts(fs); e.target.value = ""; }} />
                         </label>
                       )}
@@ -784,7 +784,7 @@ export default function JobsTab() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Labor{labor.length ? ` — $${labor.reduce((a: number, l: any) => a + Number(l.amount ?? 0), 0).toLocaleString()}` : ""}</div>
+                  <div className="text-sm font-semibold text-neutral-500 mb-1.5">Labor{labor.length ? ` — $${labor.reduce((a: number, l: any) => a + Number(l.amount ?? 0), 0).toLocaleString()}` : ""}</div>
                   {labor.length ? (
                     <div className="space-y-1.5 mb-2">
                       {labor.map((l) => (
@@ -814,7 +814,7 @@ export default function JobsTab() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Tasks{jtasks.filter((t: any) => !t.done).length ? ` — ${jtasks.filter((t: any) => !t.done).length} open` : ""}</div>
+                  <div className="text-sm font-semibold text-neutral-500 mb-1.5">Tasks{jtasks.filter((t: any) => !t.done).length ? ` — ${jtasks.filter((t: any) => !t.done).length} open` : ""}</div>
                   {jtasks.length ? (
                     <div className="space-y-1.5 mb-2">
                       {jtasks.map((t: any) => (
@@ -843,7 +843,7 @@ export default function JobsTab() {
                     return (
                       <>
                         <div className="flex items-center gap-2 mb-1.5">
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                          <div className="text-sm font-semibold text-neutral-500">
                             Punch list{open.length ? ` — ${open.length} open` : punch.length ? " — all clear" : ""}
                           </div>
                           {overdue ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/40">{overdue} overdue</span> : null}
@@ -897,14 +897,14 @@ export default function JobsTab() {
                   })()}
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">Correspondence</div>
+                  <div className="text-sm font-semibold text-neutral-500 mb-1.5">Correspondence</div>
                   {jcomms.length ? (
                     <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                       {jcomms.map((m: any) => (
                         <div key={m.id} className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-2.5">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${m.direction === "in" ? "bg-emerald-500/20 text-emerald-300" : "bg-blue-500/20 text-blue-300"}`}>{m.direction === "in" ? "FROM CLIENT" : "SENT"}</span>
-                            <span className="text-[10px] uppercase text-neutral-500">{m.kind}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${m.direction === "in" ? "bg-emerald-500/20 text-emerald-300" : "bg-neutral-500/20 text-neutral-300"}`}>{m.direction === "in" ? "FROM CLIENT" : "SENT"}</span>
+                            <span className="text-sm text-neutral-500">{m.kind}</span>
                             <span className="text-[10px] text-neutral-500 ml-auto">{new Date(m.occurred_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>
                           </div>
                           <pre className="whitespace-pre-wrap text-[11px] text-neutral-300 font-sans leading-relaxed m-0">{m.body}</pre>
@@ -915,19 +915,19 @@ export default function JobsTab() {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Photos</div>
+                    <div className="text-sm font-semibold text-neutral-500">Photos</div>
                     <label className="text-[11px] font-semibold text-white border border-neutral-600 rounded-lg px-2.5 py-1 cursor-pointer">
-                      {photoBusy ? "Saving…" : "📷 Add"}
+                      {photoBusy ? "Saving…" : "Add"}
                       <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) addPhotos(fs, "during"); e.target.value = ""; }} />
                     </label>
                   </div>
-                  {photos.length === 0 ? <p className="text-xs text-neutral-600">No photos yet — tap 📷 Add. Tap a photo's label to cycle before / during / after.</p> : (
+                  {photos.length === 0 ? <p className="text-xs text-neutral-600">No photos yet — tap Add. Tap a photo's label to cycle before / during / after.</p> : (
                     <div className="grid grid-cols-3 gap-1.5">
                       {photos.map((p) => (
                         <div key={p.id} className="relative">
                           <img src={p.photo_b64} alt={p.phase} className="w-full h-24 object-cover rounded-lg border border-neutral-800" />
                           <button onClick={() => removePhoto(p.id)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-neutral-300 text-[10px]">✕</button>
-                          <button onClick={() => cyclePhase(p)} className="absolute bottom-1 left-1 text-[9px] font-bold uppercase bg-black/70 rounded px-1 text-neutral-200">{p.phase}</button>
+                          <button onClick={() => cyclePhase(p)} className="absolute bottom-1 left-1 text-[9px] font-bold bg-black/70 rounded px-1 text-neutral-200">{p.phase}</button>
                         </div>
                       ))}
                     </div>

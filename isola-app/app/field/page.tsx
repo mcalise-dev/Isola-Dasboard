@@ -45,7 +45,7 @@ export default function FieldToday() {
         <Link href="/clock" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-neutral-900 min-h-[52px] font-bold"><Timer size={20} /> Clock in / out</Link>
         {route ? (
           <a href={route} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-600 text-white min-h-[52px] font-semibold"><Navigation size={18} /> Start the route</a>
-        ) : <span className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-800 text-neutral-500 min-h-[52px] font-semibold"><Navigation size={18} /> No stops</span>}
+        ) : <span className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.08] text-neutral-500 min-h-[52px] font-semibold"><Navigation size={18} /> No stops</span>}
       </div>
 
       <H>Where we're going</H>

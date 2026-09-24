@@ -9,7 +9,7 @@ export default function SideNav() {
   const path = usePathname();
   const hit = activeItem(path);
   return (
-    <aside className="hidden md:flex flex-col fixed left-0 top-[61px] bottom-0 w-56 z-20 border-r border-neutral-800 bg-neutral-950 overflow-y-auto">
+    <aside className="hidden md:flex flex-col fixed left-0 top-[61px] bottom-0 w-56 z-20 border-r border-white/[0.08] bg-black overflow-y-auto">
       <div className="p-3">
         <button onClick={() => window.dispatchEvent(new Event("isola:quickadd"))}
           className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-white text-neutral-900 min-h-[40px] text-sm font-bold">
@@ -22,7 +22,7 @@ export default function SideNav() {
           const hubOn = hit?.hub.key === h.key;
           return (
             <div key={h.key}>
-              <Link href={h.home} className={`flex items-center gap-2 px-2 pb-1 text-xs font-bold uppercase tracking-wider ${hubOn ? "text-white" : "text-neutral-400 hover:text-neutral-200"}`}>
+              <Link href={h.home} className={`flex items-center gap-2 px-2 pb-1 text-xs font-bold ${hubOn ? "text-white" : "text-neutral-400 hover:text-neutral-200"}`}>
                 <HubIcon size={14} strokeWidth={2.4} /> {h.label}
               </Link>
               <div className="space-y-0.5">

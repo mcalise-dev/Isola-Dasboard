@@ -69,7 +69,7 @@ export default function ProposalsTab() {
     if (d == null) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-400">no date</span>;
     if (d > 30) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-red-500/40 bg-red-500/10 text-red-300">expired · {d}d</span>;
     if (d > 21) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-300">{30 - d}d left</span>;
-    if (d > 14) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-yellow-500/30 bg-yellow-500/10 text-yellow-200">{d}d out — check in</span>;
+    if (d > 14) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-200">{d}d out — check in</span>;
     return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-300">{d}d out</span>;
   }
 
@@ -78,17 +78,17 @@ export default function ProposalsTab() {
     if (!l) return (
       <button onClick={() => setEditing({ job: j })}
         className="mt-2 w-full rounded-lg border border-dashed border-neutral-700 py-1.5 text-xs font-semibold text-neutral-400 hover:border-neutral-500 hover:text-neutral-200">
-        🔗 Create client link
+        Create client link
       </button>
     );
     const tone = l.status === "approved" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
       : l.status === "declined" ? "border-neutral-700 bg-neutral-900 text-neutral-400"
-      : l.view_count > 0 ? "border-blue-500/40 bg-blue-500/10 text-blue-300"
+      : l.view_count > 0 ? "border-neutral-500/40 bg-neutral-500/10 text-neutral-300"
       : "border-neutral-700 bg-neutral-900 text-neutral-400";
-    const label = l.status === "approved" ? `✍️ Approved by ${l.approved_by ?? "client"}`
-      : l.status === "declined" ? "🚫 Declined online"
-      : l.view_count > 0 ? `👀 Opened ${l.view_count}×${l.viewed_at ? " · last " + new Date(l.viewed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}`
-      : "🔗 Link sent — not opened yet";
+    const label = l.status === "approved" ? `Approved by ${l.approved_by ?? "client"}`
+      : l.status === "declined" ? "Declined online"
+      : l.view_count > 0 ? `Opened ${l.view_count}×${l.viewed_at ? " · last " + new Date(l.viewed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}`
+      : "Link sent — not opened yet";
     return (
       <div className="mt-2 space-y-1.5">
         <div className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${tone}`}>{label}</div>
@@ -103,7 +103,7 @@ export default function ProposalsTab() {
 
   function card(j: any, actions: { label: string; to: string }[]) {
     return (
-      <div key={j.id} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5">
+      <div key={j.id} className="rounded-xl bg-white/[0.05] px-3.5 py-2.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-semibold text-white truncate">{jobLabel(j)}</div>
@@ -123,7 +123,7 @@ export default function ProposalsTab() {
     );
   }
 
-  if (loading) return <p className="pt-4 text-sm text-neutral-400">Loading…</p>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
 
   return (
     <div className="pt-2 space-y-4">
@@ -136,22 +136,22 @@ export default function ProposalsTab() {
 
       {sent.length === 0 ? <p className="text-sm text-neutral-400">Nothing out right now. Mark a job&apos;s proposal &quot;Sent&quot; on the Jobs tab and it shows up here with the 30-day clock running.</p> : (
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Out for signature — 30-day validity</div>
-          <div className="space-y-1.5">{sent.map((j) => card(j, [{ label: "✍️ Signed", to: "signed" }, { label: "🚫 Declined", to: "declined" }]))}</div>
+          <div className="text-sm font-semibold text-neutral-300 mb-1.5">Out for signature — 30-day validity</div>
+          <div className="space-y-1.5">{sent.map((j) => card(j, [{ label: "Signed", to: "signed" }, { label: "Declined", to: "declined" }]))}</div>
         </div>
       )}
 
       {signed.length ? (
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-1.5">✍️ Signed</div>
-          <div className="space-y-1.5">{signed.map((j) => card(j, [{ label: "↩︎ Back to sent", to: "sent" }]))}</div>
+          <div className="text-sm font-semibold text-emerald-300 mb-1.5">Signed</div>
+          <div className="space-y-1.5">{signed.map((j) => card(j, [{ label: "Back to sent", to: "sent" }]))}</div>
         </div>
       ) : null}
 
       {declined.length ? (
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">🚫 Declined</div>
-          <div className="space-y-1.5">{declined.map((j) => card(j, [{ label: "↩︎ Back to sent", to: "sent" }]))}</div>
+          <div className="text-sm font-semibold text-neutral-300 mb-1.5">Declined</div>
+          <div className="space-y-1.5">{declined.map((j) => card(j, [{ label: "Back to sent", to: "sent" }]))}</div>
         </div>
       ) : null}
 
@@ -165,12 +165,12 @@ export default function ProposalsTab() {
 const btn = "px-2.5 py-1 rounded-lg text-xs font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500";
 
 function Tile({ v, l, tone }: { v: string; l: string; tone?: "amber" | "blue" }) {
-  const border = tone === "amber" ? "border-amber-500/50" : tone === "blue" ? "border-blue-500/50" : "border-neutral-800";
-  const text = tone === "amber" ? "text-amber-300" : tone === "blue" ? "text-blue-300" : "text-white";
+  const border = tone === "amber" ? "border-amber-500/50" : tone === "blue" ? "border-neutral-500/50" : "border-white/[0.08]";
+  const text = tone === "amber" ? "text-amber-300" : tone === "blue" ? "text-neutral-300" : "text-white";
   return (
     <div className={`rounded-xl border ${border} bg-neutral-900 p-2.5 text-center`}>
       <div className={`text-base font-bold leading-none ${text}`}>{v}</div>
-      <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">{l}</div>
+      <div className="mt-1 text-sm text-neutral-400">{l}</div>
     </div>
   );
 }
@@ -212,8 +212,8 @@ function LinkEditor({ supabase, job, link, onClose, onSaved, newToken }: any) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-end sm:items-center justify-center p-3 overflow-y-auto">
-      <div className="w-full max-w-lg rounded-2xl border border-neutral-800 bg-neutral-950 p-4 my-6">
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-end sm:items-center justify-center p-3 overflow-y-auto anim-fade">
+      <div className="w-full max-w-lg rounded-2xl bg-white/[0.05] p-4 my-6">
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-bold text-white">{link ? "Edit client link" : "Create client link"}</div>
           <button onClick={onClose} className="text-neutral-400 text-lg leading-none">✕</button>
@@ -242,5 +242,5 @@ function LinkEditor({ supabase, job, link, onClose, onSaved, newToken }: any) {
 
 const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500";
 function F({ l, children }: { l: string; children: React.ReactNode }) {
-  return <label className="block"><span className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">{l}</span>{children}</label>;
+  return <label className="block"><span className="block text-sm font-semibold text-neutral-400 mb-1">{l}</span>{children}</label>;
 }

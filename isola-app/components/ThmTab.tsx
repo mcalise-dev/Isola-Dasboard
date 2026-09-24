@@ -36,7 +36,7 @@ export default function ThmTab() {
 
   function row(e: Entry) {
     return (
-      <div key={e.id} className={`flex items-start gap-3 rounded-xl border px-3.5 py-2.5 ${e.is_open ? "border-amber-500/50 bg-amber-500/5" : "border-neutral-800 bg-neutral-950"}`}>
+      <div key={e.id} className={`flex items-start gap-3 rounded-xl border px-3.5 py-2.5 ${e.is_open ? "border-amber-500/50 bg-amber-500/5" : "border-white/[0.08] bg-neutral-950"}`}>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-white">{e.description}</div>
           <div className="text-xs text-neutral-400">{[e.ref, e.entry_date ? fmtDate(e.entry_date) : null].filter(Boolean).join(" · ")}{e.is_open ? " · OPEN — number pending" : ""}</div>
@@ -50,12 +50,12 @@ export default function ThmTab() {
 
   return (
     <div className="pt-2 space-y-4">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/95 p-4 text-center">
-        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">THM owes ISOLA — Invoice #94</div>
+      <div className="rounded-2xl border border-white/[0.07] bg-neutral-900/95 p-4 text-center">
+        <div className="text-sm font-semibold text-neutral-300">THM owes ISOLA — Invoice #94</div>
         <div className="text-3xl font-extrabold tabular-nums text-white mt-1">{loading ? "…" : money(inv94Balance)}</div>
         <div className="text-xs text-neutral-400 mt-1">$40,155.50 opening · {money(sum(inv94, "owes_thm"))} applied</div>
         {standalone.length ? (
-          <div className="text-xs text-neutral-400 mt-2 border-t border-neutral-800 pt-2">
+          <div className="text-xs text-neutral-400 mt-2 border-t border-white/[0.08] pt-2">
             Standalone (not part of #94): <span className="font-semibold text-white">{money(standaloneBal)}</span> owed to ISOLA
           </div>
         ) : null}
@@ -63,18 +63,18 @@ export default function ThmTab() {
 
       {openItems.length ? (
         <div className="rounded-xl border border-amber-500/40 bg-neutral-900 px-3.5 py-2.5 text-xs text-amber-200">
-          ⚠️ {openItems.length} open item{openItems.length > 1 ? "s" : ""} not in the balance yet — tell Claude the number when you have it.
+          {openItems.length} open item{openItems.length > 1 ? "s" : ""} not in the balance yet — tell Claude the number when you have it.
         </div>
       ) : null}
 
       <div>
-        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Applied against Invoice #94</div>
+        <div className="text-sm font-semibold text-neutral-300 mb-1.5">Applied against Invoice #94</div>
         <div className="space-y-1.5">{inv94.map(row)}</div>
       </div>
 
       {standalone.length ? (
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Standalone settlements</div>
+          <div className="text-sm font-semibold text-neutral-300 mb-1.5">Standalone settlements</div>
           <div className="space-y-1.5">{standalone.map(row)}</div>
         </div>
       ) : null}

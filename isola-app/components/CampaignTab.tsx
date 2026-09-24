@@ -76,9 +76,9 @@ function CampaignInner() {
     <div>
       <div className="grid grid-cols-4 gap-2 mb-3">
         {[[rows.length, "Prospects"], [pct(connected, liSent), `Connected (${connected}/${liSent})`], [pct(liResp, liSent), "LI responses"], [pct(emResp, emSent), "Email responses"]].map(([n, l], i) => (
-          <div key={i} className="rounded-xl border border-neutral-800 bg-neutral-900 p-2.5 text-center">
+          <div key={i} className="rounded-xl border border-white/[0.07] bg-neutral-900 p-2.5 text-center">
             <div className="text-base font-bold text-white leading-none tabular-nums">{n}</div>
-            <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">{l}</div>
+            <div className="mt-1 text-sm text-neutral-400">{l}</div>
           </div>
         ))}
       </div>
@@ -88,13 +88,13 @@ function CampaignInner() {
         The moment someone responds, stop the sequence — it&apos;s a conversation now.
       </p>
 
-      <div className="sticky top-[57px] z-20 -mx-4 px-4 pt-2 pb-2 bg-black/95 backdrop-blur border-b border-neutral-800 mb-3">
+      <div className="sticky top-[57px] z-20 -mx-4 px-4 pt-2 pb-2 bg-black/95 backdrop-blur border-b border-white/[0.08] mb-3">
       <div className="flex gap-2 mb-2">
         <select className={`${input} flex-1 min-w-0 font-semibold`} value={fSector} onChange={(e) => { setFSector(e.target.value); setFCompany(""); }}>
           <option value="">All sectors</option>
-          <option value="Medical">🏥 Medical</option>
-          <option value="Commercial">🏢 Commercial</option>
-          <option value="Banks">🏦 Banks</option>
+          <option value="Medical">Medical</option>
+          <option value="Commercial">Commercial</option>
+          <option value="Banks">Banks</option>
         </select>
         <select className={`${input} flex-1 min-w-0 font-semibold`} value={fScore} onChange={(e) => { setFScore(e.target.value); setFCompany(""); }}>
           <option value="">All grades</option>
@@ -118,7 +118,7 @@ function CampaignInner() {
       </div>
       </div>
 
-      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
+      {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
 
       <div className="space-y-4">
         {groups.map(([co, ps]) => {
@@ -128,16 +128,16 @@ function CampaignInner() {
             <div key={co}>
               <div className="flex items-center gap-2 pb-1.5">
                 <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${topGrade === "A" ? "bg-white text-neutral-900 border-white" : "border-neutral-600 text-neutral-300"}`}>{topGrade}</span>
-                <span className="text-xs font-bold uppercase tracking-widest text-neutral-400 truncate">{co}</span>
+                <span className="text-sm font-semibold text-neutral-300 truncate">{co}</span>
                 <span className="text-xs text-neutral-500">{ps.length} contact{ps.length === 1 ? "" : "s"}</span>
-                {dueN ? <span className="text-xs font-bold uppercase px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">{dueN} due</span> : null}
+                {dueN ? <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">{dueN} due</span> : null}
               </div>
               <div className="space-y-2">
                 {ps.map((c) => {
                   const isOpen = openId === c.id;
                   const D = isOpen ? genDrafts(c) : null;
                   return (
-                    <div key={c.id} className={`rounded-xl border bg-neutral-900 ${isDue(c) ? "border-amber-500/50" : "border-neutral-800"}`}>
+                    <div key={c.id} className={`rounded-xl border bg-neutral-900 ${isDue(c) ? "border-amber-500/50" : "border-white/[0.08]"}`}>
                       <button className="w-full text-left px-4 py-3" onClick={() => setOpenId(isOpen ? null : c.id)}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
@@ -151,34 +151,34 @@ function CampaignInner() {
                         </div>
                       </button>
                       {isOpen ? (
-                        <div className="border-t border-neutral-800 px-4 py-3 space-y-3">
-                          {c.angle ? <p className="text-xs text-neutral-400"><b className="text-neutral-400 uppercase">Angle: </b>{c.angle}</p> : null}
-                          {bldg(c) ? <p className="text-xs text-neutral-400"><b className="text-neutral-400 uppercase">Building: </b>{bldg(c)}</p> : null}
+                        <div className="border-t border-white/[0.08] px-4 py-3 space-y-3">
+                          {c.angle ? <p className="text-xs text-neutral-400"><b className="text-neutral-400">Angle: </b>{c.angle}</p> : null}
+                          {bldg(c) ? <p className="text-xs text-neutral-400"><b className="text-neutral-400">Building: </b>{bldg(c)}</p> : null}
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">LinkedIn status</label>
+                              <label className="block text-sm font-semibold text-neutral-400 mb-1">LinkedIn status</label>
                               <select className={input} value={c.li_status} onChange={(e) => patch(c, { li_status: e.target.value, last_touch: e.target.value === "Not Contacted" ? c.last_touch : todayISO() })}>
                                 {LI_STATUSES.map((s) => <option key={s}>{s}</option>)}
                               </select>
                             </div>
                             <div>
-                              <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">Email status</label>
+                              <label className="block text-sm font-semibold text-neutral-400 mb-1">Email status</label>
                               <select className={input} value={c.em_status} onChange={(e) => patch(c, { em_status: e.target.value, last_touch: e.target.value === "Not Contacted" ? c.last_touch : todayISO() })}>
                                 {EM_STATUSES.map((s) => <option key={s}>{s}</option>)}
                               </select>
                             </div>
                             <div>
-                              <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">Last contact</label>
+                              <label className="block text-sm font-semibold text-neutral-400 mb-1">Last contact</label>
                               <input type="date" className={input} value={c.last_touch ?? ""} onChange={(e) => patch(c, { last_touch: e.target.value || null })} />
                             </div>
                             <div>
-                              <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">Next action due</label>
+                              <label className="block text-sm font-semibold text-neutral-400 mb-1">Next action due</label>
                               <input type="date" className={input} value={c.next_date ?? ""} onChange={(e) => patch(c, { next_date: e.target.value || null })} />
                             </div>
                           </div>
                           <div className="grid grid-cols-3 gap-1.5 text-xs">
                             {SEQ.map(([d, w]) => (
-                              <div key={d} className="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5">
+                              <div key={d} className="rounded-lg bg-white/[0.05] px-2 py-1.5">
                                 <b className="block text-neutral-300">{d}</b>
                                 <span className="text-neutral-400">{w}</span>
                               </div>
@@ -187,7 +187,7 @@ function CampaignInner() {
                           {MSGS.map(([key, title]) => (
                             <div key={key}>
                               <div className="flex items-center justify-between mb-1">
-                                <label className="text-xs font-semibold uppercase tracking-wide text-neutral-400">{title}</label>
+                                <label className="text-sm font-semibold text-neutral-400">{title}</label>
                                 <button
                                   onClick={(e) => {
                                     const btn = e.currentTarget;
@@ -225,7 +225,7 @@ function CampaignInner() {
 
 export default function CampaignTab() {
   return (
-    <Suspense fallback={<p className="text-neutral-400 text-sm">Loading…</p>}>
+    <Suspense fallback={<div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>}>
       <CampaignInner />
     </Suspense>
   );

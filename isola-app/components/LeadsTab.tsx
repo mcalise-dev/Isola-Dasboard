@@ -85,7 +85,7 @@ export default function LeadsTab() {
   }
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
+  const label = "block text-sm font-semibold text-neutral-400 mb-1";
   const btn = "rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white";
 
   const walked = shown.filter((l) => visitByJob[l.id]);
@@ -94,13 +94,13 @@ export default function LeadsTab() {
   return (
     <div>
       <div className="grid grid-cols-2 gap-2 mb-4">
-        <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-3">
+        <div className="rounded-xl border border-neutral-500/30 bg-neutral-500/10 p-3">
           <div className="text-2xl font-bold text-white leading-none">{notWalked.length}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-violet-200">Need a look</div>
+          <div className="mt-1 text-sm text-neutral-200">Need a look</div>
         </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-3">
+        <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-3">
           <div className="text-2xl font-bold text-white leading-none">{walked.length}</div>
-          <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">Walked, needs proposal</div>
+          <div className="mt-1 text-sm text-neutral-400">Walked, needs proposal</div>
         </div>
       </div>
 
@@ -110,7 +110,7 @@ export default function LeadsTab() {
       </div>
 
       {adding ? (
-        <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900 p-4 space-y-3">
+        <div className="mb-4 rounded-xl border border-white/[0.07] bg-neutral-900 p-4 space-y-3">
           <div><label className={label}>Job Name</label><input className={input} placeholder="e.g. 59 Cedar St" value={form.job_name} onChange={(e) => setForm({ ...form, job_name: e.target.value })} /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className={label}>Customer</label><input className={input} value={form.customer} onChange={(e) => setForm({ ...form, customer: e.target.value })} /></div>
@@ -126,7 +126,7 @@ export default function LeadsTab() {
         </div>
       ) : null}
 
-      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
+      {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
       {!loading && shown.length === 0 ? <p className="text-neutral-400 text-sm">No leads. Anything you still need to go look at goes here.</p> : null}
 
       <div className="space-y-2.5">
@@ -134,7 +134,7 @@ export default function LeadsTab() {
           const age = daysSince(l.created_at);
           const seen = visitByJob[l.id];
           return (
-            <div key={l.id} className={`bg-neutral-900 border border-neutral-800 border-l-4 ${seen ? "border-l-emerald-400" : "border-l-violet-400"} rounded-xl px-4 py-3`}>
+            <div key={l.id} className={`bg-neutral-900 border border-white/[0.08] border-l-4 ${seen ? "border-l-emerald-400" : "border-l-neutral-600"} rounded-xl px-4 py-3`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-semibold text-white truncate">
@@ -149,7 +149,7 @@ export default function LeadsTab() {
                 </div>
                 <div className="shrink-0 text-right">
                   <button onClick={() => togglePriority(l)} aria-label="Priority" className={`text-lg leading-none ${l.priority ? "text-amber-300" : "text-neutral-500"}`}>★</button>
-                  <div className={`mt-1 text-xs font-bold uppercase px-1.5 py-0.5 rounded border ${seen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-violet-500/30 bg-violet-500/10 text-violet-200"}`}>
+                  <div className={`mt-1 text-xs font-bold px-1.5 py-0.5 rounded border ${seen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-neutral-500/30 bg-neutral-500/10 text-neutral-200"}`}>
                     {seen ? "Walked" : "Go see"}
                   </div>
                 </div>
@@ -161,16 +161,16 @@ export default function LeadsTab() {
 
               <div className="mt-2.5 grid grid-cols-3 gap-2">
                 {l.location ? (
-                  <a href={`https://maps.google.com/?q=${encodeURIComponent(l.location)}`} target="_blank" rel="noreferrer" className={btn}>🧭 Map</a>
+                  <a href={`https://maps.google.com/?q=${encodeURIComponent(l.location)}`} target="_blank" rel="noreferrer" className={btn}>Map</a>
                 ) : <span />}
                 {l.contact_phone ? (
-                  <a href={`tel:${String(l.contact_phone).replace(/[^0-9+]/g, "")}`} className={btn}>📞 Call</a>
+                  <a href={`tel:${String(l.contact_phone).replace(/[^0-9+]/g, "")}`} className={btn}>Call</a>
                 ) : <span />}
-                <a href="/visits" className={btn}>📍 Log visit</a>
+                <a href="/visits" className={btn}>Log visit</a>
               </div>
 
               <div className="mt-2 grid grid-cols-4 gap-2">
-                <button onClick={() => move(l, "awaiting")} className="rounded-lg bg-white text-neutral-900 py-1.5 text-xs font-bold">📤 Sent</button>
+                <button onClick={() => move(l, "awaiting")} className="rounded-lg bg-white text-neutral-900 py-1.5 text-xs font-bold">Sent</button>
                 <button onClick={() => move(l, "booked")} className={btn}>→ Booked</button>
                 <button onClick={() => { const r = prompt("Why is it dead? (price, no response, not our work…)", "No go"); if (r !== null) move(l, "lost", r || "No go"); }} className={btn}>✕ Lost</button>
                 <button onClick={() => remove(l)} className="rounded-lg border border-red-500/40 py-1.5 text-xs font-semibold text-red-300">Delete</button>
@@ -181,7 +181,7 @@ export default function LeadsTab() {
       </div>
 
       <p className="mt-4 text-xs text-neutral-500">
-        To Quote = work that hasn't gone out yet. Log the site visit and the card flips to Walked. Tap 📤 Sent once the proposal is out — it moves to Sent and a follow-up task lands on day 3.
+        To Quote = work that hasn't gone out yet. Log the site visit and the card flips to Walked. Tap Sent once the proposal is out — it moves to Sent and a follow-up task lands on day 3.
       </p>
     </div>
   );

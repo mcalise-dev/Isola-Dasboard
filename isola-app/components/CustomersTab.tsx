@@ -5,11 +5,11 @@ import { createClient } from "@/lib/supabase/client";
 import { parsePrice } from "@/lib/format";
 
 const TYPES: Record<string, { label: string; cls: string }> = {
-  medical:       { label: "Medical",       cls: "bg-rose-500/15 text-rose-300 border-rose-500/30" },
-  property_mgmt: { label: "Property mgmt", cls: "bg-blue-500/15 text-blue-300 border-blue-500/30" },
+  medical:       { label: "Medical",       cls: "bg-red-500/15 text-red-300 border-red-500/30" },
+  property_mgmt: { label: "Property mgmt", cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30" },
   commercial:    { label: "Commercial",    cls: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
-  municipal:     { label: "Municipal",     cls: "bg-teal-500/15 text-teal-300 border-teal-500/30" },
-  partner:       { label: "Partner",       cls: "bg-violet-500/15 text-violet-300 border-violet-500/30" },
+  municipal:     { label: "Municipal",     cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30" },
+  partner:       { label: "Partner",       cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30" },
   residential:   { label: "Residential",   cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30" },
 };
 const fmt$ = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -76,7 +76,7 @@ export default function CustomersTab() {
       .some((v: any) => String(v ?? "").toLowerCase().includes(s));
   });
 
-  if (loading) return <p className="pt-4 text-sm text-neutral-400">Loading…</p>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
 
   const active = rows.filter((c) => !c.archived);
   const totalValue = jobs.reduce((a, j) => a + parsePrice(j.price), 0);
@@ -93,14 +93,14 @@ export default function CustomersTab() {
       {dupes.length && dupsOpen ? (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 px-3.5 py-3">
           <div className="flex items-center justify-between mb-1.5">
-            <div className="text-xs font-bold uppercase tracking-widest text-amber-300">
-              ⚠️ {dupes.length} possible duplicate{dupes.length === 1 ? "" : "s"}
+            <div className="text-sm font-semibold text-amber-300">
+              {dupes.length} possible duplicate{dupes.length === 1 ? "" : "s"}
             </div>
             <button onClick={() => setDupsOpen(false)} className="text-xs text-neutral-400 underline">hide</button>
           </div>
           <div className="space-y-1.5">
             {dupes.map(({ a, b, why }, i) => (
-              <div key={i} className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 flex items-center justify-between gap-2">
+              <div key={i} className="rounded-lg bg-white/[0.05] px-3 py-2 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-xs font-semibold text-white truncate">{a.name} &nbsp;·&nbsp; {b.name}</div>
                   <div className="text-xs text-neutral-400">{why}</div>
@@ -117,7 +117,7 @@ export default function CustomersTab() {
 
       <div className="flex gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, contact, phone, tag…"
-          className="flex-1 rounded-xl bg-neutral-900 border border-neutral-800 px-3 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-600" />
+          className="flex-1 rounded-xl bg-neutral-900 border border-white/[0.08] px-3 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-600" />
         <button onClick={() => setAdding(true)} className="rounded-xl bg-white text-black px-3.5 text-sm font-bold">+ New</button>
       </div>
 
@@ -135,7 +135,7 @@ export default function CustomersTab() {
           );
         })}
         <button onClick={() => setMergeOpen(true)} className="ml-auto px-2.5 py-1 rounded-full text-xs font-bold border border-neutral-700 text-neutral-400 hover:border-neutral-500">
-          ⇄ Merge two
+          Merge two
         </button>
       </div>
 
@@ -148,7 +148,7 @@ export default function CustomersTab() {
           const np = propsFor(c.id).length;
           return (
             <Link key={c.id} href={`/customers/${c.id}`}
-              className="block rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 hover:border-neutral-600">
+              className="block rounded-xl bg-white/[0.05] px-3.5 py-2.5 hover:border-neutral-600">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-white truncate">
@@ -166,7 +166,7 @@ export default function CustomersTab() {
                 {val ? <span>{fmt$(val)}</span> : null}
                 {open ? <span className="text-amber-400">{open} open</span> : null}
                 {(c.tags ?? []).slice(0, 3).map((tag: string) => (
-                  <span key={tag} className="px-1.5 py-px rounded-full border border-neutral-800 text-neutral-400">{tag}</span>
+                  <span key={tag} className="px-1.5 py-px rounded-full border border-white/[0.08] text-neutral-400">{tag}</span>
                 ))}
               </div>
             </Link>
@@ -192,9 +192,9 @@ export default function CustomersTab() {
 
 function Tile({ v, l }: { v: string; l: string }) {
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-2.5 text-center">
+    <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-2.5 text-center">
       <div className="text-base font-bold text-white leading-none">{v}</div>
-      <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">{l}</div>
+      <div className="mt-1 text-sm text-neutral-400">{l}</div>
     </div>
   );
 }
@@ -205,19 +205,19 @@ function PickTwo({ rows, onClose, onPick }: any) {
   const [a, setA] = useState(""); const [b, setB] = useState("");
   const ra = rows.find((r: any) => r.id === a), rb = rows.find((r: any) => r.id === b);
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-950 p-4" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 anim-fade" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl bg-white/[0.05] p-4" onClick={(e) => e.stopPropagation()}>
         <div className="text-sm font-bold text-white mb-3">Merge two customers</div>
         <div className="space-y-2.5">
           <label className="block">
-            <span className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">First</span>
+            <span className="block text-sm font-semibold text-neutral-400 mb-1">First</span>
             <select value={a} onChange={(e) => setA(e.target.value)} className={inp}>
               <option value="">Pick a customer…</option>
               {rows.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </label>
           <label className="block">
-            <span className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">Second</span>
+            <span className="block text-sm font-semibold text-neutral-400 mb-1">Second</span>
             <select value={b} onChange={(e) => setB(e.target.value)} className={inp}>
               <option value="">Pick a customer…</option>
               {rows.filter((r: any) => r.id !== a).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -255,7 +255,7 @@ function MergeModal({ supabase, a, b, jobsFor, propsFor, onClose, onDone }: any)
     const picked = keepId === c.id;
     return (
       <button onClick={() => setKeepId(c.id)}
-        className={`w-full text-left rounded-xl border px-3 py-2.5 ${picked ? "border-emerald-500/60 bg-emerald-500/10" : "border-neutral-800 bg-neutral-950"}`}>
+        className={`w-full text-left rounded-xl border px-3 py-2.5 ${picked ? "border-emerald-500/60 bg-emerald-500/10" : "border-white/[0.08] bg-neutral-950"}`}>
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm font-bold text-white truncate">{c.name}</div>
           {picked ? <span className="shrink-0 text-xs font-bold text-emerald-300">KEEP THIS NAME</span> : null}
@@ -271,13 +271,13 @@ function MergeModal({ supabase, a, b, jobsFor, propsFor, onClose, onDone }: any)
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 overflow-y-auto p-3" onClick={onClose}>
-      <div className="mx-auto max-w-sm rounded-2xl border border-neutral-800 bg-neutral-950 p-4 my-6" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 bg-black/85 overflow-y-auto p-3 anim-fade" onClick={onClose}>
+      <div className="mx-auto max-w-sm rounded-2xl bg-white/[0.05] p-4 my-6" onClick={(e) => e.stopPropagation()}>
         <div className="text-sm font-bold text-white">Merge into one customer</div>
         <p className="text-xs text-neutral-400 mt-0.5 mb-3">Tap the one whose name you want to keep. Jobs, properties, notes and contacts all move onto it — nothing is thrown away.</p>
         <div className="space-y-2">{card(a)}{card(b)}</div>
 
-        <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
+        <div className="mt-3 rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
           Keeping <span className="text-white font-semibold">{keep.name}</span>. Everything under{" "}
           <span className="text-white font-semibold">{dead.name}</span> moves across, and &quot;{dead.name}&quot; is kept as a
           QuickBooks alias so invoices under the old name still match.
@@ -308,8 +308,8 @@ function NewCustomer({ supabase, onClose, onSaved }: any) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3">
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
+    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 anim-fade">
+      <div className="w-full max-w-sm rounded-2xl bg-white/[0.05] p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-bold text-white">New customer</div>
           <button onClick={onClose} className="text-neutral-400 text-lg leading-none">✕</button>

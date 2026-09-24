@@ -68,12 +68,12 @@ export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
     setBusy(""); load(); onChanged?.();
   }
 
-  if (loading) return <p className="text-sm text-neutral-400">Loading…</p>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-3.5">
+    <div className="rounded-2xl border border-white/[0.07] bg-neutral-900/60 p-3.5">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">👷 Clock the crew</div>
+        <div className="text-sm font-semibold text-neutral-300">Clock the crew</div>
         <button onClick={() => setManual(true)} className="text-xs font-semibold text-neutral-400 underline">＋ Type in time</button>
       </div>
 
@@ -88,7 +88,7 @@ export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
           const p = punchFor(w.id);
           const j = p?.job_id ? jobById(p.job_id) : null;
           return (
-            <div key={w.id} className={`rounded-xl border px-3 py-2.5 ${p ? "border-amber-500/40 bg-amber-500/10" : "border-neutral-800 bg-neutral-950"}`}>
+            <div key={w.id} className={`rounded-xl border px-3 py-2.5 ${p ? "border-amber-500/40 bg-amber-500/10" : "border-white/[0.08] bg-neutral-950"}`}>
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-sm font-bold text-white">{w.name}</div>
@@ -185,11 +185,11 @@ function ManualTime({ supabase, crew, onClose, onSaved }: any) {
   }
 
   const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500";
-  const lab = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
+  const lab = "block text-sm font-semibold text-neutral-400 mb-1";
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 overflow-y-auto p-3">
-      <div className="mx-auto max-w-sm rounded-2xl border border-neutral-800 bg-neutral-950 p-4 my-6">
+    <div className="fixed inset-0 z-50 bg-black/85 overflow-y-auto p-3 anim-fade">
+      <div className="mx-auto max-w-sm rounded-2xl bg-white/[0.05] p-4 my-6">
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-bold text-white">Type in time</div>
           <button onClick={onClose} className="text-neutral-400 text-lg leading-none">✕</button>
@@ -219,7 +219,7 @@ function ManualTime({ supabase, crew, onClose, onSaved }: any) {
           <div><label className={lab}>Note</label><input value={f.note} onChange={set("note")} className={inp} placeholder="What they did" /></div>
 
           {derived > 0 ? (
-            <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-300">
+            <div className="rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2 text-xs text-neutral-300">
               {derived.toFixed(2)} hrs{worker ? ` · ${worker.name}` : ""}
               {worker?.rate ? ` @ $${worker.rate}/${worker.rate_type === "daily" ? "day" : "hr"} = ` : " · "}
               <span className="font-bold text-white">{worker?.rate ? money(amount) : "no rate set — logs at $0"}</span>

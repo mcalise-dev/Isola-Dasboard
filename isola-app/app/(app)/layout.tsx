@@ -14,11 +14,14 @@ import { logout } from "@/app/login/actions";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col min-h-screen">
-      <header className="sticky top-0 z-30 bg-neutral-950 border-b border-neutral-800 pt-[env(safe-area-inset-top)]">
+      <header className="sticky top-0 z-30 bg-black/90 backdrop-blur-md border-b border-white/[0.08] pt-[env(safe-area-inset-top)]">
         <div className="h-[60px] flex items-center gap-3 px-4">
           <a href="/home" className="flex items-center gap-2.5 shrink-0">
-            <Image src="/logo.png" alt="Isola" width={34} height={34} className="rounded-full ring-1 ring-neutral-700" />
-            <span className="hidden sm:inline font-bold tracking-tight text-white">Isola On The Go</span>
+            <Image src="/logo.png" alt="Isola" width={36} height={36} className="rounded-full ring-1 ring-white/15" />
+            <span className="flex flex-col leading-none">
+              <span className="text-[15px] font-bold tracking-[0.22em] text-white">ISOLA</span>
+              <span className="mt-1 text-[11px] font-medium tracking-wide text-neutral-400">On The Go</span>
+            </span>
           </a>
           <div className="flex-1 flex justify-end md:justify-center"><SearchButton /></div>
           <form action={logout} className="shrink-0">

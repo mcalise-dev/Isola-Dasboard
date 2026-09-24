@@ -66,7 +66,7 @@ export default function VisitsTab() {
   }
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
+  const label = "block text-sm font-semibold text-neutral-400 mb-1";
 
   return (
     <div>
@@ -78,7 +78,7 @@ export default function VisitsTab() {
       </div>
 
       {adding ? (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 mb-4 space-y-3">
+        <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-4 mb-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div><label className={label}>Date</label><input type="date" className={input} value={form.visit_date} onChange={(e) => setForm({ ...form, visit_date: e.target.value })} /></div>
             <div><label className={label}>Weather</label><input className={input} value={form.weather} onChange={(e) => setForm({ ...form, weather: e.target.value })} /></div>
@@ -104,12 +104,12 @@ export default function VisitsTab() {
         </div>
       ) : null}
 
-      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
+      {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
       {!loading && visits.length === 0 ? <p className="text-neutral-400 text-sm">No site visits logged yet.</p> : null}
 
       <div className="space-y-2.5">
         {visits.map((v) => (
-          <div key={v.id} className="rounded-xl border border-neutral-800 bg-neutral-900">
+          <div key={v.id} className="rounded-xl border border-white/[0.07] bg-neutral-900">
             <button className="w-full text-left px-4 py-3" onClick={() => setOpen(open === v.id ? null : v.id)}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -121,7 +121,7 @@ export default function VisitsTab() {
               </div>
             </button>
             {open === v.id ? (
-              <div className="border-t border-neutral-800 px-4 py-3 text-sm space-y-1.5">
+              <div className="border-t border-white/[0.08] px-4 py-3 text-sm space-y-1.5">
                 {v.met_with ? <p><span className="text-neutral-400">Met with:</span> {v.met_with}</p> : null}
                 {v.job_id && jobById[v.job_id] ? <p><span className="text-neutral-400">Job:</span> {jobLabel(jobById[v.job_id])}</p> : null}
                 {v.weather ? <p><span className="text-neutral-400">Weather:</span> {v.weather}</p> : null}

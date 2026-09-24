@@ -189,7 +189,7 @@ export default function GamePlanTab() {
   return (
     <div className="space-y-4">
       {/* Date bar */}
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-3.5">
+      <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-3.5">
         <div className="flex items-center gap-2">
           <button onClick={() => setDate(shiftDate(date, -1))} aria-label="Previous day"
             className="w-9 h-9 shrink-0 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-bold">‹</button>
@@ -207,12 +207,12 @@ export default function GamePlanTab() {
       </div>
 
       {/* Headline + progress */}
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-3.5 space-y-2.5">
+      <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-3.5 space-y-2.5">
         <input className={`${input} w-full font-semibold`} placeholder="Game plan for the day — one line (optional)"
           value={headline} onChange={(e) => setHeadline(e.target.value)} onBlur={saveHeader} />
         {items.length ? (
           <div>
-            <div className="flex items-baseline justify-between text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1">
+            <div className="flex items-baseline justify-between text-sm font-semibold text-neutral-300 mb-1">
               <span>{doneCount} of {items.length} done</span><span className="tabular-nums">{pct}%</span>
             </div>
             <div className="h-2 rounded-full bg-neutral-800 overflow-hidden">
@@ -223,7 +223,7 @@ export default function GamePlanTab() {
       </div>
 
       {/* Add lines */}
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-3.5 space-y-2.5">
+      <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-3.5 space-y-2.5">
         <textarea className={`${input} w-full h-24 resize-y`} placeholder={"Everything that needs to get done…\nOne per line — paste a whole list and each line becomes its own item."}
           value={draft} onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addItems(); }} />
@@ -232,8 +232,8 @@ export default function GamePlanTab() {
           <button onClick={addItems} className="rounded-lg bg-white text-neutral-900 px-4 text-sm font-semibold">Add</button>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={carryOver} className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-semibold text-neutral-300">↩︎ Carry over unfinished</button>
-          {plan ? <button onClick={deletePlan} className="rounded-lg border border-neutral-800 px-3 py-1.5 text-xs font-semibold text-neutral-500 hover:text-red-400">Delete this plan</button> : null}
+          <button onClick={carryOver} className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-semibold text-neutral-300">Carry over unfinished</button>
+          {plan ? <button onClick={deletePlan} className="rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs font-semibold text-neutral-500 hover:text-red-400">Delete this plan</button> : null}
           {saving ? <span className="text-xs text-neutral-500 self-center">Saving…</span> : null}
         </div>
       </div>
@@ -241,13 +241,13 @@ export default function GamePlanTab() {
       {/* On the schedule that day */}
       {sched.length ? (
         <div>
-          <div className="pb-1.5 text-xs font-bold uppercase tracking-widest text-neutral-400">On the schedule</div>
+          <div className="pb-1.5 text-sm font-semibold text-neutral-300">On the schedule</div>
           <div className="space-y-2">
             {sched.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5">
-                <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
+              <div key={s.id} className="flex items-center gap-3 rounded-xl bg-white/[0.05] px-3.5 py-2.5">
+                <span className="w-2 h-2 rounded-full bg-neutral-400 shrink-0" />
                 <span className="flex-1 min-w-0 truncate text-sm text-neutral-300">{s.jobs ? jobLabel(s.jobs) : s.label}</span>
-                <button onClick={() => addSchedLine(s)} className="shrink-0 text-xs font-semibold text-blue-300">+ Add</button>
+                <button onClick={() => addSchedLine(s)} className="shrink-0 text-xs font-semibold text-neutral-300">+ Add</button>
               </div>
             ))}
           </div>
@@ -255,13 +255,13 @@ export default function GamePlanTab() {
       ) : null}
 
       {/* The plan */}
-      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
+      {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
       {!loading && !items.length ? (
         <p className="text-neutral-400 text-sm">Nothing written down for {shortDate(date)} yet — type the day out above.</p>
       ) : null}
       <div className="space-y-2">
         {items.map((it) => (
-          <div key={it.id} className="flex items-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900 px-3.5 py-3">
+          <div key={it.id} className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-neutral-900 px-3.5 py-3">
             <button onClick={() => toggle(it)} aria-label="Toggle done"
               className={`w-5 h-5 mt-0.5 shrink-0 rounded-md border flex items-center justify-center text-xs ${it.done ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300" : "border-neutral-600 text-transparent"}`}>✓</button>
             <div className="flex-1 min-w-0">
@@ -274,8 +274,8 @@ export default function GamePlanTab() {
       </div>
 
       {/* Notes */}
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-3.5">
-        <div className="pb-1.5 text-xs font-bold uppercase tracking-widest text-neutral-400">Notes for the day</div>
+      <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-3.5">
+        <div className="pb-1.5 text-sm font-semibold text-neutral-300">Notes for the day</div>
         <textarea className={`${input} w-full h-24 resize-y`} placeholder="Anything that isn't a checkbox — who's on what, what to watch, what to order."
           value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveHeader} />
       </div>
@@ -283,11 +283,11 @@ export default function GamePlanTab() {
       {/* Recent plans */}
       {recent.length ? (
         <div>
-          <div className="pb-1.5 text-xs font-bold uppercase tracking-widest text-neutral-400">Recent game plans</div>
+          <div className="pb-1.5 text-sm font-semibold text-neutral-300">Recent game plans</div>
           <div className="flex flex-wrap gap-2">
             {recent.map((r) => (
               <button key={r.plan_date} onClick={() => setDate(r.plan_date)}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${r.plan_date === date ? "border-neutral-400 bg-neutral-800 text-white" : "border-neutral-800 bg-neutral-950 text-neutral-400"}`}>
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${r.plan_date === date ? "border-neutral-400 bg-neutral-800 text-white" : "border-white/[0.08] bg-neutral-950 text-neutral-400"}`}>
                 {shortDate(r.plan_date)}
               </button>
             ))}

@@ -68,7 +68,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-1.5">
-        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">
+        <div className="text-sm font-semibold text-neutral-300">
           Punch list{open.length ? ` — ${open.length} open` : rows.length ? " — all clear" : ""}
         </div>
         {overdue ? (
@@ -81,7 +81,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
           {rows.map((t) => {
             const late = !t.done && t.due_date && t.due_date < today;
             return (
-              <div key={t.id} className={`flex items-start gap-2.5 rounded-xl border bg-neutral-950 px-3 py-2 ${late ? "border-red-500/50" : t.priority === "high" && !t.done ? "border-amber-500/40" : "border-neutral-800"}`}>
+              <div key={t.id} className={`flex items-start gap-2.5 rounded-xl border bg-neutral-950 px-3 py-2 ${late ? "border-red-500/50" : t.priority === "high" && !t.done ? "border-amber-500/40" : "border-white/[0.08]"}`}>
                 <button onClick={() => toggle(t)}
                   className={`shrink-0 mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center text-xs ${t.done ? "bg-emerald-400 border-emerald-400 text-neutral-900" : "border-neutral-600 text-transparent"}`}>✓</button>
                 <div className="min-w-0 flex-1">

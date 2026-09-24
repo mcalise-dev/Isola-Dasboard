@@ -40,10 +40,10 @@ export const jobLabel = (j: Partial<Pick<Job, "job_name" | "customer" | "locatio
 //   Selling: lead = TO QUOTE (not sent yet) · awaiting = SENT (with the customer)
 //   Doing:   booked · progress · complete        Archive: lost (declined / dead)
 export const STATUS_META: Record<string, { label: string; cls: string }> = {
-  lead: { label: "To Quote", cls: "bg-violet-500/15 text-violet-300 border-violet-500/30" },
-  awaiting: { label: "Sent", cls: "bg-sky-500/15 text-sky-300 border-sky-500/30" },
-  booked: { label: "Booked", cls: "bg-blue-500/15 text-blue-300 border-blue-500/30" },
-  progress: { label: "In Progress", cls: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
+  lead: { label: "To Quote", cls: "bg-white/[0.06] text-neutral-300 border-white/10" },
+  awaiting: { label: "Sent", cls: "bg-white/[0.06] text-neutral-200 border-white/15" },
+  booked: { label: "Booked", cls: "bg-white/10 text-white border-white/20" },
+  progress: { label: "In Progress", cls: "bg-white text-neutral-900 border-white" },
   complete: { label: "Complete", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
   lost: { label: "Lost", cls: "bg-red-500/10 text-red-300/80 border-red-500/30" },
 };
@@ -60,7 +60,7 @@ export function stageTag(j: any, ctx: { walked?: boolean; drafting?: boolean; sc
   if (j.status === "lead") {
     if (ctx.drafting) return { text: "Drafting", cls: ok };
     if (ctx.walked) return { text: "Walked", cls: ok };
-    return { text: "Not walked", cls: warn };
+    return { text: "Not walked", cls: mute };
   }
   if (j.status === "awaiting") {
     const d = daysSince(j.quoted_date);
@@ -98,4 +98,13 @@ export const parsePrice = (p: string | number | null | undefined): number => {
   if (!m) return 0;
   const n = Number(m[1].replace(/,/g, ""));
   return isFinite(n) ? n : 0;
+};
+
+// v4.5: every price shows the same way — "$14,000" / "$1,577.70"; words like "T&M" stay words.
+export const fmtPrice = (p: string | number | null | undefined): string => {
+  if (p == null || p === "") return "";
+  const n = parsePrice(p);
+  if (!n) return String(p).trim();
+  const cents = Math.round(n * 100) % 100 !== 0;
+  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 });
 };

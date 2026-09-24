@@ -15,29 +15,29 @@ type Entry = {
 };
 
 const DOT: Record<string, string> = {
-  lead: "bg-violet-400",
-  awaiting: "bg-sky-400",
-  booked: "bg-blue-400",
+  lead: "bg-neutral-400",
+  awaiting: "bg-neutral-400",
+  booked: "bg-neutral-400",
   progress: "bg-amber-400",
   complete: "bg-emerald-400",
   lost: "bg-red-500/60",
 };
 
 const CHIP: Record<string, string> = {
-  lead: "bg-violet-500/25 text-violet-200",
-  awaiting: "bg-sky-500/25 text-sky-200",
-  booked: "bg-blue-500/25 text-blue-200",
+  lead: "bg-neutral-500/25 text-neutral-200",
+  awaiting: "bg-neutral-500/25 text-neutral-200",
+  booked: "bg-neutral-500/25 text-neutral-200",
   progress: "bg-amber-500/25 text-amber-200",
   complete: "bg-emerald-500/25 text-emerald-200",
 };
 
 // stable per-name color so a crew member reads the same everywhere
 const CREW_CLS = [
-  "bg-sky-500/20 text-sky-200 border-sky-500/40",
-  "bg-lime-500/20 text-lime-200 border-lime-500/40",
-  "bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-500/40",
-  "bg-orange-500/20 text-orange-200 border-orange-500/40",
-  "bg-cyan-500/20 text-cyan-200 border-cyan-500/40",
+  "bg-neutral-500/20 text-neutral-200 border-neutral-500/40",
+  "bg-neutral-500/20 text-neutral-200 border-neutral-500/40",
+  "bg-neutral-500/20 text-neutral-200 border-neutral-500/40",
+  "bg-amber-500/20 text-amber-200 border-amber-500/40",
+  "bg-neutral-500/20 text-neutral-200 border-neutral-500/40",
 ];
 const crewCls = (name: string) => {
   let h = 0;
@@ -207,7 +207,7 @@ export default function ScheduleTab() {
   function entryRow(e: Entry, compact = false) {
     const j = e.job_id ? jobById[e.job_id] : null;
     return (
-      <div key={e.id} className={`flex items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-950 ${compact ? "px-2.5 py-1.5" : "px-3.5 py-2.5"}`}>
+      <div key={e.id} className={`flex items-center gap-2.5 rounded-xl bg-white/[0.05] ${compact ? "px-2.5 py-1.5" : "px-3.5 py-2.5"}`}>
         <span className={`shrink-0 w-2 h-2 rounded-full ${j ? DOT[j.status] ?? "bg-neutral-600" : "bg-neutral-600"}`} />
         <div className="min-w-0 flex-1">
           <div className={`font-semibold text-white truncate ${compact ? "text-xs" : "text-sm"}`}>{j ? (j.job_name || j.customer) : e.label}</div>
@@ -247,7 +247,7 @@ export default function ScheduleTab() {
         <div className="text-center">
           <div className="font-bold text-white">{monthName}</div>
           {(year !== ty || month !== tm) ? (
-            <button onClick={() => { setYear(ty); setMonth(tm); setSelected(today); }} className="text-xs text-blue-300 font-semibold">Back to today</button>
+            <button onClick={() => { setYear(ty); setMonth(tm); setSelected(today); }} className="text-xs text-neutral-300 font-semibold">Back to today</button>
           ) : null}
         </div>
         <button onClick={() => shift(1)} className="w-9 h-9 rounded-lg border border-neutral-700 text-neutral-300 text-lg">›</button>
@@ -272,7 +272,7 @@ export default function ScheduleTab() {
       {/* weekday header */}
       <div className="grid grid-cols-7 mb-1">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-          <div key={i} className="text-center text-xs font-bold uppercase text-neutral-400 py-1">{d}</div>
+          <div key={i} className="text-center text-xs font-bold text-neutral-400 py-1">{d}</div>
         ))}
       </div>
 
@@ -286,8 +286,8 @@ export default function ScheduleTab() {
           const isSel = ds === selected;
           return (
             <button key={i} onClick={() => setSelected(ds)}
-              className={`min-h-[66px] rounded-lg border p-1 flex flex-col gap-0.5 ${isSel ? "border-white bg-neutral-800" : isToday ? "border-blue-400/60 bg-neutral-900" : "border-neutral-800 bg-neutral-900 hover:border-neutral-600"}`}>
-              <span className={`self-center text-xs font-bold leading-none ${isToday ? "text-blue-300" : isSel ? "text-white" : "text-neutral-300"}`}>{d}</span>
+              className={`min-h-[66px] rounded-lg border p-1 flex flex-col gap-0.5 ${isSel ? "border-white bg-neutral-800" : isToday ? "border-neutral-400/60 bg-neutral-900" : "border-white/[0.08] bg-neutral-900 hover:border-neutral-600"}`}>
+              <span className={`self-center text-xs font-bold leading-none ${isToday ? "text-neutral-300" : isSel ? "text-white" : "text-neutral-300"}`}>{d}</span>
               <span className="w-full flex flex-col gap-0.5 overflow-hidden">
                 {dayEntries.slice(0, 3).map((e) => {
                   const j = e.job_id ? jobById[e.job_id] : null;
@@ -303,24 +303,24 @@ export default function ScheduleTab() {
       </div>
 
       {/* selected day */}
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/95 p-4 mb-4">
+      <div className="rounded-2xl border border-white/[0.07] bg-neutral-900/95 p-4 mb-4">
         <div className="flex items-baseline justify-between mb-2.5">
           <h2 className="text-sm font-extrabold text-white">{selLabel}</h2>
           <span className="text-xs text-neutral-400">{selEntries.length} scheduled</span>
         </div>
-        {loading ? <p className="text-sm text-neutral-400">Loading…</p> : null}
+        {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
         {!loading && selEntries.length === 0 ? <p className="text-sm text-neutral-400 mb-2">Nothing scheduled.</p> : null}
         <div className="space-y-1.5 mb-3">{selEntries.map((e) => entryRow(e))}</div>
 
         {(tasksByDate[selected] ?? []).length ? (
           <div className="mb-3">
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Tasks due{selected === today ? " (incl. overdue)" : ""}</div>
+            <div className="text-sm font-semibold text-neutral-300 mb-1.5">Tasks due{selected === today ? " (incl. overdue)" : ""}</div>
             <div className="space-y-1.5">
               {(tasksByDate[selected] ?? []).map((t) => {
                 const j = t.job_id ? jobById[t.job_id] : null;
                 const late = t.due_date < today;
                 return (
-                  <div key={t.id} className="flex items-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2">
+                  <div key={t.id} className="flex items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 py-2">
                     <button onClick={() => toggleTask(t)} aria-label="Done" className="w-5 h-5 shrink-0 rounded-md border border-neutral-600 text-xs text-transparent hover:text-emerald-300">✓</button>
                     <div className="min-w-0 flex-1">
                       <div className="text-sm text-white truncate">{t.title}</div>
@@ -335,7 +335,7 @@ export default function ScheduleTab() {
 
         {unscheduled.length ? (
           <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-2.5">
-            <div className="text-xs font-bold uppercase tracking-widest text-amber-300 mb-1.5">Booked — no date yet ({unscheduled.length})</div>
+            <div className="text-sm font-semibold text-amber-300 mb-1.5">Booked — no date yet ({unscheduled.length})</div>
             <div className="space-y-1.5">
               {unscheduled.map((j) => (
                 <div key={j.id} className="flex items-center gap-2">
@@ -353,7 +353,7 @@ export default function ScheduleTab() {
         {routeUrl ? (
           <a href={routeUrl} target="_blank" rel="noopener noreferrer"
             className="mb-3 flex items-center justify-center gap-2 rounded-xl border border-neutral-700 py-2 text-xs font-bold text-neutral-200 hover:border-neutral-500">
-            🧭 Map the day — {stops.length} stop{stops.length === 1 ? "" : "s"} in order
+            Map the day — {stops.length} stop{stops.length === 1 ? "" : "s"} in order
           </a>
         ) : null}
 
@@ -373,7 +373,7 @@ export default function ScheduleTab() {
       </div>
 
       {/* this week */}
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/95 p-4">
+      <div className="rounded-2xl border border-white/[0.07] bg-neutral-900/95 p-4">
         <h2 className="text-sm font-extrabold text-white mb-2.5">This week</h2>
         <div className="space-y-2">
           {weekDays.map((ds) => {
@@ -381,10 +381,10 @@ export default function ScheduleTab() {
             const d = new Date(Number(ds.slice(0, 4)), Number(ds.slice(5, 7)) - 1, Number(ds.slice(8, 10)));
             return (
               <button key={ds} onClick={() => { setSelected(ds); if (d.getMonth() !== month || d.getFullYear() !== year) { setYear(d.getFullYear()); setMonth(d.getMonth()); } window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                className={`w-full text-left flex gap-3 rounded-xl border px-3 py-2 ${ds === today ? "border-blue-400/50 bg-neutral-950" : "border-neutral-800 bg-neutral-950 hover:border-neutral-600"}`}>
+                className={`w-full text-left flex gap-3 rounded-xl border px-3 py-2 ${ds === today ? "border-neutral-400/50 bg-neutral-950" : "border-white/[0.08] bg-neutral-950 hover:border-neutral-600"}`}>
                 <div className="shrink-0 w-10 text-center">
-                  <div className="text-xs uppercase font-bold text-neutral-400">{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
-                  <div className={`text-sm font-bold ${ds === today ? "text-blue-300" : "text-white"}`}>{d.getDate()}</div>
+                  <div className="text-sm font-semibold text-neutral-400">{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
+                  <div className={`text-sm font-bold ${ds === today ? "text-neutral-300" : "text-white"}`}>{d.getDate()}</div>
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
                   {list.length === 0 ? <div className="text-xs text-neutral-500 py-1.5">—</div> : list.map((e) => entryRow(e, true))}

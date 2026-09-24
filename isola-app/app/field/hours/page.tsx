@@ -40,7 +40,7 @@ export default function FieldHours() {
               <span className="text-lg font-bold tabular-nums text-white">{total.toFixed(1)} hrs</span>
             </div>
             {list.length ? (
-              <div className="divide-y divide-neutral-800 rounded-xl border border-neutral-800 bg-neutral-950">
+              <div className="divide-y divide-neutral-800 rounded-xl bg-white/[0.05]">
                 {list.map((p) => (
                   <div key={p.id} className="flex items-center gap-3 px-3.5 py-2.5">
                     <div className="min-w-0 flex-1">

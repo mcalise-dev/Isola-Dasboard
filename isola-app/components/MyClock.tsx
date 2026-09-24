@@ -110,7 +110,7 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
     load();
   }
 
-  if (loading) return <p className="text-sm text-neutral-400">Loading…</p>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
   if (!me) return <p className="text-sm text-neutral-400">No owner record set up.</p>;
 
   const jobById = (id: string) => jobs.find((j) => j.id === id);
@@ -118,10 +118,10 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
   const todayHrs = today.reduce((a, p) => a + hrsBetween(p.clock_in, p.clock_out), 0);
 
   return (
-    <div className={`rounded-2xl border ${running ? "border-emerald-500/50 bg-emerald-500/[0.07]" : "border-neutral-800 bg-neutral-900/60"} p-3.5`}>
+    <div className={`rounded-2xl border ${running ? "border-emerald-500/50 bg-emerald-500/[0.07]" : "border-white/[0.08] bg-neutral-900/60"} p-3.5`}>
       <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">
-          ⏱️ My time{compact ? " on this job" : ""}
+        <div className="text-sm font-semibold text-neutral-300">
+          My time{compact ? " on this job" : ""}
         </div>
         <div className="text-xs text-neutral-400">{todayHrs.toFixed(2)} hrs today</div>
       </div>
@@ -172,7 +172,7 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
       )}
 
       {!compact ? (
-        <div className="mt-3 pt-3 border-t border-neutral-800">
+        <div className="mt-3 pt-3 border-t border-white/[0.08]">
           <div className="flex items-center justify-between">
             <span className="text-xs text-neutral-400">
               Your rate: {me.rate == null ? <span className="text-amber-300">not set — time logs at $0</span> : `$${me.rate}/${me.rate_type === "daily" ? "day" : "hr"}`}
@@ -189,7 +189,7 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
 
           {today.filter((p) => p.clock_out).length ? (
             <div className="mt-2.5 space-y-1">
-              <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">Today</div>
+              <div className="text-sm font-semibold text-neutral-500">Today</div>
               {today.filter((p) => p.clock_out).map((p) => {
                 const h = hrsBetween(p.clock_in, p.clock_out);
                 const j = p.job_id ? jobById(p.job_id) : null;

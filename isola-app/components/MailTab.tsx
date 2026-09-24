@@ -82,7 +82,7 @@ export default function MailTab() {
   }
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
+  const label = "block text-sm font-semibold text-neutral-400 mb-1";
   const openFus = followUps.filter((f) => !f.done);
 
   return (
@@ -99,7 +99,7 @@ export default function MailTab() {
       </div>
 
       {adding === "mail" ? (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 mb-4 space-y-3">
+        <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-4 mb-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div><label className={label}>Date</label><input type="date" className={input} value={form.received_date ?? todayISO()} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
             <div><label className={label}>From</label><input className={input} value={form.sender ?? ""} onChange={(e) => setForm({ ...form, sender: e.target.value })} /></div>
@@ -114,7 +114,7 @@ export default function MailTab() {
       ) : null}
 
       {adding === "fu" ? (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 mb-4 space-y-3">
+        <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-4 mb-4 space-y-3">
           <div><label className={label}>Job</label>
             <JobPicker jobs={jobs} value={form.job_id ?? ""} onChange={(id) => setForm({ ...form, job_id: id })} />
           </div>
@@ -126,7 +126,7 @@ export default function MailTab() {
 
       {openFus.length ? (
         <div className="mb-5">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Follow-ups</h3>
+          <h3 className="text-sm font-semibold text-neutral-400 mb-2">Follow-ups</h3>
           <div className="space-y-2">
             {openFus.map((f) => (
               <div key={f.id} className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-neutral-900 px-3.5 py-3">
@@ -143,12 +143,12 @@ export default function MailTab() {
         </div>
       ) : null}
 
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Mail highlights</h3>
-      {loading ? <p className="text-neutral-400 text-sm">Loading…</p> : null}
+      <h3 className="text-sm font-semibold text-neutral-400 mb-2">Mail highlights</h3>
+      {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
       {!loading && highlights.length === 0 ? <p className="text-neutral-400 text-sm">Nothing logged. Ask Claude to sweep your inbox for job threads.</p> : null}
       <div className="space-y-2">
         {highlights.map((h) => (
-          <div key={h.id} className="rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3">
+          <div key={h.id} className="rounded-xl border border-white/[0.07] bg-neutral-900 px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-semibold text-white text-sm truncate">{h.subject ?? h.sender ?? "Mail"}</div>
@@ -160,7 +160,7 @@ export default function MailTab() {
             <div className="flex gap-3 mt-1.5 text-xs">
               {h.job_id && jobById[h.job_id] ? <span className="text-neutral-400">{jobLabel(jobById[h.job_id])}</span> : null}
               {h.gmail_thread_id ? (
-                <a className="text-blue-400" target="_blank" rel="noopener"
+                <a className="text-neutral-400" target="_blank" rel="noopener"
                   href={`https://mail.google.com/mail/u/0/#all/${h.gmail_thread_id}`}>Open in Gmail →</a>
               ) : null}
             </div>

@@ -161,7 +161,7 @@ export default function QuickAdd() {
   }
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 min-h-[44px] text-base focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1";
+  const label = "block text-sm font-semibold text-neutral-400 mb-1";
   const primary = "w-full rounded-xl bg-white text-neutral-900 min-h-[48px] text-base font-bold disabled:opacity-50";
   const plus1 = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
@@ -173,12 +173,12 @@ export default function QuickAdd() {
   const title = mode === "receipt" ? "Receipt" : mode === "lead" ? "New lead" : mode === "task" ? "New task" : "Add";
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/75 flex items-end md:items-center justify-center" onClick={close}>
+    <div className="fixed inset-0 z-[60] bg-black/75 flex items-end md:items-center justify-center anim-fade" onClick={close}>
       <input ref={cam} type="file" accept="image/*" capture="environment" multiple className="hidden"
         onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; onShots(f); }} />
       <div onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-neutral-900 border border-neutral-700 rounded-t-2xl md:rounded-2xl pb-[calc(env(safe-area-inset-bottom)+16px)]">
-        <div className="sticky top-0 bg-neutral-900 flex items-center gap-2 px-4 pt-3 pb-2 border-b border-neutral-800">
+        className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-neutral-900 border border-neutral-700 rounded-t-2xl md:rounded-2xl pb-[calc(env(safe-area-inset-bottom)+16px)] anim-sheet">
+        <div className="sticky top-0 bg-neutral-900 flex items-center gap-2 px-4 pt-3 pb-2 border-b border-white/[0.08]">
           {mode !== "menu" ? (
             <button onClick={() => setMode("menu")} aria-label="Back" className="p-2 -ml-2 text-neutral-300"><ChevronLeft size={22} /></button>
           ) : null}
@@ -202,8 +202,8 @@ export default function QuickAdd() {
                   <ListChecks size={20} /><span className="text-sm font-semibold text-white">New task</span>
                 </button>
               </div>
-              <div className="pt-2 text-xs font-bold uppercase tracking-wider text-neutral-400">Go to</div>
-              <div className="divide-y divide-neutral-800 rounded-xl border border-neutral-800 bg-neutral-950 overflow-hidden">
+              <div className="pt-2 text-sm font-semibold text-neutral-300">Go to</div>
+              <div className="divide-y divide-neutral-800 rounded-xl bg-white/[0.05] overflow-hidden">
                 {SHORTCUTS.map((s) => {
                   const Icon = s.icon;
                   return (

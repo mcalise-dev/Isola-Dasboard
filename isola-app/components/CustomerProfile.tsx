@@ -5,11 +5,11 @@ import { createClient } from "@/lib/supabase/client";
 import { STATUS_META, parsePrice, fmtDate } from "@/lib/format";
 
 const TYPES: Record<string, { label: string; cls: string; hint: string }> = {
-  medical:       { label: "Medical",       cls: "bg-rose-500/15 text-rose-300 border-rose-500/30",       hint: "Highest tier — price at the top of the range." },
-  property_mgmt: { label: "Property mgmt", cls: "bg-blue-500/15 text-blue-300 border-blue-500/30",       hint: "Commercial tier — above residential." },
+  medical:       { label: "Medical",       cls: "bg-red-500/15 text-red-300 border-red-500/30",       hint: "Highest tier — price at the top of the range." },
+  property_mgmt: { label: "Property mgmt", cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30",       hint: "Commercial tier — above residential." },
   commercial:    { label: "Commercial",    cls: "bg-amber-500/15 text-amber-300 border-amber-500/30",    hint: "Commercial tier — above residential." },
-  municipal:     { label: "Municipal",     cls: "bg-teal-500/15 text-teal-300 border-teal-500/30",       hint: "Prevailing-wage / bid rules may apply." },
-  partner:       { label: "Partner",       cls: "bg-violet-500/15 text-violet-300 border-violet-500/30", hint: "Partner work — check the THM ledger." },
+  municipal:     { label: "Municipal",     cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30",       hint: "Prevailing-wage / bid rules may apply." },
+  partner:       { label: "Partner",       cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30", hint: "Partner work — check the THM ledger." },
   residential:   { label: "Residential",   cls: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30", hint: "Standard tier. $35/sq ft floor on pavers." },
 };
 const LEAD_SOURCES = ["Referral", "Repeat customer", "Google", "Facebook", "Instagram", "Truck / signage", "Drove by", "Property manager", "THM", "Other"];
@@ -60,7 +60,7 @@ export default function CustomerProfile({ id }: { id: string }) {
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
 
-  if (loading) return <p className="pt-4 text-sm text-neutral-400">Loading…</p>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
   if (!c) return <p className="pt-4 text-sm text-neutral-400">Customer not found. <Link href="/customers" className="underline">Back to customers</Link></p>;
 
   const t = TYPES[c.client_type] ?? TYPES.residential;
@@ -74,15 +74,15 @@ export default function CustomerProfile({ id }: { id: string }) {
 
   // one chronological story for the whole relationship
   const feed = [
-    ...jobs.map((j) => ({ at: j.created_at, icon: "🗂️", text: `Job created — ${j.job_name || j.location}`, sub: j.job })),
-    ...jobs.filter((j) => j.completed_date).map((j) => ({ at: j.completed_date + "T17:00:00Z", icon: "✅", text: `Completed — ${j.job_name || j.location}`, sub: j.price })),
-    ...jobs.filter((j) => j.invoiced_date).map((j) => ({ at: j.invoiced_date + "T12:00:00Z", icon: "🧾", text: `Invoiced — ${j.job_name || j.location}`, sub: j.price })),
-    ...jobs.filter((j) => j.paid_date).map((j) => ({ at: j.paid_date + "T12:00:00Z", icon: "💵", text: `Paid — ${j.job_name || j.location}`, sub: j.price })),
-    ...links.map((l) => ({ at: l.sent_at, icon: "📤", text: `Proposal link sent — ${l.title ?? ""}`, sub: l.price ? money(Number(l.price)) : null })),
-    ...links.filter((l) => l.viewed_at).map((l) => ({ at: l.viewed_at, icon: "👀", text: `Client opened the proposal${l.view_count > 1 ? ` (${l.view_count}×)` : ""}`, sub: l.title })),
-    ...links.filter((l) => l.approved_at).map((l) => ({ at: l.approved_at, icon: "✍️", text: `Proposal approved by ${l.approved_by}`, sub: l.title })),
-    ...visits.map((v) => ({ at: v.created_at, icon: "📍", text: "Site visit logged", sub: v.observed_conditions ?? v.purpose })),
-    ...comms.map((m) => ({ at: m.occurred_at, icon: m.kind === "call" ? "📞" : m.kind === "email" ? "✉️" : "📝", text: m.body, sub: null })),
+    ...jobs.map((j) => ({ at: j.created_at, icon: "", text: `Job created — ${j.job_name || j.location}`, sub: j.job })),
+    ...jobs.filter((j) => j.completed_date).map((j) => ({ at: j.completed_date + "T17:00:00Z", icon: "", text: `Completed — ${j.job_name || j.location}`, sub: j.price })),
+    ...jobs.filter((j) => j.invoiced_date).map((j) => ({ at: j.invoiced_date + "T12:00:00Z", icon: "", text: `Invoiced — ${j.job_name || j.location}`, sub: j.price })),
+    ...jobs.filter((j) => j.paid_date).map((j) => ({ at: j.paid_date + "T12:00:00Z", icon: "", text: `Paid — ${j.job_name || j.location}`, sub: j.price })),
+    ...links.map((l) => ({ at: l.sent_at, icon: "", text: `Proposal link sent — ${l.title ?? ""}`, sub: l.price ? money(Number(l.price)) : null })),
+    ...links.filter((l) => l.viewed_at).map((l) => ({ at: l.viewed_at, icon: "", text: `Client opened the proposal${l.view_count > 1 ? ` (${l.view_count}×)` : ""}`, sub: l.title })),
+    ...links.filter((l) => l.approved_at).map((l) => ({ at: l.approved_at, icon: "", text: `Proposal approved by ${l.approved_by}`, sub: l.title })),
+    ...visits.map((v) => ({ at: v.created_at, icon: "", text: "Site visit logged", sub: v.observed_conditions ?? v.purpose })),
+    ...comms.map((m) => ({ at: m.occurred_at, icon: m.kind === "call" ? "" : m.kind === "email" ? "" : "", text: m.body, sub: null })),
   ].filter((e) => e.at).sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
   async function addNote() {
@@ -135,8 +135,8 @@ export default function CustomerProfile({ id }: { id: string }) {
       </div>
 
       {myInvoices.length ? (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5">
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Open invoices — QuickBooks</div>
+        <div className="rounded-xl bg-white/[0.05] px-3.5 py-2.5">
+          <div className="text-sm font-semibold text-neutral-300 mb-1.5">Open invoices — QuickBooks</div>
           <div className="space-y-1">
             {myInvoices.map((i: any) => (
               <div key={i.ref} className="flex items-center justify-between gap-2 text-xs">
@@ -168,7 +168,7 @@ export default function CustomerProfile({ id }: { id: string }) {
         {contacts.length === 0 ? <p className="text-xs text-neutral-500">Just the main contact.</p> : null}
         <div className="space-y-1">
           {contacts.map((p) => (
-            <div key={p.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 flex items-center justify-between gap-2">
+            <div key={p.id} className="rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-white">
                   {p.name}{p.role ? <span className="text-neutral-400 font-normal"> · {p.role}</span> : null}
@@ -177,7 +177,7 @@ export default function CustomerProfile({ id }: { id: string }) {
                 <div className="text-xs text-neutral-400 truncate">{[p.phone, p.email].filter(Boolean).join(" · ") || "—"}</div>
               </div>
               <div className="shrink-0 flex gap-1.5">
-                {p.phone ? <a href={`tel:${tel(p.phone)}`} className={btn}>📞</a> : null}
+                {p.phone ? <a href={`tel:${tel(p.phone)}`} className={btn}></a> : null}
                 <button onClick={() => setContactEdit(p)} className={btn}>Edit</button>
               </div>
             </div>
@@ -190,7 +190,7 @@ export default function CustomerProfile({ id }: { id: string }) {
         {props.length === 0 ? <p className="text-xs text-neutral-500">No properties yet.</p> : null}
         <div className="space-y-1">
           {props.map((p) => (
-            <div key={p.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
+            <div key={p.id} className="rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   {p.label ? <div className="text-xs font-bold text-white">{p.label}</div> : null}
@@ -199,10 +199,10 @@ export default function CustomerProfile({ id }: { id: string }) {
                     {[p.city, p.state, p.zip].filter(Boolean).join(", ")}
                     {jobsAt(p.id) ? `${[p.city, p.state, p.zip].filter(Boolean).length ? " · " : ""}${jobsAt(p.id)} job${jobsAt(p.id) === 1 ? "" : "s"}` : ""}
                   </div>
-                  {p.access_notes ? <div className="mt-1 text-xs text-amber-300/80">⚠ {p.access_notes}</div> : null}
+                  {p.access_notes ? <div className="mt-1 text-xs text-amber-300/80">{p.access_notes}</div> : null}
                 </div>
                 <div className="shrink-0 flex gap-1.5">
-                  <a href={`https://maps.google.com/?q=${encodeURIComponent([p.address, p.city, p.state].filter(Boolean).join(", "))}`} target="_blank" rel="noopener noreferrer" className={btn}>🧭</a>
+                  <a href={`https://maps.google.com/?q=${encodeURIComponent([p.address, p.city, p.state].filter(Boolean).join(", "))}`} target="_blank" rel="noopener noreferrer" className={btn}></a>
                   <button onClick={() => setPropEdit(p)} className={btn}>Edit</button>
                   <button onClick={() => delProp(p.id)} className={btn}>✕</button>
                 </div>
@@ -228,7 +228,7 @@ export default function CustomerProfile({ id }: { id: string }) {
               {jobs.map((j) => {
                 const m = STATUS_META[j.status] ?? STATUS_META.booked;
                 return (
-                  <div key={j.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 flex items-center justify-between gap-2">
+                  <div key={j.id} className="rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2 flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className="text-xs font-semibold text-white truncate">{j.job_name || j.location}</div>
                       <div className="text-xs text-neutral-400 truncate">
@@ -246,7 +246,7 @@ export default function CustomerProfile({ id }: { id: string }) {
             {links.length === 0 ? <p className="text-xs text-neutral-500">No client links sent.</p> : null}
             <div className="space-y-1">
               {links.map((l) => (
-                <div key={l.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 flex items-center justify-between gap-2">
+                <div key={l.id} className="rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2 flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-white truncate">{l.title ?? "Proposal"}</div>
                     <div className="text-xs text-neutral-400">
@@ -254,7 +254,7 @@ export default function CustomerProfile({ id }: { id: string }) {
                     </div>
                   </div>
                   <a href={`/p/${l.token}`} target="_blank" rel="noopener noreferrer"
-                    className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full border ${l.status === "approved" ? "border-emerald-500/40 text-emerald-300" : l.status === "declined" ? "border-neutral-700 text-neutral-400" : "border-blue-500/40 text-blue-300"}`}>
+                    className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full border ${l.status === "approved" ? "border-emerald-500/40 text-emerald-300" : l.status === "declined" ? "border-neutral-700 text-neutral-400" : "border-neutral-500/40 text-neutral-300"}`}>
                     {l.status}
                   </a>
                 </div>
@@ -266,7 +266,7 @@ export default function CustomerProfile({ id }: { id: string }) {
             {visits.length === 0 ? <p className="text-xs text-neutral-500">None logged.</p> : null}
             <div className="space-y-1">
               {visits.map((v) => (
-                <div key={v.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
+                <div key={v.id} className="rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2">
                   <div className="text-xs text-neutral-400">{v.visit_date ? fmtDate(v.visit_date) : dt(v.created_at)}</div>
                   <div className="text-xs text-neutral-300 whitespace-pre-wrap">{v.observed_conditions ?? v.purpose ?? "—"}</div>
                 </div>
@@ -313,17 +313,17 @@ export default function CustomerProfile({ id }: { id: string }) {
                 className="flex-1 text-xs text-neutral-400 file:mr-2 file:rounded-lg file:border file:border-neutral-700 file:bg-neutral-900 file:px-2 file:py-1 file:text-xs file:text-neutral-300" />
               <button onClick={addNote} disabled={!note.trim() && !noteFile} className="rounded-lg bg-white text-black px-4 py-1.5 text-xs font-bold disabled:opacity-40">Save</button>
             </div>
-            {noteFile ? <img src={noteFile.b64} alt="" className="h-20 rounded-lg border border-neutral-800" /> : null}
+            {noteFile ? <img src={noteFile.b64} alt="" className="h-20 rounded-lg border border-white/[0.08]" /> : null}
           </div>
           <div className="space-y-1">
             {comms.length === 0 ? <p className="text-xs text-neutral-500">Nothing logged yet.</p> : null}
             {comms.map((m) => (
-              <div key={m.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
+              <div key={m.id} className="rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-xs text-neutral-200 whitespace-pre-wrap flex-1">{m.body}</div>
                   <button onClick={() => delNote(m.id)} className="shrink-0 text-neutral-700 hover:text-red-400 text-xs">✕</button>
                 </div>
-                {m.attachment_b64 ? <img src={m.attachment_b64} alt="" onClick={() => setLightbox(m.attachment_b64)} className="mt-1.5 h-20 rounded border border-neutral-800 cursor-pointer" /> : null}
+                {m.attachment_b64 ? <img src={m.attachment_b64} alt="" onClick={() => setLightbox(m.attachment_b64)} className="mt-1.5 h-20 rounded border border-white/[0.08] cursor-pointer" /> : null}
                 <div className="text-xs text-neutral-500 mt-0.5">{m.kind} · {new Date(m.occurred_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
               </div>
             ))}
@@ -334,7 +334,7 @@ export default function CustomerProfile({ id }: { id: string }) {
       {editing ? <EditCustomer supabase={supabase} c={c} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} /> : null}
       {propEdit ? <EditProperty supabase={supabase} customerId={id} p={propEdit.id ? propEdit : null} onClose={() => setPropEdit(null)} onSaved={() => { setPropEdit(null); load(); }} /> : null}
       {contactEdit ? <EditContact supabase={supabase} customerId={id} p={contactEdit.id ? contactEdit : null} onClose={() => setContactEdit(null)} onSaved={() => { setContactEdit(null); load(); }} /> : null}
-      {lightbox ? <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setLightbox(null)}><img src={lightbox} alt="" className="max-h-full max-w-full object-contain" /></div> : null}
+      {lightbox ? <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 anim-fade" onClick={() => setLightbox(null)}><img src={lightbox} alt="" className="max-h-full max-w-full object-contain" /></div> : null}
     </div>
   );
 }
@@ -344,9 +344,9 @@ const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 p
 
 function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-3.5">
+    <div className="rounded-2xl border border-white/[0.07] bg-neutral-900/60 p-3.5">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">{title}</div>
+        <div className="text-sm font-semibold text-neutral-300">{title}</div>
         {action}
       </div>
       {children}
@@ -363,22 +363,22 @@ function Row({ k, v, href }: { k: string; v?: string | null; href?: string }) {
   );
 }
 function Tile({ v, l, tone }: { v: string; l: string; tone?: "amber" | "red" }) {
-  const b = tone === "red" ? "border-red-500/50" : tone === "amber" ? "border-amber-500/50" : "border-neutral-800";
+  const b = tone === "red" ? "border-red-500/50" : tone === "amber" ? "border-amber-500/50" : "border-white/[0.08]";
   const c = tone === "red" ? "text-red-300" : tone === "amber" ? "text-amber-300" : "text-white";
   return (
     <div className={`rounded-xl border ${b} bg-neutral-900 p-2.5 text-center`}>
       <div className={`text-sm font-bold leading-none ${c}`}>{v}</div>
-      <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">{l}</div>
+      <div className="mt-1 text-sm text-neutral-400">{l}</div>
     </div>
   );
 }
 function F({ l, children }: { l: string; children: React.ReactNode }) {
-  return <label className="block"><span className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">{l}</span>{children}</label>;
+  return <label className="block"><span className="block text-sm font-semibold text-neutral-400 mb-1">{l}</span>{children}</label>;
 }
 function Modal({ title, onClose, children }: any) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 overflow-y-auto p-3">
-      <div className="mx-auto max-w-lg rounded-2xl border border-neutral-800 bg-neutral-950 p-4 my-4">
+    <div className="fixed inset-0 z-50 bg-black/85 overflow-y-auto p-3 anim-fade">
+      <div className="mx-auto max-w-lg rounded-2xl bg-white/[0.05] p-4 my-4">
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-bold text-white">{title}</div>
           <button onClick={onClose} className="text-neutral-400 text-lg leading-none">✕</button>

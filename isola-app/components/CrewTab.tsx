@@ -54,7 +54,7 @@ export default function CrewTab() {
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   }
 
-  if (loading) return <p className="pt-4 text-sm text-neutral-400">Loading…</p>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
 
   const onClock = punches.filter((p) => !p.clock_out);
   const today = new Date().toDateString();
@@ -72,8 +72,8 @@ export default function CrewTab() {
         <Tile v={String(workers.filter((w) => w.active).length)} l="Crew" />
       </div>
 
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3.5 py-3">
-        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Crew clock-in link</div>
+      <div className="rounded-xl border border-white/[0.07] bg-neutral-900 px-3.5 py-3">
+        <div className="text-sm font-semibold text-neutral-300">Crew clock-in link</div>
         <div className="mt-1 text-xs text-neutral-400 break-all">{clockUrl}</div>
         <div className="flex gap-1.5 mt-2">
           <button onClick={copyClock} className={btn}>{copied ? "Copied ✓" : "Copy link"}</button>
@@ -84,7 +84,7 @@ export default function CrewTab() {
 
       {onClock.length ? (
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-amber-300 mb-1.5">On the clock right now</div>
+          <div className="text-sm font-semibold text-amber-300 mb-1.5">On the clock right now</div>
           <div className="space-y-1.5">
             {onClock.map((p) => (
               <div key={p.id} className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3.5 py-2.5 flex items-center justify-between gap-2">
@@ -104,7 +104,7 @@ export default function CrewTab() {
       ) : null}
 
       <div>
-        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1.5">Last 14 days</div>
+        <div className="text-sm font-semibold text-neutral-300 mb-1.5">Last 14 days</div>
         <div className="space-y-1">
           {unpaid.length === 0 ? <p className="text-xs text-neutral-500">No punches yet.</p> : null}
           {unpaid.map((p) => {
@@ -112,7 +112,7 @@ export default function CrewTab() {
             const hrs = (new Date(p.clock_out).getTime() - new Date(p.clock_in).getTime()) / 3600000;
             const amt = w?.rate_type === "daily" ? w?.rate : hrs * (w?.rate ?? 0);
             return (
-              <div key={p.id} className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 flex items-center justify-between gap-2">
+              <div key={p.id} className="rounded-lg bg-white/[0.05] px-3 py-2 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-xs font-semibold text-white">{wName(p.worker_id)} · <span className="text-neutral-400 font-normal">{jName(p.job_id)}</span></div>
                   <div className="text-xs text-neutral-500">
@@ -132,12 +132,12 @@ export default function CrewTab() {
 
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Crew &amp; PINs</div>
+          <div className="text-sm font-semibold text-neutral-300">Crew &amp; PINs</div>
           <button onClick={() => setEditing({})} className="text-xs font-semibold text-neutral-300 underline">+ Add</button>
         </div>
         <div className="space-y-1">
           {workers.map((w) => (
-            <button key={w.id} onClick={() => setEditing(w)} className="w-full text-left rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 flex items-center justify-between gap-2 hover:border-neutral-600">
+            <button key={w.id} onClick={() => setEditing(w)} className="w-full text-left rounded-lg bg-white/[0.05] px-3 py-2 flex items-center justify-between gap-2 hover:border-neutral-600">
               <div>
                 <div className={`text-xs font-semibold ${w.active ? "text-white" : "text-neutral-500 line-through"}`}>{w.name}</div>
                 <div className="text-xs text-neutral-500">PIN {w.pin}</div>
@@ -159,9 +159,9 @@ export default function CrewTab() {
 
 function Tile({ v, l, tone }: { v: string; l: string; tone?: "amber" }) {
   return (
-    <div className={`rounded-xl border ${tone === "amber" ? "border-amber-500/50" : "border-neutral-800"} bg-neutral-900 p-2.5 text-center`}>
+    <div className={`rounded-xl border ${tone === "amber" ? "border-amber-500/50" : "border-white/[0.08]"} bg-neutral-900 p-2.5 text-center`}>
       <div className={`text-base font-bold leading-none ${tone === "amber" ? "text-amber-300" : "text-white"}`}>{v}</div>
-      <div className="mt-1 text-xs uppercase tracking-wide text-neutral-400">{l}</div>
+      <div className="mt-1 text-sm text-neutral-400">{l}</div>
     </div>
   );
 }
@@ -186,8 +186,8 @@ function WorkerEditor({ supabase, worker, onClose, onSaved }: any) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3">
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
+    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 anim-fade">
+      <div className="w-full max-w-sm rounded-2xl bg-white/[0.05] p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-bold text-white">{worker ? "Edit crew member" : "Add crew member"}</div>
           <button onClick={onClose} className="text-neutral-400 text-lg leading-none">✕</button>
@@ -218,5 +218,5 @@ function WorkerEditor({ supabase, worker, onClose, onSaved }: any) {
 const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500";
 const btn = "px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500 whitespace-nowrap";
 function F({ l, children }: { l: string; children: React.ReactNode }) {
-  return <label className="block"><span className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">{l}</span>{children}</label>;
+  return <label className="block"><span className="block text-sm font-semibold text-neutral-400 mb-1">{l}</span>{children}</label>;
 }

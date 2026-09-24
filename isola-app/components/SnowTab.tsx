@@ -22,10 +22,10 @@ const fmt0 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { maxim
 
 const inp =
   "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none";
-const lbl = "block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1";
+const lbl = "block text-sm font-semibold text-neutral-300 mb-1";
 const btn = "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-200 hover:border-neutral-500";
 const btnPrimary = "rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-neutral-900 hover:bg-neutral-200 disabled:opacity-40";
-const card = "rounded-xl border border-neutral-800 bg-neutral-950 p-3.5";
+const card = "rounded-xl bg-white/[0.05] p-3.5";
 
 const RATE_TYPES = [
   { key: "per_event", label: "Per event" },
@@ -142,7 +142,7 @@ export default function SnowTab() {
     load();
   }
 
-  if (loading) return <div className="p-4 text-sm text-neutral-400">Loading…</div>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
 
   return (
     <div className="pb-28 space-y-4">
@@ -156,8 +156,8 @@ export default function SnowTab() {
 
       <div className="grid grid-cols-3 gap-2">
         {[["Gross billed", fmt0(grossYTD)], ["Your commission", fmt0(commYTD)], ["Not invoiced", fmt0(uninvoiced)]].map(([k, v]) => (
-          <div key={k} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2.5">
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">{k}</div>
+          <div key={k} className="rounded-xl bg-white/[0.05] px-3 py-2.5">
+            <div className="text-sm font-semibold text-neutral-300">{k}</div>
             <div className="text-lg font-bold text-white leading-tight tabular-nums">{v}</div>
           </div>
         ))}
@@ -198,7 +198,7 @@ export default function SnowTab() {
             <div><label className={lbl}>Rate</label><MoneyInput className={inp} value={editC.rate ?? ""} onChange={(v) => setEditC({ ...editC, rate: v })} /></div>
             <div><label className={lbl}>Your %</label><input type="number" inputMode="decimal" className={inp} value={editC.commission_pct ?? 10} onChange={(e) => setEditC({ ...editC, commission_pct: e.target.value })} /></div>
           </div>
-          <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-400">
+          <div className="rounded-lg border border-white/[0.07] bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-400">
             Commission is calculated on top-line gross — no costs come out before your cut.
           </div>
           <div className="flex gap-2">
@@ -258,7 +258,7 @@ export default function SnowTab() {
             ) : null}
 
             {evs.slice(0, 8).map((e) => (
-              <div key={e.id} className="flex items-center justify-between gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5">
+              <div key={e.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.07] bg-neutral-900 px-2.5 py-1.5">
                 <div className="min-w-0">
                   <div className="text-[13px] text-white truncate">
                     {fmtDate(e.event_date)}{e.inches ? ` · ${e.inches}"` : ""} — {fmt0(Number(e.billed_amount))}

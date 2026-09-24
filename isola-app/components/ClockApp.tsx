@@ -90,7 +90,7 @@ export default function ClockApp() {
       {open ? (
         <div className="mt-5">
           <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-5 text-center">
-            <div className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">On the clock</div>
+            <div className="text-sm font-semibold tracking-[0.2em] text-amber-300">On the clock</div>
             <div className="mt-1 text-4xl font-extrabold text-white tabular-nums">{elapsed(open.clock_in)}</div>
             <div className="mt-1 text-sm text-neutral-300">{openJob?.label ?? "—"}</div>
             <div className="text-xs text-neutral-400">
@@ -106,12 +106,12 @@ export default function ClockApp() {
         </div>
       ) : (
         <div className="mt-5">
-          <div className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-400 mb-2">Pick a job</div>
+          <div className="text-sm font-semibold tracking-[0.2em] text-neutral-400 mb-2">Pick a job</div>
           <div className="space-y-1.5 max-h-[46vh] overflow-y-auto">
             {state.jobs.length === 0 ? <p className="text-sm text-neutral-400">No active jobs right now.</p> : null}
             {state.jobs.map((j: any) => (
               <button key={j.id} onClick={() => setJobId(j.id)}
-                className={`w-full text-left rounded-xl border px-3.5 py-3 ${jobId === j.id ? "border-white bg-neutral-800" : "border-neutral-800 bg-neutral-950"}`}>
+                className={`w-full text-left rounded-xl border px-3.5 py-3 ${jobId === j.id ? "border-white bg-neutral-800" : "border-white/[0.08] bg-neutral-950"}`}>
                 <div className="text-sm font-semibold text-white">{j.label}</div>
                 {j.location ? <div className="text-xs text-neutral-400 truncate">{j.location}</div> : null}
               </button>

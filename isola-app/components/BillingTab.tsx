@@ -26,12 +26,12 @@ const fmt0 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { maxim
 
 const inp =
   "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none";
-const lbl = "block text-xs font-bold uppercase tracking-widest text-neutral-400 mb-1";
+const lbl = "block text-sm font-semibold text-neutral-300 mb-1";
 const btn =
   "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-200 hover:border-neutral-500";
 const btnPrimary =
   "rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-neutral-900 hover:bg-neutral-200 disabled:opacity-40";
-const card = "rounded-xl border border-neutral-800 bg-neutral-950 p-3.5";
+const card = "rounded-xl bg-white/[0.05] p-3.5";
 
 const STAGES = [
   { key: "deposit", label: "Deposit", pct: 33 },
@@ -180,7 +180,7 @@ export default function BillingTab() {
     setEditJob(null); await load();
   }
 
-  if (loading) return <div className="p-4 text-sm text-neutral-400">Loading…</div>;
+  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
 
   /* ================= DETAIL ================= */
   if (job) {
@@ -210,7 +210,7 @@ export default function BillingTab() {
         {/* ---- edit the job's own fields ---- */}
         {editJob ? (
           <div className={card + " space-y-3"}>
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Edit job</div>
+            <div className="text-sm font-semibold text-neutral-300">Edit job</div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className={lbl}>Contract price</label>
@@ -292,7 +292,7 @@ export default function BillingTab() {
               <span className="text-emerald-300 tabular-nums">+{fmt2(Number(job.change_orders))}</span>
             </div>
           ) : null}
-          <div className="flex justify-between border-t border-neutral-800 pt-2">
+          <div className="flex justify-between border-t border-white/[0.08] pt-2">
             <span className="text-sm font-bold text-white">Contract total</span>
             <span className="text-lg font-bold text-white tabular-nums">{fmt2(contract)}</span>
           </div>
@@ -312,7 +312,7 @@ export default function BillingTab() {
         {/* ---- what's actually left after costs and the partner ---- */}
         {cost > 0 || share > 0 ? (
           <div className={card + " space-y-2"}>
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">What's left</div>
+            <div className="text-sm font-semibold text-neutral-300">What's left</div>
             <div className="flex justify-between text-sm">
               <span className="text-neutral-400">Job costs</span>
               <span className="text-neutral-200 tabular-nums">−{fmt2(cost)}</span>
@@ -327,7 +327,7 @@ export default function BillingTab() {
                 <span className="text-amber-300 tabular-nums">−{fmt2(share)}</span>
               </div>
             ) : null}
-            <div className="flex justify-between border-t border-neutral-800 pt-2">
+            <div className="flex justify-between border-t border-white/[0.08] pt-2">
               <span className="text-sm font-bold text-white">You keep</span>
               <span className="text-lg font-bold text-emerald-400 tabular-nums">{fmt2(Number(job.net_to_isola))}</span>
             </div>
@@ -336,7 +336,7 @@ export default function BillingTab() {
 
         {/* ---- draw schedule ---- */}
         <div className={card + " space-y-2"}>
-          <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Draw schedule — 33 / 33 / balance</div>
+          <div className="text-sm font-semibold text-neutral-300">Draw schedule — 33 / 33 / balance</div>
           {STAGES.slice(0, 3).map((s) => {
             const due = contract * (s.pct / 100);
             const got = paidByStage(s.key);
@@ -358,7 +358,7 @@ export default function BillingTab() {
         {/* ---- payments ---- */}
         <div className={card + " space-y-2"}>
           <div className="flex items-center justify-between">
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Payments ({payments.length})</div>
+            <div className="text-sm font-semibold text-neutral-300">Payments ({payments.length})</div>
             <button onClick={() => setAddPay({ payment_date: todayISO(), stage: "deposit", amount: "" })} className={btn}>＋ Record</button>
           </div>
 
@@ -390,7 +390,7 @@ export default function BillingTab() {
           ) : null}
 
           {payments.map((p) => (
-            <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-2">
+            <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.07] bg-neutral-900 px-2.5 py-2">
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-white">{fmt2(Number(p.amount))} <span className="text-xs font-normal text-neutral-400">{STAGES.find((s) => s.key === p.stage)?.label}</span></div>
                 <div className="text-xs text-neutral-400 truncate">{fmtDate(p.payment_date)}{p.method ? ` · ${p.method}` : ""}{p.reference ? ` · ${p.reference}` : ""}</div>
@@ -404,7 +404,7 @@ export default function BillingTab() {
         {/* ---- change orders ---- */}
         <div className={card + " space-y-2"}>
           <div className="flex items-center justify-between">
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Change orders ({cos.length})</div>
+            <div className="text-sm font-semibold text-neutral-300">Change orders ({cos.length})</div>
             <button onClick={() => setAddCo({ amount: "", scope_text: "" })} className={btn}>＋ New</button>
           </div>
 
@@ -427,13 +427,13 @@ export default function BillingTab() {
               : c.status === "sent" ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
               : "border-neutral-700 bg-neutral-900 text-neutral-400";
             return (
-              <div key={c.id} className="rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-2 space-y-1.5">
+              <div key={c.id} className="rounded-lg border border-white/[0.07] bg-neutral-900 px-2.5 py-2 space-y-1.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-white truncate">CO #{c.co_number} — {c.title || "Untitled"}</div>
                     <div className="text-xs text-neutral-400">{fmt2(Number(c.amount))}{c.reason ? ` · ${c.reason}` : ""}</div>
                   </div>
-                  <span className={`shrink-0 rounded-md border px-1.5 py-0.5 text-xs font-bold uppercase ${tone}`}>{c.status}</span>
+                  <span className={`shrink-0 rounded-md border px-1.5 py-0.5 text-xs font-bold ${tone}`}>{c.status}</span>
                 </div>
                 <p className="text-xs text-neutral-400 whitespace-pre-wrap">{c.scope_text}</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -461,8 +461,8 @@ export default function BillingTab() {
 
   const tile = (key: Filter, label: string, value: string, sub: string) => (
     <button key={key} onClick={() => setFilter(key)}
-      className={`rounded-xl border px-3 py-2.5 text-left ${filter === key ? "border-neutral-300 bg-neutral-900" : "border-neutral-800 bg-neutral-950 hover:border-neutral-600"}`}>
-      <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">{label}</div>
+      className={`rounded-xl border px-3 py-2.5 text-left ${filter === key ? "border-neutral-300 bg-neutral-900" : "border-white/[0.08] bg-neutral-950 hover:border-neutral-600"}`}>
+      <div className="text-sm font-semibold text-neutral-300">{label}</div>
       <div className="text-lg font-bold text-white leading-tight tabular-nums">{value}</div>
       <div className="text-xs text-neutral-500">{sub}</div>
     </button>
@@ -482,7 +482,7 @@ export default function BillingTab() {
       </div>
 
       {filter !== "all" ? (
-        <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
+        <div className="flex items-center justify-between rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2">
           <span className="text-xs text-neutral-400">
             Showing {shown.length} {filter === "collected" ? "jobs with money in" : "jobs still owing"}
           </span>
@@ -496,7 +496,7 @@ export default function BillingTab() {
           const pct = Number(f.contract_total) > 0 ? (Number(f.paid_to_date) / Number(f.contract_total)) * 100 : 0;
           return (
             <button key={f.job_id} onClick={() => openJob(f.job_id)}
-              className="w-full text-left rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-3 hover:border-neutral-600 space-y-1.5">
+              className="w-full text-left rounded-xl bg-white/[0.05] px-3.5 py-3 hover:border-neutral-600 space-y-1.5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-white truncate">{f.job_name || "—"}</div>

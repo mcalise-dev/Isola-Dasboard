@@ -75,9 +75,9 @@ export default function CrewLogins({ workers }: { workers: any[] }) {
   const btn = "inline-flex items-center gap-1.5 rounded-lg border border-neutral-600 px-3 min-h-[36px] text-sm font-semibold text-white";
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3.5 py-3">
+    <div className="rounded-xl border border-white/[0.07] bg-neutral-900 px-3.5 py-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Crew app logins</div>
+        <div className="text-sm font-semibold text-neutral-300">Crew app logins</div>
         <a href="/field" className="inline-flex items-center gap-1 text-sm text-neutral-300 hover:text-white"><Eye size={15} /> See what crew see</a>
       </div>
       <p className="mt-1 text-sm text-neutral-400">Crew see the schedule, job addresses, scope, photos, the punch list, tasks you mark for crew, and their own hours. They never see prices, money, customers or pay rates.</p>
@@ -108,8 +108,8 @@ export default function CrewLogins({ workers }: { workers: any[] }) {
       </div>
 
       {form ? (
-        <div className="fixed inset-0 z-[60] bg-black/85 flex items-end md:items-center justify-center" onClick={() => setForm(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-t-2xl md:rounded-2xl border border-neutral-700 bg-neutral-950 p-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
+        <div className="fixed inset-0 z-[60] bg-black/85 flex items-end md:items-center justify-center anim-fade" onClick={() => setForm(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-t-2xl md:rounded-2xl border border-neutral-700 bg-neutral-950 p-4 pb-[calc(env(safe-area-inset-bottom)+16px)] anim-sheet">
             {done ? (
               <div className="space-y-3">
                 <div className="text-lg font-bold text-white">Send {form.worker.name} this</div>
@@ -128,11 +128,11 @@ export default function CrewLogins({ workers }: { workers: any[] }) {
               <div className="space-y-3">
                 <div className="text-lg font-bold text-white">{form.mode === "create" ? `App login for ${form.worker.name}` : `New password for ${form.worker.name}`}</div>
                 <div>
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">Login name</span>
+                  <span className="block text-sm font-semibold text-neutral-400 mb-1">Login name</span>
                   <input className={inp} value={username} disabled={form.mode === "reset"} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ""))} autoCapitalize="none" />
                 </div>
                 <div>
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">Password</span>
+                  <span className="block text-sm font-semibold text-neutral-400 mb-1">Password</span>
                   <div className="flex gap-2">
                     <input className={inp} value={password} onChange={(e) => setPassword(e.target.value)} autoCapitalize="none" />
                     <button onClick={() => setPassword(suggest())} className="shrink-0 rounded-lg border border-neutral-600 px-3 text-sm font-semibold text-white">New</button>

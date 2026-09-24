@@ -18,7 +18,7 @@ export type Stop = {
 
 export function StopCard({ s, n }: { s: Stop; n?: number }) {
   const body = (
-    <div className={`flex items-center gap-3 rounded-xl border px-3.5 py-3 ${s.mine ? "border-white/60 bg-neutral-900" : "border-neutral-800 bg-neutral-950"}`}>
+    <div className={`flex items-center gap-3 rounded-xl border px-3.5 py-3 ${s.mine ? "border-white/60 bg-neutral-900" : "border-white/[0.08] bg-neutral-950"}`}>
       {n ? <span className="shrink-0 w-7 h-7 rounded-full bg-neutral-800 text-white text-sm font-bold flex items-center justify-center">{n}</span> : null}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -37,7 +37,7 @@ export function StopCard({ s, n }: { s: Stop; n?: number }) {
 
 export function CheckRow({ done, title, sub, onToggle, href }: { done: boolean; title: string; sub?: string; onToggle: () => void; href?: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-950 px-3 min-h-[56px]">
+    <div className="flex items-center gap-3 rounded-xl bg-white/[0.05] px-3 min-h-[56px]">
       <button onClick={onToggle} aria-label={done ? "Mark not done" : "Mark done"}
         className={`shrink-0 w-8 h-8 rounded-lg border-2 flex items-center justify-center ${done ? "bg-emerald-400 border-emerald-400 text-neutral-900" : "border-neutral-500 text-transparent"}`}>
         <Check size={18} strokeWidth={3} />
@@ -60,5 +60,5 @@ export function Empty({ title, sub }: { title: string; sub?: string }) {
 }
 
 export const H = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="mt-6 mb-2 text-xs font-bold uppercase tracking-wider text-neutral-400">{children}</h2>
+  <h2 className="mt-6 mb-2 text-sm font-semibold text-neutral-300">{children}</h2>
 );
