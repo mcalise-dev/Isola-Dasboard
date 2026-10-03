@@ -42,7 +42,7 @@ const SHORTCUTS: { href: string; label: string; sub: string; icon: LucideIcon }[
   { href: "/schedule", label: "Schedule a job", sub: "Put it on the calendar", icon: CalendarDays },
   { href: "/gameplan", label: "Game plan", sub: "Everything for today", icon: ClipboardList },
   { href: "/customers", label: "Customer", sub: "Contact + client type", icon: Building2 },
-  { href: "/marketing", label: "Prospect", sub: "New CRM contact", icon: Contact },
+  { href: "/marketing/targets?new=1", label: "Marketing target", sub: "New prospect contact", icon: Contact },
 ];
 
 export default function QuickAdd() {
@@ -74,7 +74,8 @@ export default function QuickAdd() {
   function close() { setOpen(false); reset(); }
 
   useEffect(() => {
-    const on = () => { reset(); setOpen(true); };
+    // v4.6: the + New menu can open a form directly: detail = "receipt" | "lead" | "task"
+    const on = (e: Event) => { reset(); const m = (e as CustomEvent).detail; if (m === "receipt" || m === "lead" || m === "task") setMode(m); setOpen(true); };
     window.addEventListener("isola:quickadd", on);
     return () => window.removeEventListener("isola:quickadd", on);
   }, []);

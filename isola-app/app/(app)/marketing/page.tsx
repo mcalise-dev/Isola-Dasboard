@@ -1,2 +1,2 @@
-import CrmTab from "@/components/CrmTab";
-export default function Page() { return <CrmTab />; }
+import MarketingOverview from "@/components/marketing/MarketingOverview";
+export default function Page() { return <MarketingOverview />; }

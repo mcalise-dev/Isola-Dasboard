@@ -1,2 +1,2 @@
-import CustomersTab from "@/components/CustomersTab";
-export default function Page() { return <CustomersTab />; }
+import CustomersList from "@/components/customers/CustomersList";
+export default function Page() { return <CustomersList />; }

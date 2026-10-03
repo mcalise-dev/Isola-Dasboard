@@ -1,80 +1,105 @@
-// v4.3 (9/23/26): the app is organised into five hubs. Every old route still works —
-// the hubs only change how you get there. Each hub shows its screens as a tab strip
-// at the top of the page (HubTabs), and the bottom bar / side menu show the hubs.
+// v4.6 (10/3/26): grouped sidebar (Field Desk layout) — Home, then Work / Schedule /
+// Customers / Marketing / Money / Planning. Every old route still works. The phone keeps
+// a 5-button bottom bar (Home, Jobs, Schedule, Money, Menu) and the Menu opens all groups.
 import {
-  Sun, Briefcase, CalendarDays, Wallet, Users,
+  Home, Briefcase, CalendarDays, Wallet, Users,
   ClipboardList, NotebookPen, ListChecks, Megaphone,
-  Search, Hammer, Send, MapPin,
-  HardHat, Snowflake,
+  Search, Hammer, Send, MapPin, HardHat, Snowflake,
   Receipt, CreditCard, Handshake, BarChart3, ShieldCheck,
-  Contact, Mail, Building2,
+  Contact, Mail, Building2, LayoutGrid, Target, Workflow, Star, Sun, Gauge,
   type LucideIcon,
 } from "lucide-react";
 
-export type NavItem = { href: string; label: string; icon: LucideIcon };
-export type Hub = { key: string; label: string; icon: LucideIcon; home: string; items: NavItem[] };
+export type NavItem = { href: string; label: string; icon: LucideIcon; badge?: string };
+export type NavGroup = { key: string; label: string; icon: LucideIcon; home: string; items: NavItem[] };
 
-export const HUBS: Hub[] = [
+export const HOME: NavItem = { href: "/home", label: "Home", icon: Home, badge: "home" };
+
+export const GROUPS: NavGroup[] = [
   {
-    key: "today", label: "Today", icon: Sun, home: "/home",
+    key: "work", label: "Work", icon: Briefcase, home: "/",
     items: [
-      { href: "/home", label: "Today", icon: Sun },
-      { href: "/tasks", label: "Tasks", icon: ListChecks },
-      { href: "/marketing/tasks", label: "Marketing to-dos", icon: Megaphone },
-      { href: "/gameplan", label: "Game plan", icon: ClipboardList },
-      { href: "/log", label: "Daily log", icon: NotebookPen },
-    ],
-  },
-  {
-    key: "jobs", label: "Jobs", icon: Briefcase, home: "/",
-    items: [
-      { href: "/", label: "All jobs", icon: Briefcase },
-      { href: "/leads", label: "To quote", icon: Search },
+      { href: "/", label: "Jobs", icon: Briefcase, badge: "jobs" },
+      { href: "/leads", label: "To quote", icon: Search, badge: "leads" },
       { href: "/visits", label: "Site visits", icon: MapPin },
       { href: "/build", label: "Build & price", icon: Hammer },
-      { href: "/proposals", label: "Proposals sent", icon: Send },
+      { href: "/proposals", label: "Proposals sent", icon: Send, badge: "proposals" },
     ],
   },
   {
     key: "schedule", label: "Schedule", icon: CalendarDays, home: "/schedule",
     items: [
+      { href: "/dispatch", label: "Dispatch board", icon: LayoutGrid, badge: "dispatch" },
       { href: "/schedule", label: "Calendar", icon: CalendarDays },
       { href: "/crew", label: "Crew & time", icon: HardHat },
       { href: "/snow", label: "Recurring", icon: Snowflake },
     ],
   },
   {
+    key: "customers", label: "Customers", icon: Building2, home: "/customers",
+    items: [
+      { href: "/customers", label: "Customers & properties", icon: Building2 },
+      { href: "/mail", label: "Mail", icon: Mail },
+    ],
+  },
+  {
+    key: "marketing", label: "Marketing", icon: Megaphone, home: "/marketing",
+    items: [
+      { href: "/marketing", label: "Overview", icon: Gauge },
+      { href: "/marketing/targets", label: "Targets", icon: Target, badge: "targets" },
+      { href: "/marketing/outreach", label: "Outreach", icon: Workflow, badge: "outreach" },
+      { href: "/marketing/pipeline", label: "Commercial pipeline", icon: Contact },
+      { href: "/marketing/reviews", label: "Reviews & referrals", icon: Star, badge: "reviews" },
+      { href: "/marketing/tasks", label: "Marketing to-dos", icon: ListChecks, badge: "mkttasks" },
+    ],
+  },
+  {
     key: "money", label: "Money", icon: Wallet, home: "/money",
     items: [
-      { href: "/money", label: "Owed to me", icon: Wallet },
+      { href: "/money", label: "Owed to me", icon: Wallet, badge: "money" },
       { href: "/billing", label: "Billing", icon: CreditCard },
-      { href: "/costs", label: "Costs", icon: Receipt },
+      { href: "/costs", label: "Costs", icon: Receipt, badge: "costs" },
       { href: "/thm", label: "THM tab", icon: Handshake },
       { href: "/reports", label: "Reports", icon: BarChart3 },
       { href: "/docs", label: "Documents", icon: ShieldCheck },
     ],
   },
   {
-    key: "people", label: "People", icon: Users, home: "/customers",
+    key: "planning", label: "Planning", icon: ClipboardList, home: "/tasks",
     items: [
-      { href: "/customers", label: "Customers", icon: Building2 },
-      { href: "/marketing", label: "Prospects", icon: Contact },
-      { href: "/marketing/campaign", label: "Campaign", icon: Megaphone },
-      { href: "/mail", label: "Mail", icon: Mail },
+      { href: "/tasks", label: "Tasks", icon: ListChecks, badge: "tasks" },
+      { href: "/today", label: "Day sheet", icon: Sun },
+      { href: "/gameplan", label: "Game plan", icon: ClipboardList },
+      { href: "/log", label: "Daily log", icon: NotebookPen },
     ],
   },
 ];
 
+// Phone bottom bar
+export const TABS: { key: string; label: string; icon: LucideIcon; href: string; match: string[] }[] = [
+  { key: "home", label: "Home", icon: Home, href: "/home", match: ["home"] },
+  { key: "work", label: "Jobs", icon: Briefcase, href: "/", match: ["work"] },
+  { key: "schedule", label: "Schedule", icon: CalendarDays, href: "/schedule", match: ["schedule"] },
+  { key: "money", label: "Money", icon: Wallet, href: "/money", match: ["money"] },
+];
+
+// Old name kept so anything importing HUBS still compiles.
+export const HUBS = GROUPS;
+export const ALL_ITEMS: { group: NavGroup | null; item: NavItem }[] = [
+  { group: null, item: HOME },
+  ...GROUPS.flatMap((g) => g.items.map((item) => ({ group: g, item }))),
+];
+
 // Longest matching href wins, so /marketing/tasks beats /marketing and "/" only matches itself.
-export function activeItem(path: string): { hub: Hub; item: NavItem } | null {
-  let best: { hub: Hub; item: NavItem } | null = null;
+export function activeItem(path: string): { hub: NavGroup | null; item: NavItem } | null {
+  let best: { hub: NavGroup | null; item: NavItem } | null = null;
   let bestLen = -1;
-  for (const hub of HUBS) {
-    for (const item of hub.items) {
-      const hit = item.href === "/" ? path === "/" : path === item.href || path.startsWith(item.href + "/");
-      if (hit && item.href.length > bestLen) { best = { hub, item }; bestLen = item.href.length; }
-    }
+  for (const { group, item } of ALL_ITEMS) {
+    const hit = item.href === "/" ? path === "/" || path.startsWith("/jobs") : path === item.href || path.startsWith(item.href + "/");
+    const len = item.href === "/" && path.startsWith("/jobs") ? 1 : item.href.length;
+    if (hit && len > bestLen) { best = { hub: group, item }; bestLen = len; }
   }
-  if (!best && path.startsWith("/customers")) best = { hub: HUBS[4], item: HUBS[4].items[0] };
   return best;
 }
+
+export const Icons = { Users };

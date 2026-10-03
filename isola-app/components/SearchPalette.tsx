@@ -1,44 +1,52 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import * as D from "@radix-ui/react-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { STATUS_META, fmtPrice } from "@/lib/format";
-import { HUBS } from "@/lib/nav";
-import { Search, Briefcase, Building2, FileText, CornerDownLeft, X } from "lucide-react";
+import { ALL_ITEMS } from "@/lib/nav";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Kbd } from "@/components/ui/bits";
+import {
+  Search, Briefcase, Building2, FileText, Plus, Camera, ListChecks, Target, CornerDownLeft, UserPlus,
+} from "lucide-react";
 
-// v4.3: one search box for the whole app — jobs, customers, addresses, invoice numbers,
-// and the screens themselves. Opens from the header, or "/" / Ctrl-K on a keyboard.
-type Hit = { kind: "job" | "customer" | "invoice" | "screen"; id: string; title: string; sub: string; go: () => void; tag?: string };
-
+// v4.6 command bar (Linear style): search jobs, customers, targets and invoices, jump to
+// any screen, or run an action — "/" or Ctrl-K anywhere, or the search box in the top bar.
 export function openSearch() { window.dispatchEvent(new Event("isola:search")); }
+export const openNew = (what: "job" | "receipt" | "lead" | "task" | "target") => {
+  if (what === "job") window.dispatchEvent(new CustomEvent("isola:new-job"));
+  else if (what === "target") window.location.href = "/marketing/targets?new=1";
+  else window.dispatchEvent(new CustomEvent("isola:quickadd", { detail: what }));
+};
 
 export function SearchButton() {
   return (
-    <button onClick={openSearch} aria-label="Search"
-      className="flex items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 text-neutral-300 px-3 min-h-[40px] md:w-80 min-w-0 hover:border-neutral-500">
-      <Search size={18} />
-      <span className="hidden sm:inline text-sm text-neutral-400 whitespace-nowrap truncate">Search jobs, customers, invoices…</span>
-      <kbd className="hidden md:inline ml-auto text-xs text-neutral-400 border border-neutral-700 rounded px-1.5">/</kbd>
+    <button onClick={openSearch} aria-label="Search and commands"
+      className="flex h-9 min-w-0 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-neutral-400 hover:border-white/20 hover:text-neutral-200 md:w-[420px]">
+      <Search size={16} />
+      <span className="hidden sm:inline truncate text-sm">Search or run a command…</span>
+      <span className="ml-auto hidden md:flex items-center gap-1"><Kbd>Ctrl</Kbd><Kbd>K</Kbd></span>
     </button>
   );
 }
 
 export default function SearchPalette() {
-  const supabase = createClient();
   const router = useRouter();
-  const path = usePathname();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [sel, setSel] = useState(0);
-  const [data, setData] = useState<{ jobs: any[]; customers: any[]; invoices: any[] } | null>(null);
-  const box = useRef<HTMLInputElement>(null);
+  const [data, setData] = useState<{ jobs: any[]; customers: any[]; invoices: any[]; contacts: any[] } | null>(null);
 
   useEffect(() => {
-    const on = () => { setOpen(true); setQ(""); setSel(0); };
+    const on = () => { setQ(""); setData(null); setOpen(true); };
     const key = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       const typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
-      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing)) { e.preventDefault(); on(); }
+      if ((e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing)) { e.preventDefault(); on(); }
+      // quick keys (desktop): N = new job, G then H/J/M = go home/jobs/money
+      if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (e.key === "n" || e.key === "N") { e.preventDefault(); openNew("job"); }
+      }
     };
     window.addEventListener("isola:search", on);
     window.addEventListener("keydown", key);
@@ -46,103 +54,106 @@ export default function SearchPalette() {
   }, []);
 
   useEffect(() => {
-    if (!open) return;
-    setTimeout(() => box.current?.focus(), 30);
+    if (!open || data) return;
+    const sb = createClient();
     Promise.all([
-      supabase.from("jobs").select("id,job_name,customer,customer_id,location,job,status,price,qbo_invoice_ref,updated_at").order("updated_at", { ascending: false }),
-      supabase.from("customers").select("id,name,contact_name,phone,email,address,qbo_names"),
-      supabase.from("money_snapshot").select("data").eq("id", 1).maybeSingle(),
-    ]).then(([j, c, m]) => setData({ jobs: j.data ?? [], customers: c.data ?? [], invoices: ((m.data as any)?.data?.invoices ?? []) }));
-  }, [open]);
+      sb.from("jobs").select("id,job_name,customer,location,job,status,price,qbo_invoice_ref,updated_at").order("updated_at", { ascending: false }),
+      sb.from("customers").select("id,name,contact_name,phone,email,address,qbo_names"),
+      sb.from("money_snapshot").select("data").eq("id", 1).maybeSingle(),
+      sb.from("contacts").select("id,name,company,tier,stage"),
+    ]).then(([j, c, m, ct]) => setData({ jobs: j.data ?? [], customers: c.data ?? [], invoices: ((m.data as any)?.data?.invoices ?? []), contacts: ct.data ?? [] }));
+  }, [open, data]);
 
-  function close() { setOpen(false); }
-  function openJob(id: string) {
-    close();
-    if (path === "/") window.dispatchEvent(new CustomEvent("isola:open-job", { detail: id }));
-    else router.push(`/?job=${id}`);
-  }
+  function go(href: string) { setOpen(false); router.push(href); }
+  function run(f: () => void) { setOpen(false); setTimeout(f, 60); }
 
-  const hits: Hit[] = useMemo(() => {
-    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-    const has = (s: string) => words.every((w) => s.toLowerCase().includes(w));
-    const out: Hit[] = [];
-    // screens
-    if (words.length) {
-      HUBS.forEach((h) => h.items.forEach((it) => {
-        if (has(`${it.label} ${h.label}`)) out.push({ kind: "screen", id: it.href, title: it.label, sub: h.label, go: () => { close(); router.push(it.href); } });
-      }));
-    }
-    if (!data) return out.slice(0, 4);
-    const jobs = data.jobs.filter((j) => !words.length || has(`${j.job_name ?? ""} ${j.customer ?? ""} ${j.location ?? ""} ${j.job ?? ""} ${j.qbo_invoice_ref ?? ""}`));
-    jobs.slice(0, words.length ? 8 : 6).forEach((j) => out.push({
-      kind: "job", id: j.id, title: j.job_name || j.customer,
-      sub: [j.job_name ? j.customer : null, j.location, fmtPrice(j.price)].filter(Boolean).join(" · "),
-      tag: STATUS_META[j.status]?.label, go: () => openJob(j.id),
-    }));
-    if (words.length) {
-      data.customers.filter((c) => has(`${c.name} ${c.contact_name ?? ""} ${c.phone ?? ""} ${c.email ?? ""} ${c.address ?? ""} ${(c.qbo_names ?? []).join(" ")}`))
-        .slice(0, 5).forEach((c) => out.push({
-          kind: "customer", id: c.id, title: c.name, sub: [c.contact_name, c.phone, c.email].filter(Boolean).join(" · "),
-          go: () => { close(); router.push(`/customers/${c.id}`); },
-        }));
-      data.invoices.filter((i: any) => has(`${i.ref} ${i.customer} ${i.amount}`)).slice(0, 5).forEach((i: any) => {
-        const n = String(i.customer ?? "").toLowerCase();
-        const cust = data.customers.find((c) => c.name.toLowerCase() === n || (c.qbo_names ?? []).some((x: string) => x.toLowerCase() === n));
-        const job = data.jobs.find((j) => j.qbo_invoice_ref && String(j.qbo_invoice_ref) === String(i.ref));
-        out.push({
-          kind: "invoice", id: "inv-" + i.ref, title: `Invoice ${i.ref}`,
-          sub: `${i.customer} · $${Number(i.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}${i.days_overdue > 0 ? ` · ${i.days_overdue} days late` : ""}`,
-          go: () => { if (job) openJob(job.id); else { close(); router.push(cust ? `/customers/${cust.id}` : "/money"); } },
-        });
-      });
-    }
-    return out;
-  }, [q, data]);
-
-  useEffect(() => { setSel(0); }, [q]);
-
-  if (!open) return null;
-  const ICON = { job: Briefcase, customer: Building2, invoice: FileText, screen: CornerDownLeft } as const;
-  const GROUP = { screen: "Screens", job: q ? "Jobs" : "Recent jobs", customer: "Customers", invoice: "Open invoices" } as const;
+  const hasQ = q.trim().length > 0;
+  const jobs = data?.jobs ?? [];
+  const shownJobs = hasQ ? jobs.slice(0, 200) : jobs.slice(0, 6);
 
   return (
-    <div className="fixed inset-0 z-[65] bg-black/75 flex justify-center items-start md:pt-[12vh] anim-fade" onClick={close}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full md:max-w-xl h-full md:h-auto md:max-h-[70vh] flex flex-col bg-neutral-900 md:border border-neutral-700 md:rounded-2xl overflow-hidden">
-        <div className="flex items-center gap-2 px-3 border-b border-white/[0.08] pt-[env(safe-area-inset-top)]">
-          <Search size={20} className="text-neutral-400 shrink-0" />
-          <input ref={box} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Job, customer, address, invoice #…"
-            className="flex-1 bg-transparent min-h-[56px] text-base text-white placeholder:text-neutral-400 focus:outline-none focus-visible:outline-none"
-            onKeyDown={(e) => {
-              if (e.key === "Escape") close();
-              else if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(hits.length - 1, s + 1)); }
-              else if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(0, s - 1)); }
-              else if (e.key === "Enter" && hits[sel]) hits[sel].go();
-            }} />
-          <button onClick={close} className="p-2 text-neutral-400" aria-label="Close search"><X size={20} /></button>
-        </div>
-        <div className="overflow-y-auto flex-1 py-1">
-          {!data ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
-          {data && !hits.length ? <p className="px-4 py-6 text-sm text-neutral-400">Nothing matches “{q}”.</p> : null}
-          {hits.map((h, i) => {
-            const Icon = ICON[h.kind];
-            const head = i === 0 || hits[i - 1].kind !== h.kind;
-            return (
-              <div key={h.kind + h.id}>
-                {head ? <div className="px-4 pt-3 pb-1 text-xs font-bold text-neutral-400">{GROUP[h.kind]}</div> : null}
-                <button onClick={h.go} onMouseEnter={() => setSel(i)}
-                  className={`w-full flex items-center gap-3 px-4 min-h-[52px] text-left ${i === sel ? "bg-neutral-800" : ""}`}>
-                  <Icon size={18} className="text-neutral-400 shrink-0" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-white truncate">{h.title}</span>
-                    {h.sub ? <span className="block text-xs text-neutral-400 truncate">{h.sub}</span> : null}
-                  </span>
-                  {h.tag ? <span className="shrink-0 text-xs font-semibold text-neutral-300">{h.tag}</span> : null}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+    <D.Root open={open} onOpenChange={setOpen}>
+      <D.Portal>
+        <D.Overlay className="fixed inset-0 z-[75] bg-black/70 anim-fade" />
+        <D.Content className="fixed z-[76] inset-0 md:inset-auto md:left-1/2 md:top-[12vh] md:-translate-x-1/2 md:w-[640px] md:max-w-[calc(100vw-2rem)] overflow-hidden md:rounded-2xl md:border border-border bg-neutral-950 shadow-[0_24px_60px_rgba(0,0,0,.7)] anim-pop pt-[env(safe-area-inset-top)] md:pt-0 focus:outline-none">
+          <D.Title className="sr-only">Search and commands</D.Title>
+          <Command loop>
+            <CommandInput value={q} onValueChange={setQ} placeholder="Job, customer, address, invoice #, or a command…" autoFocus />
+            <CommandList className="max-h-[calc(100dvh-60px)] md:max-h-[60vh]">
+              <CommandEmpty>Nothing matches “{q}”.</CommandEmpty>
+              {!hasQ ? (
+                <CommandGroup heading="Actions">
+                  <CommandItem value="new job" onSelect={() => run(() => openNew("job"))}><Plus size={16} /> New job <Kbd className="ml-auto">N</Kbd></CommandItem>
+                  <CommandItem value="new lead" onSelect={() => run(() => openNew("lead"))}><UserPlus size={16} /> New lead</CommandItem>
+                  <CommandItem value="snap receipt" onSelect={() => run(() => openNew("receipt"))}><Camera size={16} /> Snap a receipt</CommandItem>
+                  <CommandItem value="new task" onSelect={() => run(() => openNew("task"))}><ListChecks size={16} /> New task</CommandItem>
+                  <CommandItem value="new marketing target" onSelect={() => run(() => openNew("target"))}><Target size={16} /> New marketing target</CommandItem>
+                </CommandGroup>
+              ) : null}
+              {shownJobs.length ? (
+                <CommandGroup heading={hasQ ? "Jobs" : "Recent jobs"}>
+                  {shownJobs.map((j) => (
+                    <CommandItem key={j.id} value={`job ${j.job_name ?? ""} ${j.customer ?? ""} ${j.location ?? ""} ${j.job ?? ""} ${j.qbo_invoice_ref ?? ""} ${j.id}`} onSelect={() => go(`/jobs/${j.id}`)}>
+                      <Briefcase size={16} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium text-white">{j.job_name || j.customer}</span>
+                        <span className="block truncate text-xs text-neutral-500">{[j.job_name ? j.customer : null, j.location, fmtPrice(j.price)].filter(Boolean).join(" · ")}</span>
+                      </span>
+                      <span className="shrink-0 text-xs text-neutral-400">{STATUS_META[j.status]?.label}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+              {hasQ && data ? (
+                <>
+                  <CommandGroup heading="Customers">
+                    {data.customers.map((c) => (
+                      <CommandItem key={c.id} value={`customer ${c.name} ${c.contact_name ?? ""} ${c.phone ?? ""} ${c.email ?? ""} ${c.address ?? ""} ${(c.qbo_names ?? []).join(" ")} ${c.id}`} onSelect={() => go(`/customers/${c.id}`)}>
+                        <Building2 size={16} />
+                        <span className="min-w-0 flex-1"><span className="block truncate font-medium text-white">{c.name}</span>
+                          <span className="block truncate text-xs text-neutral-500">{[c.contact_name, c.phone, c.email].filter(Boolean).join(" · ")}</span></span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  <CommandGroup heading="Marketing targets">
+                    {data.contacts.map((c) => (
+                      <CommandItem key={c.id} value={`target ${c.name} ${c.company ?? ""} ${c.id}`} onSelect={() => go(`/marketing/targets?c=${c.id}`)}>
+                        <Target size={16} />
+                        <span className="min-w-0 flex-1"><span className="block truncate font-medium text-white">{c.name}</span>
+                          <span className="block truncate text-xs text-neutral-500">{[c.company, c.tier ? `Tier ${c.tier}` : null, c.stage].filter(Boolean).join(" · ")}</span></span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  <CommandGroup heading="Open invoices">
+                    {data.invoices.map((i: any) => {
+                      const job = data.jobs.find((j) => j.qbo_invoice_ref && String(j.qbo_invoice_ref) === String(i.ref));
+                      return (
+                        <CommandItem key={i.ref} value={`invoice ${i.ref} ${i.customer} ${i.amount}`} onSelect={() => go(job ? `/jobs/${job.id}` : "/money")}>
+                          <FileText size={16} />
+                          <span className="min-w-0 flex-1"><span className="block truncate font-medium text-white">Invoice {i.ref}</span>
+                            <span className="block truncate text-xs text-neutral-500">{i.customer} · ${Number(i.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}{i.days_overdue > 0 ? ` · ${i.days_overdue} days late` : ""}</span></span>
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </>
+              ) : null}
+              <CommandGroup heading="Go to">
+                {ALL_ITEMS.map(({ group, item }) => {
+                  const Icon = item.icon;
+                  return (
+                    <CommandItem key={item.href} value={`go ${item.label} ${group?.label ?? ""}`} onSelect={() => go(item.href)}>
+                      <Icon size={16} /> {item.label}
+                      <span className="ml-auto text-xs text-neutral-500">{group?.label}</span>
+                      <CornerDownLeft size={14} className="hidden" />
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </D.Content>
+      </D.Portal>
+    </D.Root>
   );
 }

@@ -1,3 +1,3 @@
-import TodayTab from "@/components/TodayTab";
-// v4.1 (9/22/26): Home is now the Today screen — route, what's due, money, pipeline.
-export default function HomePage() { return <TodayTab />; }
+import HomeScreen from "@/components/home/HomeScreen";
+// v4.6: Home = brief + needs attention + next 7 days. The v4.1 Today screen is now /today (Day sheet).
+export default function HomePage() { return <HomeScreen />; }

@@ -11,6 +11,8 @@ const isPublic = (path: string) =>
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   if (isPublic(path)) return NextResponse.next({ request });
+  // local screenshot preview only (next dev + ISOLA_PREVIEW=1); never active on Vercel
+  if (process.env.NODE_ENV === "development" && process.env.ISOLA_PREVIEW === "1") return NextResponse.next({ request });
 
   const isLogin = path.startsWith("/login");
 
