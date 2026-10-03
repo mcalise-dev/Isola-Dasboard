@@ -51,6 +51,8 @@ export default function JobsScreen() {
   const [jobs, setJobs] = useState<any[] | null>(null);
   const [ctx, setCtx] = useState<Ctx>({ walked: new Set(), drafting: new Set(), scheduled: new Set(), next: {}, spent: {} });
   const [view, setView] = useState<ViewKey>("active");
+  // v4.6.1: tap a stage card (To Quote, Sent, Booked, In Progress, Complete) to see just that stage
+  const [stage, setStage] = useState<string | null>(null);
   const [mode, setMode] = useState<"table" | "board">("table");
   const [q, setQ] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -60,6 +62,8 @@ export default function JobsScreen() {
   // old deep links (/?job=<id>) from Money, Today, Tasks… now open the record
   useEffect(() => {
     try { const id = new URLSearchParams(window.location.search).get("job"); if (id) router.replace(`/jobs/${id}`); } catch {}
+    // /?stage=progress (from Home's pipeline card) opens just that stage
+    try { const st = new URLSearchParams(window.location.search).get("stage"); if (st && STATUS_META[st]) { setStage(st); window.history.replaceState(null, "", "/"); } } catch {}
     try {
       const v = localStorage.getItem("isola.jobs.view") as ViewKey | null; if (v && VIEWS.some((x) => x.key === v)) setView(v);
       const m = localStorage.getItem("isola.jobs.mode"); if (m === "board" || m === "table") setMode(m);
@@ -124,9 +128,9 @@ export default function JobsScreen() {
   const shown = useMemo(() => {
     if (!jobs) return [];
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-    return jobs.filter((j) => inView(j, view) && (!words.length || words.every((w) => `${j.job_name ?? ""} ${j.customer} ${j.location ?? ""} ${j.job ?? ""} ${j.notes ?? ""} ${j.qbo_invoice_ref ?? ""}`.toLowerCase().includes(w))));
+    return jobs.filter((j) => (stage ? j.status === stage : inView(j, view)) && (!words.length || words.every((w) => `${j.job_name ?? ""} ${j.customer} ${j.location ?? ""} ${j.job ?? ""} ${j.notes ?? ""} ${j.qbo_invoice_ref ?? ""}`.toLowerCase().includes(w))));
     // eslint-disable-next-line
-  }, [jobs, view, q, ctx]);
+  }, [jobs, view, stage, q, ctx]);
   const viewCount = (v: ViewKey) => (jobs ?? []).filter((j) => inView(j, v)).length;
   const totalShown = shown.reduce((a, j) => a + price(j), 0);
 
@@ -223,12 +227,12 @@ export default function JobsScreen() {
       <PageHeader title="Jobs" sub={jobs ? `${shown.length} shown${totalShown ? ` · $${Math.round(totalShown).toLocaleString()}` : ""}` : "Loading…"}
         actions={<>
           <span className="hidden items-center gap-1 text-xs text-neutral-500 lg:flex"><Kbd>J</Kbd><Kbd>K</Kbd> move · <Kbd>E</Kbd> edit</span>
-          <Segmented value={mode} onChange={(v) => setMode(v as "table" | "board")} options={[{ value: "table", label: "Table", icon: <Table2 size={14} /> }, { value: "board", label: "Board", icon: <Columns3 size={14} /> }]} />
+          <Segmented className="hidden md:inline-flex" value={mode} onChange={(v) => setMode(v as "table" | "board")} options={[{ value: "table", label: "Table", icon: <Table2 size={14} /> }, { value: "board", label: "Board", icon: <Columns3 size={14} /> }]} />
           <Button onClick={() => editJob()}><Plus size={16} /> New job</Button>
         </>} />
 
       {/* stage strip */}
-      <div className="mb-4 grid grid-cols-5 gap-2">
+      <div className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 no-scrollbar md:mx-0 md:grid md:grid-cols-5 md:px-0">
         {PIPELINE.map((s) => {
           const sub = s === "lead" ? (jobs ?? []).filter((j) => j.status === "lead" && !ctx.walked.has(j.id)).length
             : s === "awaiting" ? (jobs ?? []).filter((j) => j.status === "awaiting" && j.quoted_date && daysSince(j.quoted_date) > 14).length
@@ -237,23 +241,30 @@ export default function JobsScreen() {
           const subLabel = s === "lead" ? "to walk" : s === "awaiting" ? "stale" : s === "booked" ? "no date" : s === "complete" ? "unpaid" : "";
           const sum = (jobs ?? []).filter((j) => j.status === s).reduce((a, j) => a + price(j), 0);
           return (
-            <div key={s} className="min-w-0 rounded-xl border border-border bg-card px-3 py-2.5">
+            <button key={s} onClick={() => setStage(stage === s ? null : s)} aria-pressed={stage === s}
+              className={cn("min-w-[118px] shrink-0 rounded-xl border px-3 py-2.5 text-left transition-colors md:min-w-0", stage === s ? "border-white bg-white/[0.08]" : "border-border bg-card hover:border-white/25")}>
               <div className="flex items-center gap-1.5"><span className={cn("h-1.5 w-1.5 rounded-full", BAR[s])} /><span className="truncate text-xs font-semibold text-neutral-400">{STATUS_META[s].label}</span></div>
               <div className="mt-1 flex items-baseline gap-2"><span className="text-xl font-semibold tabular-nums text-white">{counts[s] ?? 0}</span><span className="hidden truncate text-xs tabular-nums text-neutral-500 sm:inline">{sum ? `$${Math.round(sum / 1000)}k` : ""}</span></div>
               <div className={cn("truncate text-xs", sub ? (s === "complete" ? "text-red-300" : "text-amber-300") : "text-transparent")}>{sub ? `${sub} ${subLabel}` : "·"}</div>
-            </div>
+            </button>
           );
         })}
       </div>
 
+      {stage ? (
+        <div className="mb-3 flex items-center gap-2 text-sm text-neutral-300">
+          Showing <span className="font-semibold text-white">{STATUS_META[stage].label}</span> only
+          <button onClick={() => setStage(null)} className="rounded-full border border-white/15 px-2.5 py-0.5 text-xs font-semibold text-neutral-300 hover:text-white">Show all</button>
+        </div>
+      ) : null}
       {/* saved views + search */}
       <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center">
         <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 no-scrollbar md:mx-0 md:flex-1 md:flex-wrap md:px-0">
           {VIEWS.map((v) => {
             const n = jobs ? viewCount(v.key) : 0;
-            const on = view === v.key;
+            const on = !stage && view === v.key;
             return (
-              <button key={v.key} onClick={() => setView(v.key)}
+              <button key={v.key} onClick={() => { setStage(null); setView(v.key); }}
                 className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold", on ? "border-white bg-white text-neutral-900" : "border-white/10 text-neutral-400 hover:border-white/25 hover:text-white")}>
                 {v.label}<span className={cn("tabular-nums", on ? "text-neutral-500" : v.key === "attention" && n ? "text-amber-300" : "text-neutral-600")}>{n}</span>
               </button>
@@ -273,7 +284,7 @@ export default function JobsScreen() {
           body={q ? "Try a customer name, street, or work type." : "Pick another view above, or add a job."}
           action={q ? <Button variant="outline" onClick={() => setQ("")}>Clear filter</Button> : <Button onClick={() => editJob()}><Plus size={16} /> New job</Button>} />
       ) : mode === "board" && !isPhone ? (
-        <Board jobs={shown} ctx={ctx} onOpen={open} onMove={move} showDone={view === "all" || view === "complete" || view === "active"} />
+        <Board jobs={shown} ctx={ctx} onOpen={open} onMove={move} showDone={stage === "complete" || (!stage && (view === "all" || view === "complete" || view === "active"))} />
       ) : isPhone ? (
         <div className="space-y-2">
           {table.getRowModel().rows.map(({ original: j }) => {
