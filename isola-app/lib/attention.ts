@@ -34,7 +34,7 @@ async function compute(): Promise<Attention> {
   const sb = createClient();
   const today = todayISO();
   const in7 = addDays(today, 7);
-  const [j, t, se, sv, ms, ct, mt, jc] = await Promise.all([
+  const [j, t, se, sv, ms, ct, mt, jc, ap] = await Promise.all([
     sb.from("jobs").select("id,job_name,customer,location,job,status,price,price_amount,quoted_date,start_date,completed_date,invoiced_date,paid_date,created_at,review_requested_at,priority,due_date"),
     sb.from("tasks").select("id,title,job_id,due_date,priority").eq("done", false),
     sb.from("schedule_entries").select("id,entry_date,job_id,label,assignee").gte("entry_date", addDays(today, -60)),
@@ -43,6 +43,7 @@ async function compute(): Promise<Attention> {
     sb.from("contacts").select("id,name,company,next_date,next_action,stage,tier"),
     sb.from("mkt_tasks").select("id,title,due_date").eq("done", false),
     sb.from("job_costs").select("id").eq("status", "pending"),
+    sb.from("mkt_action_proposals").select("id,title,action_type,recipients,created_at").eq("status", "proposed"),
   ]);
   const jobs: any[] = j.data ?? [];
   const tasks: any[] = t.data ?? [];
@@ -52,6 +53,7 @@ async function compute(): Promise<Attention> {
   const contacts: any[] = ct.data ?? [];
   const mtasks: any[] = mt.data ?? [];
   const pendingCosts = (jc.data ?? []).length;
+  const approvals: any[] = ap.data ?? [];
   const byId: Record<string, any> = Object.fromEntries(jobs.map((x) => [x.id, x]));
   const name = (x: any) => x?.job_name || x?.customer || "Job";
   const walked = new Set(visits.map((v) => v.job_id).filter(Boolean));
@@ -92,6 +94,10 @@ async function compute(): Promise<Attention> {
   jobs.filter((x) => x.status === "lead" && !walked.has(x.id) && daysSince(String(x.created_at).slice(0, 10)) > 7).forEach((x) => items.push({
     id: "walk-" + x.id, level: "low", kind: "Not walked", title: `Walk ${name(x)}`,
     sub: `Lead for ${daysSince(String(x.created_at).slice(0, 10))} days`, href: `/jobs/${x.id}`,
+  }));
+  approvals.forEach((a) => items.push({
+    id: "appr-" + a.id, level: "mid", kind: "Waiting for your approval", title: a.title,
+    sub: `${a.recipients?.length ? "To " + a.recipients.join(", ") + " · " : ""}nothing goes out until you approve`, href: "/marketing/approvals",
   }));
   if (pendingCosts) items.push({ id: "pending-costs", level: "low", kind: "Receipts", title: `${pendingCosts} receipt${pendingCosts === 1 ? "" : "s"} need details`, sub: "Ask Claude to read them, or fill them in", href: "/costs" });
   const reviewable = jobs.filter((x) => x.status === "complete" && x.paid_date && !x.review_requested_at && daysSince(x.paid_date) <= 45);
@@ -134,6 +140,7 @@ async function compute(): Promise<Attention> {
     targets: fu.length,
     mkttasks: mtasks.filter((x) => x.due_date && x.due_date <= today).length,
     reviews: reviewable.length,
+    approvals: approvals.length,
     jobs: jobs.filter((x) => x.status === "complete" && !x.invoiced_date && !x.paid_date).length,
   };
 

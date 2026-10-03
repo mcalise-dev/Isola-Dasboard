@@ -15,7 +15,7 @@ export function NavLink({ item, on, count, onClick }: { item: NavItem; on: boole
         on ? "bg-white/[0.08] text-white shadow-[inset_2px_0_0_#fff]" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-100")}>
       <Icon size={16} strokeWidth={2} className={on ? "text-white" : "text-neutral-500 group-hover:text-neutral-300"} />
       <span className="flex-1 truncate">{item.label}</span>
-      {count ? <span className={cn("min-w-[20px] rounded-full px-1.5 text-center text-[11px] font-bold leading-5", item.badge === "home" || item.badge === "money" || item.badge === "jobs" ? "bg-red-500/90 text-white" : "bg-white/10 text-neutral-200")}>{count}</span> : null}
+      {count ? <span className={cn("min-w-[20px] rounded-full px-1.5 text-center text-[11px] font-bold leading-5", item.badge === "home" || item.badge === "money" || item.badge === "jobs" || item.badge === "approvals" ? "bg-red-500/90 text-white" : "bg-white/10 text-neutral-200")}>{count}</span> : null}
     </Link>
   );
 }

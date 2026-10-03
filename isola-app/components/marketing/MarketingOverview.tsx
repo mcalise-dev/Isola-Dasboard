@@ -6,6 +6,7 @@ import { ArrowRight, Megaphone, Target as TargetIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { todayISO } from "@/lib/format";
 import { PageHeader, Stat, Skeleton, Empty, SectionTitle } from "@/components/ui/bits";
+import SourceHealth from "@/components/marketing/cc/SourceHealth";
 import { Segmented } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { TableWrap, Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
@@ -87,12 +88,13 @@ export default function MarketingOverview() {
 
   return (
     <div>
-      <PageHeader title="Marketing" sub="Is marketing turning into work?"
+      <PageHeader title="Marketing command center" sub="Is marketing turning into work? CRM numbers below come from your jobs and prospects; connector numbers appear only once a source is connected."
         actions={<>
           <Segmented<Range> value={range} onChange={setRange} options={[{ value: "year", label: "This year" }, { value: "90", label: "90 days" }, { value: "all", label: "All" }]} />
           <Button asChild size="sm"><Link href="/marketing/targets?view=due">Work follow-ups</Link></Button>
         </>} />
 
+      <SourceHealth />
       {loading ? (
         <div className="space-y-3"><div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[84px]" />)}</div><Skeleton className="h-64" /><Skeleton className="h-48" /></div>
       ) : (

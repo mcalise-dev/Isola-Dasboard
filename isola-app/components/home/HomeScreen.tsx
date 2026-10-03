@@ -179,7 +179,7 @@ export default function HomeScreen() {
               const n = a?.counts[s] ?? 0;
               const max = Math.max(1, ...PIPELINE.map((x) => a?.counts[x] ?? 0));
               return (
-                <Link key={s} href="/" className="grid grid-cols-[92px_1fr_28px] items-center gap-2 py-1.5 text-[13px] hover:opacity-80">
+                <Link key={s} href={`/?stage=${s}`} className="grid grid-cols-[92px_1fr_28px] items-center gap-2 py-1.5 text-[13px] hover:opacity-80">
                   <span className="text-neutral-400">{STATUS_META[s].label}</span>
                   <span className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><span className={cn("block h-full rounded-full", s === "complete" ? "bg-emerald-400" : "bg-white/80")} style={{ width: `${(n / max) * 100}%` }} /></span>
                   <span className="text-right font-semibold tabular-nums text-white">{n}</span>

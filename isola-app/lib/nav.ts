@@ -7,6 +7,7 @@ import {
   Search, Hammer, Send, MapPin, HardHat, Snowflake,
   Receipt, CreditCard, Handshake, BarChart3, ShieldCheck,
   Contact, Mail, Building2, LayoutGrid, Target, Workflow, Star, Sun, Gauge,
+  Sparkles, BadgeDollarSign, PhoneCall, CalendarRange, PlugZap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -46,11 +47,20 @@ export const GROUPS: NavGroup[] = [
     key: "marketing", label: "Marketing", icon: Megaphone, home: "/marketing",
     items: [
       { href: "/marketing", label: "Overview", icon: Gauge },
-      { href: "/marketing/targets", label: "Targets", icon: Target, badge: "targets" },
-      { href: "/marketing/outreach", label: "Outreach", icon: Workflow, badge: "outreach" },
+      { href: "/marketing/approvals", label: "Approvals", icon: ShieldCheck, badge: "approvals" },
+      { href: "/marketing/targets", label: "Prospects & targets", icon: Target, badge: "targets" },
       { href: "/marketing/pipeline", label: "Commercial pipeline", icon: Contact },
+      { href: "/marketing/outreach", label: "Campaign studio", icon: Workflow, badge: "outreach" },
+      { href: "/marketing/inbox", label: "Inbox", icon: Mail },
+      { href: "/marketing/seo", label: "SEO & competitors", icon: Search },
+      { href: "/marketing/local", label: "Local presence", icon: MapPin },
+      { href: "/marketing/ai-search", label: "AI search", icon: Sparkles },
+      { href: "/marketing/paid", label: "Paid media & LinkedIn", icon: BadgeDollarSign },
+      { href: "/marketing/calls", label: "Calls & attribution", icon: PhoneCall },
       { href: "/marketing/reviews", label: "Reviews & referrals", icon: Star, badge: "reviews" },
+      { href: "/marketing/playbook", label: "Calendar & playbook", icon: CalendarRange },
       { href: "/marketing/tasks", label: "Marketing to-dos", icon: ListChecks, badge: "mkttasks" },
+      { href: "/marketing/integrations", label: "Integrations & audit", icon: PlugZap },
     ],
   },
   {

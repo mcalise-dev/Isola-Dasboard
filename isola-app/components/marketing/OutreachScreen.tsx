@@ -1,8 +1,9 @@
 "use client";
+import { propose } from "@/lib/mkt";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Plus, Copy, Mail, Check, ArrowUp, ArrowDown, Trash2, Pencil, Workflow, Search } from "lucide-react";
+import { Plus, Copy, Mail, Check, ArrowUp, ArrowDown, Trash2, Pencil, Workflow, Search, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { SECTORS, TIER_ORDER } from "@/lib/crm";
 import { todayISO } from "@/lib/format";
@@ -87,6 +88,19 @@ function Inner() {
   const groupStep = enrolled.length ? Math.min(...enrolled.filter(isOpen).map((c) => c.seq_step ?? 0).concat([steps.length])) : undefined;
 
   const patchLocal = (id: string, p: Partial<MContact>) => setContacts((cs) => cs.map((c) => (c.id === id ? { ...c, ...p } : c)));
+
+  // v4.7: put the exact email into Approvals. Nothing is sent from here.
+  async function queueEmail(c: MContact, subject: string, body: string, stepIdx: number) {
+    if (!camp) return;
+    setBusy("q" + c.id);
+    const r = await propose({
+      action_type: "email.send", connector: "gmail", title: `${camp.name}: step ${stepIdx + 1} to ${c.name}`,
+      payload: { subject, body }, recipients: [String(c.email).trim()],
+      target: { contact_id: c.id, campaign_id: camp.id, step: stepIdx + 1 }, contact_id: c.id, campaign_id: camp.id,
+    });
+    setBusy(null);
+    showToast(r.error ? r.error : "Queued in Approvals. Nothing has been sent");
+  }
 
   async function markDone(c: MContact) {
     const n = nextStep(c, steps);
@@ -209,7 +223,10 @@ function Inner() {
                             <Button variant="outline" size="sm" disabled={busy === c.id} onClick={() => markDone(c)}><Check size={14} />Mark step done</Button>
                             {msg ? <Button variant="outline" size="sm" onClick={async () => showToast((await copyText(msg)) ? "Message copied" : "Copy failed")}><Copy size={14} />Copy message</Button> : null}
                             {isEmail ? (validEmail(c.email)
-                              ? <Button variant="outline" size="sm" asChild><a href={`mailto:${encodeURIComponent(c.email!)}?subject=${encodeURIComponent(fillTemplate(n.step.subject || "Exterior work at {company}", c))}&body=${encodeURIComponent(msg)}`}><Mail size={14} />Open draft</a></Button>
+                              ? <>
+                                <Button variant="outline" size="sm" disabled={busy === "q" + c.id} onClick={() => queueEmail(c, fillTemplate(n.step.subject || "Exterior work at {company}", c), msg, n.idx)}><ShieldCheck size={14} />Queue for approval</Button>
+                                <Button variant="ghost" size="sm" asChild><a href={`mailto:${encodeURIComponent(c.email!)}?subject=${encodeURIComponent(fillTemplate(n.step.subject || "Exterior work at {company}", c))}&body=${encodeURIComponent(msg)}`}><Mail size={14} />Open in my mail app</a></Button>
+                              </>
                               : <span className="self-center text-xs text-neutral-500">No email on file</span>) : null}
                           </div>
                         </div>

@@ -12,10 +12,10 @@ export const DialogClose = D.Close;
 export function DialogContent({ className, children, wide, ...p }: React.ComponentPropsWithoutRef<typeof D.Content> & { wide?: boolean }) {
   return (
     <D.Portal>
-      <D.Overlay className="fixed inset-0 z-[70] bg-black/75 anim-fade" />
+      <D.Overlay className="fixed inset-0 z-[74] bg-black/75 anim-fade" />
       <D.Content
         className={cn(
-          "fixed z-[71] inset-x-0 bottom-0 max-h-[92vh] overflow-y-auto scroll-thin rounded-t-2xl border border-border bg-neutral-950 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] anim-sheet focus:outline-none",
+          "fixed z-[75] inset-x-0 bottom-0 max-h-[92vh] overflow-y-auto scroll-thin rounded-t-2xl border border-border bg-neutral-950 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] anim-sheet focus:outline-none",
           "sm:inset-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[calc(100%-2rem)] sm:rounded-2xl sm:pb-5",
           wide ? "sm:max-w-2xl" : "sm:max-w-lg",
           className
