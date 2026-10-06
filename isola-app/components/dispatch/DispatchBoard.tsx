@@ -1,7 +1,9 @@
 "use client";
 // v4.6 Dispatch board: crew x day grid on desktop, a day-by-day agenda on a phone.
 // Data rules are the same as the Schedule tab and the job record:
-//  - one schedule_entries row per job per day, assignee = worker name (null = unassigned)
+//  - one schedule_entries row per job per day; assignees = everyone on it (empty = unassigned)
+//  - a job with a crew shows on each person's row; dragging one block moves just that person
+//  - the database keeps `assignee` as the joined text ("Adam, Hafa") for every other screen
 //  - the first time a booked / in-progress job lands on the board and it has no start date,
 //    that day becomes jobs.start_date (the database then closes the "Set a start date" task)
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -20,16 +22,23 @@ import { Empty, PageHeader, Skeleton } from "@/components/ui/bits";
 import { Segmented } from "@/components/ui/tabs";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Field, Input, NativeSelect, Textarea } from "@/components/ui/input";
+import { Field, Input, Textarea } from "@/components/ui/input";
 import { showToast, undoable } from "@/components/Toaster";
 
-type Entry = { id: string; entry_date: string; job_id: string | null; label: string | null; notes: string | null; sort: number | null; assignee: string | null };
+type Entry = { id: string; entry_date: string; job_id: string | null; label: string | null; notes: string | null; sort: number | null; assignee: string | null; assignees: string[] | null };
 type Worker = { id: string; name: string; active: boolean; is_owner: boolean | null; rate: number | null };
 type JobRow = { id: string; job_name: string | null; customer: string | null; location: string | null; status: string; start_date: string | null; price: string | null; price_amount: number | null; priority: boolean | null };
 
 const NONE = "__none";
 const THM = "THM";
 const isThm = (s: string | null | undefined) => !!s && /^thm( corp\.?)?$/i.test(s.trim());
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase() || (isThm(a) && isThm(b));
+// everyone on an entry (older rows may only have the single text field)
+const crewOn = (e: Entry): string[] => {
+  if (e.assignees && e.assignees.length) return e.assignees;
+  return (e.assignee ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+};
+const withCrew = (e: Entry, names: string[]): Entry => ({ ...e, assignees: names, assignee: names.length ? names.join(", ") : null });
 
 // ---------- dates ----------
 const isoOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -92,7 +101,7 @@ export default function DispatchBoard() {
   const load = useCallback(async () => {
     const [w, se, js, all] = await Promise.all([
       supabase.from("workers").select("id,name,active,is_owner,rate").eq("active", true).order("name"),
-      supabase.from("schedule_entries").select("id,entry_date,job_id,label,notes,sort,assignee").gte("entry_date", weekStart).lte("entry_date", rangeEnd).order("sort").order("created_at"),
+      supabase.from("schedule_entries").select("id,entry_date,job_id,label,notes,sort,assignee,assignees").gte("entry_date", weekStart).lte("entry_date", rangeEnd).order("sort").order("created_at"),
       supabase.from("jobs").select("id,job_name,customer,location,status,start_date,price,price_amount,priority").order("priority", { ascending: false }).order("updated_at", { ascending: false }),
       supabase.from("schedule_entries").select("job_id,entry_date").not("job_id", "is", null),
     ]);
@@ -132,31 +141,35 @@ export default function DispatchBoard() {
     const ws = [...workers].sort((a, b) => Number(!!b.is_owner) - Number(!!a.is_owner) || a.name.localeCompare(b.name));
     return ws.map((w) => w.name);
   }, [workers]);
-  const rowOf = useCallback((e: Entry) => {
-    if (!e.assignee || !e.assignee.trim()) return NONE;
-    if (isThm(e.assignee)) return THM;
-    const hit = workerNames.find((n) => n.toLowerCase() === e.assignee!.trim().toLowerCase());
-    return hit ?? e.assignee.trim();
+  const rowOfName = useCallback((name: string) => {
+    if (isThm(name)) return THM;
+    return workerNames.find((n) => sameName(n, name)) ?? name.trim();
   }, [workerNames]);
+  // every row an entry sits on (one per person; Unassigned when nobody)
+  const rowsOf = useCallback((e: Entry) => {
+    const names = crewOn(e);
+    return names.length ? Array.from(new Set(names.map(rowOfName))) : [NONE];
+  }, [rowOfName]);
   const rows = useMemo(() => {
-    const extra = Array.from(new Set(entries.map(rowOf).filter((r) => r !== NONE && r !== THM && !workerNames.includes(r))));
+    const all = entries.flatMap(rowsOf);
+    const extra = Array.from(new Set(all.filter((r) => r !== NONE && r !== THM && !workerNames.includes(r))));
     const out = [...workerNames, ...extra];
-    if (entries.some((e) => rowOf(e) === THM)) out.push(THM);
+    if (all.includes(THM)) out.push(THM);
     out.push(NONE);
     return out;
-  }, [entries, rowOf, workerNames]);
+  }, [entries, rowsOf, workerNames]);
   const assigneeOptions = useMemo(() => {
     const s = [...workerNames];
-    const thmSpelling = entries.find((e) => isThm(e.assignee))?.assignee ?? THM;
+    const thmSpelling = entries.flatMap(crewOn).find((n) => isThm(n)) ?? THM;
     return { names: s, thm: thmSpelling };
   }, [workerNames, entries]);
   const rowToAssignee = (row: string) => (row === NONE ? null : row === THM ? assigneeOptions.thm : row);
 
   const cellMap = useMemo(() => {
     const m: Record<string, Entry[]> = {};
-    entries.forEach((e) => { const k = rowOf(e) + "|" + e.entry_date; (m[k] = m[k] ?? []).push(e); });
+    entries.forEach((e) => rowsOf(e).forEach((r) => { const k = r + "|" + e.entry_date; (m[k] = m[k] ?? []).push(e); }));
     return m;
-  }, [entries, rowOf]);
+  }, [entries, rowsOf]);
 
   const unscheduled = useMemo(() => jobs.filter((j) => j.status === "booked" && !j.start_date && !everScheduled.has(j.id)), [jobs, everScheduled]);
   const stalled = useMemo(() => jobs.filter((j) => j.status === "progress" && !hasAhead.has(j.id)), [jobs, hasAhead]);
@@ -169,32 +182,76 @@ export default function DispatchBoard() {
     }
   }
 
-  async function scheduleDays(job: JobRow, dates: string[], who: string | null) {
-    const { data: have } = await supabase.from("schedule_entries").select("entry_date").eq("job_id", job.id).in("entry_date", dates);
-    const taken = new Set((have ?? []).map((r: any) => r.entry_date));
-    const rows = dates.filter((d) => !taken.has(d)).map((d) => ({ entry_date: d, job_id: job.id, assignee: who }));
+  const union = (a: string[], b: string[]) => [...a, ...b.filter((n) => !a.some((x) => sameName(x, n)))];
+
+  async function scheduleDays(job: JobRow, dates: string[], who: string[]) {
+    const { data: have } = await supabase.from("schedule_entries").select("id,entry_date,assignee,assignees").eq("job_id", job.id).in("entry_date", dates);
+    const existing = (have ?? []) as Entry[];
+    const taken = new Set(existing.map((r) => r.entry_date));
+    const rows = dates.filter((d) => !taken.has(d)).map((d) => ({ entry_date: d, job_id: job.id, assignees: who }));
     if (rows.length) {
       const { error } = await supabase.from("schedule_entries").insert(rows);
       if (error) { alert("Could not schedule: " + error.message); return false; }
     }
+    // days already on the board: add the crew to them instead of doubling the job up
+    let joined = 0;
+    for (const x of existing) {
+      const cur = crewOn(x);
+      const next = union(cur, who);
+      if (next.length !== cur.length) {
+        joined++;
+        const { error } = await supabase.from("schedule_entries").update({ assignees: next, updated_at: new Date().toISOString() }).eq("id", x.id);
+        if (error) { alert("Could not add crew: " + error.message); return false; }
+      }
+    }
     if (dates.length) await stampStart(job.id, dates[0]);
-    showToast(rows.length ? `${jobTitle(job)} on the board · ${rows.length} day${rows.length === 1 ? "" : "s"}` : "Already on those days");
+    const n = rows.length + joined;
+    showToast(n ? `${jobTitle(job)} on the board · ${n} day${n === 1 ? "" : "s"}` : "Already on those days");
     await load();
     changed();
     return true;
   }
 
-  async function moveEntry(e: Entry, date: string, assignee: string | null) {
-    if (e.entry_date === date && (e.assignee ?? null) === assignee) return;
-    if (e.job_id && e.entry_date !== date && entries.some((x) => x.id !== e.id && x.job_id === e.job_id && x.entry_date === date && rowOf(x) === rowOf({ ...e, assignee }))) {
-      showToast("That job is already there that day");
+  // Move one person's block. Same day = swap who; new day = that person goes to the job on that day.
+  async function moveEntry(e: Entry, fromRow: string, date: string, toRow: string) {
+    if (e.entry_date === date && fromRow === toRow) return;
+    const fromName = rowToAssignee(fromRow);
+    const toName = rowToAssignee(toRow);
+    const names = crewOn(e);
+    const minus = fromName ? names.filter((n) => !sameName(n, fromName)) : names;
+    const now = new Date().toISOString();
+
+    if (e.entry_date === date) {
+      const next = toName ? union(minus, [toName]) : minus;
+      setEntries((xs) => xs.map((x) => (x.id === e.id ? withCrew(x, next) : x)));
+      const { error } = await supabase.from("schedule_entries").update({ assignees: next, updated_at: now }).eq("id", e.id);
+      if (error) { alert("Move failed: " + error.message); load(); return; }
+      showToast(toName ? (fromName ? `${fromName} → ${toName}` : `Assigned to ${toName}`) : `${fromName} taken off`);
+      changed();
       return;
     }
-    setEntries((xs) => xs.map((x) => (x.id === e.id ? { ...x, entry_date: date, assignee } : x)));
-    const { error } = await supabase.from("schedule_entries").update({ entry_date: date, assignee, updated_at: new Date().toISOString() }).eq("id", e.id);
+
+    const solo = names.length <= 1;
+    const target = e.job_id ? entries.find((x) => x.id !== e.id && x.job_id === e.job_id && x.entry_date === date) : null;
+    let error: any = null;
+    if (target) {
+      // the job is already on that day: add this person to it
+      const next = toName ? union(crewOn(target), [toName]) : crewOn(target);
+      ({ error } = await supabase.from("schedule_entries").update({ assignees: next, updated_at: now }).eq("id", target.id));
+      if (!error) ({ error } = solo
+        ? await supabase.from("schedule_entries").delete().eq("id", e.id)
+        : await supabase.from("schedule_entries").update({ assignees: minus, updated_at: now }).eq("id", e.id));
+    } else if (solo) {
+      ({ error } = await supabase.from("schedule_entries").update({ entry_date: date, assignees: toName ? [toName] : [], updated_at: now }).eq("id", e.id));
+    } else {
+      // split this person off onto the new day; the rest of the crew stays put
+      ({ error } = await supabase.from("schedule_entries").insert({ entry_date: date, job_id: e.job_id, label: e.job_id ? null : e.label, notes: e.notes, assignees: toName ? [toName] : [] }));
+      if (!error) ({ error } = await supabase.from("schedule_entries").update({ assignees: minus, updated_at: now }).eq("id", e.id));
+    }
     if (error) { alert("Move failed: " + error.message); load(); return; }
     if (e.job_id) await stampStart(e.job_id, date);
-    showToast("Moved to " + (assignee ?? "Unassigned") + " · " + md(date));
+    showToast(`Moved ${toName ?? fromName ?? "to Unassigned"} · ${md(date)}${!solo ? " (rest of crew stays — open the day to move everyone)" : ""}`);
+    await load();
     changed();
   }
 
@@ -212,10 +269,12 @@ export default function DispatchBoard() {
     const id = String(ev.active.id);
     if (id.startsWith("job:")) {
       const j = jobById[id.slice(4)];
-      if (j) await scheduleDays(j, [date], who);
+      if (j) await scheduleDays(j, [date], who ? [who] : []);
     } else if (id.startsWith("entry:")) {
-      const e = entries.find((x) => x.id === id.slice(6));
-      if (e) await moveEntry(e, date, who);
+      const tail = id.slice(6);
+      const bar = tail.indexOf("|");
+      const e = entries.find((x) => x.id === (bar < 0 ? tail : tail.slice(0, bar)));
+      if (e) await moveEntry(e, bar < 0 ? rowsOf(e)[0] : tail.slice(bar + 1), date, row);
     }
   }
 
@@ -226,7 +285,7 @@ export default function DispatchBoard() {
   );
 
   const selected = openEntry ? entries.find((e) => e.id === openEntry) ?? null : null;
-  const dragEntry = dragging?.startsWith("entry:") ? entries.find((e) => e.id === dragging.slice(6)) : null;
+  const dragEntry = dragging?.startsWith("entry:") ? entries.find((e) => e.id === dragging.slice(6).split("|")[0]) : null;
   const dragJob = dragging?.startsWith("job:") ? jobById[dragging.slice(4)] : null;
 
   const rangeLabel = `${md(weekStart)} – ${md(rangeEnd)}`;
@@ -277,7 +336,7 @@ export default function DispatchBoard() {
         {phone ? (
           <div className="space-y-5">
             {unschedPanel}
-            <Agenda days={days} rows={rows} cellMap={cellMap} jobById={jobById} today={today} onOpen={setOpenEntry} />
+            <Agenda days={days} rows={rows} entries={entries} rowsOf={rowsOf} jobById={jobById} today={today} onOpen={setOpenEntry} />
           </div>
         ) : (
           <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
@@ -310,7 +369,7 @@ export default function DispatchBoard() {
         state={fillJob}
         options={assigneeOptions}
         onClose={() => setFillJob(null)}
-        onSave={async (job, date, days, skip, who) => {
+        onSave={async (job, date, days, skip, who: string[]) => {
           const ok = await scheduleDays(job, workDates(date, days, skip), who);
           if (ok) setFillJob(null);
         }}
@@ -355,7 +414,7 @@ function RowCells({ row, days, cellMap, jobById, today, onOpen }: { row: string;
       {days.map((d) => (
         <Cell key={d} id={`cell:${row}|${d}`} isToday={d === today}>
           {(cellMap[row + "|" + d] ?? []).map((e) => (
-            <Block key={e.id} e={e} j={e.job_id ? jobById[e.job_id] : null} onOpen={() => onOpen(e.id)} />
+            <Block key={e.id} e={e} row={row} j={e.job_id ? jobById[e.job_id] : null} onOpen={() => onOpen(e.id)} />
           ))}
         </Cell>
       ))}
@@ -372,12 +431,22 @@ function Cell({ id, isToday, children }: { id: string; isToday: boolean; childre
   );
 }
 
-function BlockBody({ e, j, overlay }: { e: Entry; j: JobRow | null; overlay?: boolean }) {
+// crew line on a block: on a person's row, show who else is there; elsewhere, show everyone
+function crewLine(e: Entry, row?: string) {
+  const names = crewOn(e);
+  if (row === undefined) return names.join(", ");
+  const others = names.filter((n) => !(row !== NONE && (sameName(n, row) || (row === THM && isThm(n)))));
+  return others.length && others.length < names.length ? "w/ " + others.join(", ") : "";
+}
+
+function BlockBody({ e, j, overlay, row, showCrew }: { e: Entry; j: JobRow | null; overlay?: boolean; row?: string; showCrew?: boolean }) {
+  const crew = showCrew ? crewLine(e) : row !== undefined ? crewLine(e, row) : "";
   if (j) {
     return (
       <div className={cn("rounded-md bg-white px-2 py-1.5 text-left text-neutral-900", overlay && "w-48 shadow-2xl")}>
         <div className="truncate text-[13px] font-semibold leading-tight">{jobTitle(j)}</div>
         {shortLoc(j.location) ? <div className="truncate text-[11px] leading-tight text-neutral-600">{shortLoc(j.location)}</div> : null}
+        {crew ? <div className="flex items-center gap-1 truncate text-[11px] font-medium leading-tight text-neutral-700"><Users size={10} className="shrink-0" />{crew}</div> : null}
         {e.notes ? <div className="truncate text-[11px] italic leading-tight text-neutral-500">{e.notes}</div> : null}
       </div>
     );
@@ -385,18 +454,19 @@ function BlockBody({ e, j, overlay }: { e: Entry; j: JobRow | null; overlay?: bo
   return (
     <div className={cn("rounded-md border border-white/10 bg-white/[0.06] px-2 py-1.5 text-left text-neutral-300", overlay && "w-48 bg-neutral-900 shadow-2xl")}>
       <div className="truncate text-[13px] font-medium leading-tight">{e.label || "Note"}</div>
+      {crew ? <div className="flex items-center gap-1 truncate text-[11px] leading-tight text-neutral-400"><Users size={10} className="shrink-0" />{crew}</div> : null}
       {e.notes ? <div className="truncate text-[11px] leading-tight text-neutral-500">{e.notes}</div> : null}
     </div>
   );
 }
 
-function Block({ e, j, onOpen }: { e: Entry; j: JobRow | null; onOpen: () => void }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: "entry:" + e.id });
+function Block({ e, j, row, onOpen }: { e: Entry; j: JobRow | null; row: string; onOpen: () => void }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: "entry:" + e.id + "|" + row });
   return (
     <button ref={setNodeRef} type="button" {...attributes} {...listeners} onClick={onOpen}
       className={cn("block w-full cursor-grab touch-none focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded-md", isDragging && "opacity-30")}
       aria-label={`${j ? jobTitle(j) : e.label ?? "Entry"}, open details or drag to move`}>
-      <BlockBody e={e} j={j} />
+      <BlockBody e={e} j={j} row={row} />
     </button>
   );
 }
@@ -407,6 +477,7 @@ function Legend() {
       <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-sm bg-white" /> Job day</span>
       <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-sm border border-white/10 bg-white/[0.06]" /> Note only (shop day, dump run)</span>
       <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-sm bg-white/[0.05] ring-1 ring-inset ring-white/20" /> Today</span>
+      <span className="inline-flex items-center gap-1.5"><Users size={13} /> A crew job shows on each person's row</span>
       <span className="inline-flex items-center gap-1.5"><GripVertical size={13} /> Drag to move or assign · click to open</span>
       <Link href="/schedule" className="ml-auto underline-offset-4 hover:text-white hover:underline">Month calendar</Link>
     </div>
@@ -465,30 +536,27 @@ function JobCard({ j, phone, onFill }: { j: JobRow; phone: boolean; onFill: () =
 }
 
 // ---------- agenda (phone) ----------
-function Agenda({ days, rows, cellMap, jobById, today, onOpen }: { days: string[]; rows: string[]; cellMap: Record<string, Entry[]>; jobById: Record<string, JobRow>; today: string; onOpen: (id: string) => void }) {
+function Agenda({ days, rows, entries, rowsOf, jobById, today, onOpen }: { days: string[]; rows: string[]; entries: Entry[]; rowsOf: (e: Entry) => string[]; jobById: Record<string, JobRow>; today: string; onOpen: (id: string) => void }) {
+  const rank = (e: Entry) => Math.min(...rowsOf(e).map((r) => { const i = rows.indexOf(r); return i < 0 ? 999 : i; }));
   return (
     <div className="space-y-3">
       {days.map((d) => {
-        const groups = rows.map((r) => ({ r, list: cellMap[r + "|" + d] ?? [] })).filter((g) => g.list.length);
+        const list = entries.filter((e) => e.entry_date === d).sort((a, b) => rank(a) - rank(b));
         return (
           <section key={d} className={cn("rounded-xl border bg-card", d === today ? "border-white/25" : "border-border")}>
             <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
               <h3 className="text-[15px] font-semibold text-white">{dayLong(d)}</h3>
               {d === today ? <Badge variant="solid">Today</Badge> : null}
-              <span className="ml-auto text-xs tabular-nums text-neutral-500">{groups.reduce((a, g) => a + g.list.length, 0) || ""}</span>
+              <span className="ml-auto text-xs tabular-nums text-neutral-500">{list.length || ""}</span>
             </div>
-            {groups.length === 0 ? <p className="px-3.5 py-3 text-sm text-neutral-500">Nothing scheduled.</p> : (
+            {list.length === 0 ? <p className="px-3.5 py-3 text-sm text-neutral-500">Nothing scheduled.</p> : (
               <div className="divide-y divide-white/[0.05]">
-                {groups.map(({ r, list }) => (
-                  <div key={r} className="px-3.5 py-2.5">
-                    <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-neutral-400"><Users size={12} />{r === NONE ? "Unassigned" : r}</div>
-                    <div className="space-y-1.5">
-                      {list.map((e) => (
-                        <button key={e.id} type="button" onClick={() => onOpen(e.id)} className="block min-h-[44px] w-full">
-                          <BlockBody e={e} j={e.job_id ? jobById[e.job_id] : null} />
-                        </button>
-                      ))}
-                    </div>
+                {list.map((e) => (
+                  <div key={e.id} className="px-3.5 py-2.5">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-neutral-400"><Users size={12} />{crewOn(e).join(", ") || "Unassigned"}</div>
+                    <button type="button" onClick={() => onOpen(e.id)} className="block min-h-[44px] w-full">
+                      <BlockBody e={e} j={e.job_id ? jobById[e.job_id] : null} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -501,16 +569,26 @@ function Agenda({ days, rows, cellMap, jobById, today, onOpen }: { days: string[
 }
 
 // ---------- entry detail ----------
-function AssigneeSelect({ value, onChange, options, className }: { value: string | null; onChange: (v: string | null) => void; options: { names: string[]; thm: string }; className?: string }) {
-  const v = value ?? "";
-  const known = !v || options.names.includes(v) || isThm(v);
+// tap-to-toggle crew chips; any number of people (none = unassigned)
+function CrewPicker({ value, onChange, options }: { value: string[]; onChange: (v: string[]) => void; options: { names: string[]; thm: string } }) {
+  const all = [...options.names, options.thm];
+  const extras = value.filter((v) => !all.some((n) => sameName(n, v)));
+  const has = (n: string) => value.some((v) => sameName(v, n));
+  const toggle = (n: string) => onChange(has(n) ? value.filter((v) => !sameName(v, n)) : [...value, n]);
   return (
-    <NativeSelect className={className} value={isThm(v) ? options.thm : v} onChange={(e) => onChange(e.target.value || null)}>
-      <option value="">Unassigned</option>
-      {options.names.map((n) => <option key={n} value={n}>{n}</option>)}
-      <option value={options.thm}>THM</option>
-      {!known ? <option value={v}>{v}</option> : null}
-    </NativeSelect>
+    <div className="flex flex-wrap gap-1.5">
+      {[...all, ...extras].map((n) => {
+        const on = has(n);
+        return (
+          <button key={n} type="button" onClick={() => toggle(n)} aria-pressed={on}
+            className={cn("min-h-[36px] rounded-full border px-3 text-sm font-medium transition-colors",
+              on ? "border-white bg-white text-neutral-900" : "border-white/15 text-neutral-300 hover:border-white/40")}>
+            {isThm(n) ? "THM" : n}
+          </button>
+        );
+      })}
+      {value.length === 0 ? <span className="self-center px-1 text-xs text-neutral-500">Unassigned — tap everyone going</span> : null}
+    </div>
   );
 }
 
@@ -540,7 +618,7 @@ function EntrySheet({ entry, job, options, onClose, supabase, entries, setEntrie
       const taken = new Set((data ?? []).map((r: any) => r.entry_date));
       while (taken.has(d)) d = nextWorkday(d);
     }
-    const row: any = { entry_date: d, assignee: entry.assignee, job_id: entry.job_id, label: entry.job_id ? null : entry.label };
+    const row: any = { entry_date: d, assignees: crewOn(entry), job_id: entry.job_id, label: entry.job_id ? null : entry.label };
     const { error } = await supabase.from("schedule_entries").insert(row);
     if (error) { alert("Could not add: " + error.message); return; }
     showToast("Added " + dayLong(d));
@@ -594,11 +672,13 @@ function EntrySheet({ entry, job, options, onClose, supabase, entries, setEntrie
               )}
             </div>
 
+            <Field label="Crew">
+              <CrewPicker value={crewOn(entry)} options={options}
+                onChange={(v) => patch({ assignees: v, assignee: v.length ? v.join(", ") : null }, v.length ? "Crew: " + v.join(", ") : "Unassigned")} />
+            </Field>
+
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Who">
-                <AssigneeSelect value={entry.assignee} options={options} onChange={(v) => patch({ assignee: v }, "Assigned to " + (v ?? "nobody"))} />
-              </Field>
-              <Field label="Date">
+              <Field label="Date (moves the whole crew)" className="col-span-2">
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)}
                   onBlur={async () => { if (date && date !== entry.entry_date) { await patch({ entry_date: date }, "Moved to " + md(date)); if (entry.job_id) await stampStart(entry.job_id, date); } }} />
               </Field>
@@ -623,14 +703,14 @@ function EntrySheet({ entry, job, options, onClose, supabase, entries, setEntrie
 // ---------- fill days ----------
 function FillDialog({ state, options, onClose, onSave }: {
   state: { job: JobRow; date?: string; who?: string } | null; options: { names: string[]; thm: string }; onClose: () => void;
-  onSave: (job: JobRow, date: string, days: number, skip: boolean, who: string | null) => Promise<void>;
+  onSave: (job: JobRow, date: string, days: number, skip: boolean, who: string[]) => Promise<void>;
 }) {
   const [date, setDate] = useState("");
   const [days, setDays] = useState(1);
   const [skip, setSkip] = useState(true);
-  const [who, setWho] = useState<string | null>(null);
+  const [who, setWho] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (state) { setDate(state.date ?? todayISO()); setDays(1); setSkip(true); setWho(state.who ?? null); } }, [state]);
+  useEffect(() => { if (state) { setDate(state.date ?? todayISO()); setDays(1); setSkip(true); setWho(state.who ? [state.who] : []); } }, [state]);
   const preview = date ? workDates(date, days, skip) : [];
   return (
     <Dialog open={!!state} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -642,7 +722,7 @@ function FillDialog({ state, options, onClose, onSave }: {
         <div className="grid grid-cols-2 gap-3">
           <Field label="First day"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
           <Field label="Working days"><Input type="number" min={1} max={60} inputMode="numeric" value={days} onChange={(e) => setDays(Math.max(1, Math.min(60, Number(e.target.value) || 1)))} /></Field>
-          <Field label="Who" className="col-span-2"><AssigneeSelect value={who} options={options} onChange={setWho} /></Field>
+          <Field label="Crew" className="col-span-2"><CrewPicker value={who} options={options} onChange={setWho} /></Field>
           <label className="col-span-2 flex min-h-[44px] items-center gap-2 text-sm text-neutral-300">
             <input type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} className="h-4 w-4 accent-white" /> Skip Saturdays and Sundays
           </label>

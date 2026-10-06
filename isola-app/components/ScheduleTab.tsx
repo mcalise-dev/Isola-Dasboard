@@ -91,7 +91,7 @@ export default function ScheduleTab() {
   const jobById = useMemo(() => Object.fromEntries(jobs.map((j) => [j.id, j])), [jobs]);
   const activeJobs = jobs.filter((j) => j.status !== "complete");
   const visible = useMemo(
-    () => (filterWho ? entries.filter((e) => e.assignee === filterWho) : entries),
+    () => (filterWho ? entries.filter((e) => (e.assignee ?? "").split(",").some((n) => n.trim().toLowerCase() === filterWho.toLowerCase())) : entries),
     [entries, filterWho]
   );
   const byDate = useMemo(() => {
@@ -221,6 +221,7 @@ export default function ScheduleTab() {
             className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-bold ${e.assignee ? crewCls(e.assignee) : "border-neutral-700 bg-neutral-900 text-neutral-400"}`}>
             <option value="">unassigned</option>
             {crew.map((w) => <option key={w.name} value={w.name}>{w.name}</option>)}
+            {e.assignee && !crew.some((w) => w.name === e.assignee) ? <option value={e.assignee}>{e.assignee}</option> : null}
           </select>
         ) : null}
         {j && !compact ? (
