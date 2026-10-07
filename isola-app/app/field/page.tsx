@@ -5,11 +5,11 @@ import { createClient } from "@/lib/supabase/client";
 import { Navigation, Timer } from "lucide-react";
 import { StopCard, CheckRow, Empty, H, iso, dayLabel, type Stop } from "@/components/field/shared";
 
-// Crew Today: where we're going, and the punch list / tasks on the jobs they can see.
+// Crew Today: where we're going, the checklist for jobs they're assigned to (next 7 days), and the punch list / tasks on the jobs they can see.
 export default function FieldToday() {
   const supabase = useMemo(() => createClient(), []);
   const [stops, setStops] = useState<Stop[] | null>(null);
-  const [todo, setTodo] = useState<{ punch: any[]; tasks: any[] }>({ punch: [], tasks: [] });
+  const [todo, setTodo] = useState<{ checklist: any[]; punch: any[]; tasks: any[] }>({ checklist: [], punch: [], tasks: [] });
   const today = iso(new Date());
 
   async function load() {
@@ -19,13 +19,18 @@ export default function FieldToday() {
     ]);
     const list = ((s.data as Stop[]) ?? []).sort((a, b) => Number(b.mine) - Number(a.mine));
     setStops(list);
-    setTodo((t.data as any) ?? { punch: [], tasks: [] });
+    setTodo({ checklist: [], punch: [], tasks: [], ...((t.data as any) ?? {}) });
   }
   useEffect(() => { load(); }, []);
 
   async function setPunch(id: string, done: boolean) {
     setTodo((x) => ({ ...x, punch: x.punch.map((p) => (p.id === id ? { ...p, done } : p)) }));
     const { error } = await supabase.rpc("crew_set_punch", { p_id: id, p_done: done });
+    if (error) { alert("Couldn't save: " + error.message); load(); }
+  }
+  async function setCheck(id: string, done: boolean) {
+    setTodo((x) => ({ ...x, checklist: x.checklist.map((k) => (k.id === id ? { ...k, done } : k)) }));
+    const { error } = await supabase.rpc("crew_set_checklist", { p_id: id, p_done: done });
     if (error) { alert("Couldn't save: " + error.message); load(); }
   }
   async function setTask(id: string, done: boolean) {
@@ -52,6 +57,15 @@ export default function FieldToday() {
       {stops === null ? <div className="h-20 rounded-xl bg-neutral-900 animate-pulse" />
         : stops.length ? <div className="space-y-2">{stops.map((s, i) => <StopCard key={s.entry_id} s={s} n={i + 1} />)}</div>
         : <Empty title="Nothing on the schedule today" sub="Check the Schedule tab for what's coming up." />}
+
+      {todo.checklist.length ? (
+        <>
+          <H>Checklist — your jobs</H>
+          <div className="space-y-2">{todo.checklist.map((k) => (
+            <CheckRow key={k.id} done={!!k.done} title={k.label} sub={k.job_name} href={`/field/job/${k.job_id}`} onToggle={() => setCheck(k.id, !k.done)} />
+          ))}</div>
+        </>
+      ) : null}
 
       <H>Punch list</H>
       {todo.punch.length ? (

@@ -27,6 +27,11 @@ export default function FieldJob() {
     const { error } = await supabase.rpc("crew_set_punch", { p_id: pid, p_done: done });
     if (error) { alert("Couldn't save: " + error.message); load(); }
   }
+  async function setCheck(cid: string, done: boolean) {
+    setD((x: any) => ({ ...x, checklist: x.checklist.map((k: any) => (k.id === cid ? { ...k, done } : k)) }));
+    const { error } = await supabase.rpc("crew_set_checklist", { p_id: cid, p_done: done });
+    if (error) { alert("Couldn't save: " + error.message); load(); }
+  }
   async function setTask(tid: string, done: boolean) {
     setD((x: any) => ({ ...x, tasks: x.tasks.map((p: any) => (p.id === tid ? { ...p, done } : p)) }));
     const { error } = await supabase.rpc("crew_set_task", { p_id: tid, p_done: done });
@@ -67,6 +72,10 @@ export default function FieldJob() {
           </div>
         ))}</div>
       ) : <Empty title="No upcoming days" />}
+
+      {(d.checklist ?? []).length ? (<><H>Checklist{(() => { const n = d.checklist.filter((k: any) => !k.done).length; return n ? ` — ${n} left` : " — all set"; })()}</H><div className="space-y-2">{d.checklist.map((k: any) => (
+        <CheckRow key={k.id} done={!!k.done} title={k.label} onToggle={() => setCheck(k.id, !k.done)} />
+      ))}</div></>) : null}
 
       <H>Punch list</H>
       {d.punch.length ? <div className="space-y-2">{d.punch.map((p: any) => (
