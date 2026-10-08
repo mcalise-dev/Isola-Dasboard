@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { todayISO } from "@/lib/format";
 import JobPicker from "@/components/JobPicker";
-import { showToast } from "@/components/Toaster";
+import { showToast, showError } from "@/components/Toaster";
 import {
   Camera, Search, ListChecks, ChevronLeft, X, ClipboardList, Hammer, NotebookPen, CreditCard,
   Receipt, CalendarDays, Contact, MapPin, Building2, ChevronRight, type LucideIcon,
@@ -95,13 +95,13 @@ export default function QuickAdd() {
       const imgs = await Promise.all(files.map(shrink));
       setShots((s) => [...s, ...imgs]);
       setMode("receipt");
-    } catch { alert("Couldn't read that photo — try again."); }
+    } catch { showError("Couldn't read that photo — try again."); }
     setBusy(false);
   }
 
   async function saveReceipt() {
     if (!shots.length) return;
-    if (!rJob) { alert("Which job is it for? Pick one, or Overhead."); return; }
+    if (!rJob) { showError("Which job is it for? Pick one, or Overhead."); return; }
     const amt = Number(rAmt.replace(/[$,\s]/g, ""));
     setBusy(true);
     const one = shots.length === 1;
@@ -116,7 +116,7 @@ export default function QuickAdd() {
     });
     const { error } = await supabase.from("job_costs").insert(rows);
     setBusy(false);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     close();
     showToast(rows.length === 1 ? (rows[0].status === "ok" ? "Receipt saved" : "Receipt saved — Claude can read the rest") : `${rows.length} receipts saved`);
     window.dispatchEvent(new Event("isola:changed"));
@@ -124,7 +124,7 @@ export default function QuickAdd() {
 
   async function saveLead() {
     const name = lead.customer.trim();
-    if (!lead.job_name.trim() && !name) { alert("Give it a job name or a customer."); return; }
+    if (!lead.job_name.trim() && !name) { showError("Give it a job name or a customer."); return; }
     setBusy(true);
     let customer_id: string | null = null;
     if (name) {
@@ -132,7 +132,7 @@ export default function QuickAdd() {
       if (hit) customer_id = hit.id;
       else {
         const { data: made, error } = await supabase.from("customers").insert({ name, phone: lead.contact_phone.trim() || null }).select("id").single();
-        if (error) { setBusy(false); alert("Could not create the customer: " + error.message); return; }
+        if (error) { setBusy(false); showError("Could not create the customer: " + error.message); return; }
         customer_id = made.id;
       }
     }
@@ -144,7 +144,7 @@ export default function QuickAdd() {
     };
     const { error } = await supabase.from("jobs").insert(payload);
     setBusy(false);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     close();
     showToast("Lead added to To quote");
     window.dispatchEvent(new Event("isola:changed"));
@@ -155,7 +155,7 @@ export default function QuickAdd() {
     setBusy(true);
     const { error } = await supabase.from("tasks").insert({ title: tTitle.trim(), job_id: tJob || null, due_date: tDue || null });
     setBusy(false);
-    if (error) { alert("Add failed: " + error.message); return; }
+    if (error) { showError("Add failed: " + error.message); return; }
     close();
     showToast("Task added");
     window.dispatchEvent(new Event("isola:changed"));

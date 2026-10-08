@@ -1,9 +1,17 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { undoable } from "@/components/Toaster";
+import { undoable, showError, showToast } from "@/components/Toaster";
+import { ask } from "@/components/Dialogs";
 import { createClient } from "@/lib/supabase/client";
 import { Job, jobLabel, todayISO } from "@/lib/format";
+import { withTimeout, firstError } from "@/lib/load";
 import JobPicker from "@/components/JobPicker";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input, Textarea } from "@/components/ui/input";
+import { PageHeader, SectionTitle, Stat, Empty, Progress, ListSkeleton, LoadError } from "@/components/ui/bits";
+import { cn } from "@/lib/utils";
+import { Check, X, Plus, ChevronLeft, ChevronRight, History, Trash2, ClipboardList } from "lucide-react";
 
 type Plan = {
   id: string;
@@ -46,6 +54,7 @@ export default function GamePlanTab() {
   const [recent, setRecent] = useState<{ plan_date: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [headline, setHeadline] = useState("");
   const [notes, setNotes] = useState("");
   const [draft, setDraft] = useState("");
@@ -53,31 +62,46 @@ export default function GamePlanTab() {
 
   const loadPlan = useCallback(async (d: string) => {
     setLoading(true);
-    const [p, s] = await Promise.all([
-      supabase.from("game_plans").select("id,plan_date,headline,notes").eq("plan_date", d).maybeSingle(),
-      supabase.from("schedule_entries").select("id,label,job_id,jobs(job_name,customer,location)").eq("entry_date", d).order("sort"),
-    ]);
-    const row = (p.data as Plan | null) ?? null;
-    setPlan(row);
-    setHeadline(row?.headline ?? "");
-    setNotes(row?.notes ?? "");
-    setSched(((s.data as unknown) as Sched[]) ?? []);
-    if (row) {
-      const it = await supabase.from("game_plan_items").select("*").eq("plan_id", row.id).order("sort_order").order("created_at");
-      setItems((it.data as Item[]) ?? []);
-    } else {
-      setItems([]);
+    setErr(null);
+    try {
+      const [p, s] = await withTimeout(Promise.all([
+        supabase.from("game_plans").select("id,plan_date,headline,notes").eq("plan_date", d).maybeSingle(),
+        supabase.from("schedule_entries").select("id,label,job_id,jobs(job_name,customer,location)").eq("entry_date", d).order("sort"),
+      ]));
+      const e = firstError(p, s);
+      if (e) throw new Error(e);
+      const row = (p.data as Plan | null) ?? null;
+      setPlan(row);
+      setHeadline(row?.headline ?? "");
+      setNotes(row?.notes ?? "");
+      setSched(((s.data as unknown) as Sched[]) ?? []);
+      if (row) {
+        const it = await withTimeout(supabase.from("game_plan_items").select("*").eq("plan_id", row.id).order("sort_order").order("created_at"));
+        if (it.error) throw new Error(it.error.message);
+        setItems((it.data as Item[]) ?? []);
+      } else {
+        setItems([]);
+      }
+      setLoading(false);
+    } catch (e: any) {
+      setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? "Couldn't load the game plan.");
     }
-    setLoading(false);
   }, [supabase]);
 
   const loadSide = useCallback(async () => {
-    const [j, r] = await Promise.all([
-      supabase.from("jobs").select("id,job_name,customer,location,job,status,paid_date,priority").order("customer"),
-      supabase.from("game_plans").select("plan_date").order("plan_date", { ascending: false }).limit(14),
-    ]);
-    setJobs((j.data as unknown as Job[]) ?? []);
-    setRecent((r.data as { plan_date: string }[]) ?? []);
+    try {
+      const [j, r] = await withTimeout(Promise.all([
+        supabase.from("jobs").select("id,job_name,customer,location,job,status,paid_date,priority").order("customer"),
+        supabase.from("game_plans").select("plan_date").order("plan_date", { ascending: false }).limit(14),
+      ]));
+      const e = firstError(j, r);
+      if (e) throw new Error(e);
+      setJobs((j.data as unknown as Job[]) ?? []);
+      setRecent((r.data as { plan_date: string }[]) ?? []);
+    } catch (e: any) {
+      // side data (job list, recent plans) is optional — the plan itself still works
+      showError("Couldn't load jobs list: " + (e?.message === "timeout" ? "no response" : e?.message));
+    }
   }, [supabase]);
 
   useEffect(() => { loadSide(); }, [loadSide]);
@@ -95,7 +119,7 @@ export default function GamePlanTab() {
       .insert({ plan_date: date, headline: headline.trim() || null })
       .select("id,plan_date,headline,notes")
       .single();
-    if (error) { alert("Could not start the game plan: " + error.message); return null; }
+    if (error) { showError("Could not start the game plan: " + error.message); return null; }
     const row = data as Plan;
     setPlan(row);
     loadSide();
@@ -110,7 +134,7 @@ export default function GamePlanTab() {
     const base = items.length ? Math.max(...items.map((i) => i.sort_order)) + 1 : 0;
     const rows = lines.map((body, idx) => ({ plan_id: p.id, body, job_id: draftJob || null, sort_order: base + idx }));
     const { error } = await supabase.from("game_plan_items").insert(rows);
-    if (error) { alert("Add failed: " + error.message); return; }
+    if (error) { showError("Add failed: " + error.message); return; }
     setDraft(""); setDraftJob("");
     loadPlan(date);
   }
@@ -152,16 +176,16 @@ export default function GamePlanTab() {
   async function carryOver() {
     const prev = await supabase.from("game_plans").select("id,plan_date").lt("plan_date", date).order("plan_date", { ascending: false }).limit(1).maybeSingle();
     const prevPlan = prev.data as { id: string; plan_date: string } | null;
-    if (!prevPlan) { alert("No earlier game plan to pull from."); return; }
+    if (!prevPlan) { showToast("No earlier game plan to pull from."); return; }
     const left = await supabase.from("game_plan_items").select("body,job_id,sort_order").eq("plan_id", prevPlan.id).eq("done", false).order("sort_order");
     const rows = (left.data as { body: string; job_id: string | null; sort_order: number }[]) ?? [];
-    if (!rows.length) { alert(`Nothing was left open on ${shortDate(prevPlan.plan_date)}.`); return; }
-    if (!confirm(`Bring over ${rows.length} unfinished line${rows.length === 1 ? "" : "s"} from ${shortDate(prevPlan.plan_date)}?`)) return;
+    if (!rows.length) { showToast(`Nothing was left open on ${shortDate(prevPlan.plan_date)}.`); return; }
+    if (!(await ask({ title: `Bring over ${rows.length} unfinished line${rows.length === 1 ? "" : "s"} from ${shortDate(prevPlan.plan_date)}?`, confirm: "Bring over" }))) return;
     const p = await ensurePlan();
     if (!p) return;
     const base = items.length ? Math.max(...items.map((i) => i.sort_order)) + 1 : 0;
     const { error } = await supabase.from("game_plan_items").insert(rows.map((r, idx) => ({ plan_id: p.id, body: r.body, job_id: r.job_id, sort_order: base + idx })));
-    if (error) { alert("Carry-over failed: " + error.message); return; }
+    if (error) { showError("Carry-over failed: " + error.message); return; }
     loadPlan(date);
   }
 
@@ -177,123 +201,140 @@ export default function GamePlanTab() {
 
   async function deletePlan() {
     if (!plan) return;
-    if (!confirm(`Delete the whole game plan for ${shortDate(date)}? Every line goes with it.`)) return;
+    if (!(await ask({ title: `Delete the whole game plan for ${shortDate(date)}?`, body: "Every line goes with it.", confirm: "Delete plan", danger: true }))) return;
     await supabase.from("game_plans").delete().eq("id", plan.id);
     setPlan(null); setItems([]); setHeadline(""); setNotes("");
     loadSide();
   }
 
-  const input = "rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
   const isToday = date === todayISO();
+  const openCount = items.length - doneCount;
+
+  const header = (
+    <PageHeader
+      title="Game plan"
+      sub={`${longDate(date)} · ${isToday ? "Today" : plan ? "Saved plan" : "No plan yet"}`}
+      actions={<>
+        <Button variant="outline" size="icon" onClick={() => setDate(shiftDate(date, -1))} aria-label="Previous day"><ChevronLeft size={18} /></Button>
+        <Input type="date" aria-label="Pick a date" className="w-[160px]" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
+        <Button variant="outline" size="icon" onClick={() => setDate(shiftDate(date, 1))} aria-label="Next day"><ChevronRight size={18} /></Button>
+        {!isToday ? <Button variant="outline" onClick={() => setDate(todayISO())}>Today</Button> : null}
+      </>}
+    />
+  );
+
+  if (err) return <div>{header}<LoadError message={err} onRetry={() => { loadPlan(date); loadSide(); }} /></div>;
 
   return (
-    <div className="space-y-4">
-      {/* Date bar */}
-      <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-3.5">
-        <div className="flex items-center gap-2">
-          <button onClick={() => setDate(shiftDate(date, -1))} aria-label="Previous day"
-            className="w-9 h-9 shrink-0 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-bold">‹</button>
-          <div className="flex-1 min-w-0 text-center">
-            <div className="text-sm font-extrabold text-white truncate">{longDate(date)}</div>
-            <div className="text-xs text-neutral-400">{isToday ? "Today" : plan ? "Saved plan" : "No plan yet"}</div>
-          </div>
-          <button onClick={() => setDate(shiftDate(date, 1))} aria-label="Next day"
-            className="w-9 h-9 shrink-0 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-bold">›</button>
-        </div>
-        <div className="flex gap-2 mt-2.5">
-          <input type="date" className={`${input} flex-1 min-w-0`} value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
-          {!isToday ? <button onClick={() => setDate(todayISO())} className="rounded-lg border border-neutral-700 px-3 text-sm font-semibold text-neutral-200">Today</button> : null}
-        </div>
-      </div>
+    <div>
+      {header}
 
-      {/* Headline + progress */}
-      <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-3.5 space-y-2.5">
-        <input className={`${input} w-full font-semibold`} placeholder="Game plan for the day — one line (optional)"
-          value={headline} onChange={(e) => setHeadline(e.target.value)} onBlur={saveHeader} />
-        {items.length ? (
-          <div>
-            <div className="flex items-baseline justify-between text-sm font-semibold text-neutral-300 mb-1">
-              <span>{doneCount} of {items.length} done</span><span className="tabular-nums">{pct}%</span>
-            </div>
-            <div className="h-2 rounded-full bg-neutral-800 overflow-hidden">
-              <div className="h-full bg-emerald-400 transition-all" style={{ width: pct + "%" }} />
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      {/* Add lines */}
-      <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-3.5 space-y-2.5">
-        <textarea className={`${input} w-full h-24 resize-y`} placeholder={"Everything that needs to get done…\nOne per line — paste a whole list and each line becomes its own item."}
-          value={draft} onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addItems(); }} />
-        <div className="flex gap-2">
-          <JobPicker jobs={jobs} value={draftJob} onChange={setDraftJob} className="flex-1 min-w-0" />
-          <button onClick={addItems} className="rounded-lg bg-white text-neutral-900 px-4 text-sm font-semibold">Add</button>
+      {!loading || items.length ? (
+        <div className="mb-5 grid grid-cols-3 gap-3">
+          <Stat label="Lines" value={items.length} />
+          <Stat label="Done" value={doneCount} tone={items.length && doneCount === items.length ? "ok" : undefined} hint={items.length ? `${pct}%` : undefined} />
+          <Stat label="Still open" value={openCount} tone={openCount ? "warn" : undefined} />
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={carryOver} className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-semibold text-neutral-300">Carry over unfinished</button>
-          {plan ? <button onClick={deletePlan} className="rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs font-semibold text-neutral-500 hover:text-red-400">Delete this plan</button> : null}
-          {saving ? <span className="text-xs text-neutral-500 self-center">Saving…</span> : null}
-        </div>
-      </div>
+      ) : null}
 
-      {/* On the schedule that day */}
-      {sched.length ? (
-        <div>
-          <div className="pb-1.5 text-sm font-semibold text-neutral-300">On the schedule</div>
-          <div className="space-y-2">
-            {sched.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 rounded-xl bg-white/[0.05] px-3.5 py-2.5">
-                <span className="w-2 h-2 rounded-full bg-neutral-400 shrink-0" />
-                <span className="flex-1 min-w-0 truncate text-sm text-neutral-300">{s.jobs ? jobLabel(s.jobs) : s.label}</span>
-                <button onClick={() => addSchedLine(s)} className="shrink-0 text-xs font-semibold text-neutral-300">+ Add</button>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-5">
+          {/* Headline + progress */}
+          <Card className="space-y-3 p-3.5">
+            <Input className="font-semibold" placeholder="Game plan for the day — one line (optional)"
+              value={headline} onChange={(e) => setHeadline(e.target.value)} onBlur={saveHeader} />
+            {items.length ? (
+              <div>
+                <div className="mb-1 flex items-baseline justify-between text-sm font-semibold text-neutral-300">
+                  <span>{doneCount} of {items.length} done</span><span className="tabular-nums">{pct}%</span>
+                </div>
+                <Progress value={pct} tone="ok" className="h-2" />
               </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+            ) : null}
+          </Card>
 
-      {/* The plan */}
-      {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
-      {!loading && !items.length ? (
-        <p className="text-neutral-400 text-sm">Nothing written down for {shortDate(date)} yet — type the day out above.</p>
-      ) : null}
-      <div className="space-y-2">
-        {items.map((it) => (
-          <div key={it.id} className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-neutral-900 px-3.5 py-3">
-            <button onClick={() => toggle(it)} aria-label="Toggle done"
-              className={`w-5 h-5 mt-0.5 shrink-0 rounded-md border flex items-center justify-center text-xs ${it.done ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300" : "border-neutral-600 text-transparent"}`}>✓</button>
-            <div className="flex-1 min-w-0">
-              <div className={`text-sm whitespace-pre-wrap break-words ${it.done ? "line-through text-neutral-400" : "text-white"}`}>{it.body}</div>
-              {it.job_id && jobById[it.job_id] ? <div className="text-xs text-neutral-400 truncate">{jobLabel(jobById[it.job_id])}</div> : null}
+          {/* Add lines */}
+          <Card className="space-y-2.5 p-3.5">
+            <Textarea className="h-24 resize-y" placeholder={"Everything that needs to get done…\nOne per line — paste a whole list and each line becomes its own item."}
+              value={draft} onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addItems(); }} />
+            <div className="flex gap-2">
+              <JobPicker jobs={jobs} value={draftJob} onChange={setDraftJob} className="min-w-0 flex-1" />
+              <Button onClick={addItems} disabled={!draft.trim()} className="shrink-0"><Plus size={16} /> Add</Button>
             </div>
-            <button onClick={() => remove(it)} className="shrink-0 text-neutral-500 hover:text-red-400 text-sm" aria-label="Delete">✕</button>
-          </div>
-        ))}
-      </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" className="h-10" onClick={carryOver}><History size={15} /> Carry over unfinished</Button>
+              {plan ? <Button variant="ghost" size="sm" className="h-10 text-neutral-500 hover:text-red-300" onClick={deletePlan}><Trash2 size={15} /> Delete this plan</Button> : null}
+              {saving ? <span className="text-xs text-neutral-500">Saving…</span> : null}
+            </div>
+          </Card>
 
-      {/* Notes */}
-      <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-3.5">
-        <div className="pb-1.5 text-sm font-semibold text-neutral-300">Notes for the day</div>
-        <textarea className={`${input} w-full h-24 resize-y`} placeholder="Anything that isn't a checkbox — who's on what, what to watch, what to order."
-          value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveHeader} />
-      </div>
-
-      {/* Recent plans */}
-      {recent.length ? (
-        <div>
-          <div className="pb-1.5 text-sm font-semibold text-neutral-300">Recent game plans</div>
-          <div className="flex flex-wrap gap-2">
-            {recent.map((r) => (
-              <button key={r.plan_date} onClick={() => setDate(r.plan_date)}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${r.plan_date === date ? "border-neutral-400 bg-neutral-800 text-white" : "border-white/[0.08] bg-neutral-950 text-neutral-400"}`}>
-                {shortDate(r.plan_date)}
-              </button>
-            ))}
-          </div>
+          {/* The plan */}
+          <section>
+            <SectionTitle>The plan{items.length ? <span className="ml-1.5 text-sm font-normal text-neutral-500">{items.length}</span> : null}</SectionTitle>
+            {loading && !items.length ? <ListSkeleton /> : null}
+            {!loading && !items.length ? (
+              <Empty icon={<ClipboardList size={26} />} title={`Nothing written down for ${shortDate(date)} yet`} body="Type the day out above, or carry over what was left open last time." />
+            ) : null}
+            <div className="space-y-2">
+              {items.map((it) => (
+                <Card key={it.id} className="flex items-start gap-2 px-2 py-1.5">
+                  <button onClick={() => toggle(it)} aria-label="Toggle done" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-accent">
+                    <span className={cn("flex h-5 w-5 items-center justify-center rounded-md border", it.done ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-300" : "border-neutral-600 text-transparent hover:text-neutral-500")}>
+                      <Check size={13} strokeWidth={3} />
+                    </span>
+                  </button>
+                  <div className="min-w-0 flex-1 py-2">
+                    <div className={cn("whitespace-pre-wrap break-words text-sm", it.done ? "text-neutral-400 line-through" : "text-white")}>{it.body}</div>
+                    {it.job_id && jobById[it.job_id] ? <div className="truncate text-xs text-neutral-400">{jobLabel(jobById[it.job_id])}</div> : null}
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => remove(it)} aria-label="Delete" className="shrink-0 text-neutral-500 hover:text-red-300"><X size={16} /></Button>
+                </Card>
+              ))}
+            </div>
+          </section>
         </div>
-      ) : null}
+
+        <aside className="space-y-4 lg:sticky lg:top-[76px]">
+          {/* On the schedule that day */}
+          {sched.length ? (
+            <Card className="p-4">
+              <h3 className="mb-2 text-[15px] font-semibold text-white">On the schedule</h3>
+              <div className="space-y-1">
+                {sched.map((s) => (
+                  <div key={s.id} className="flex items-center gap-2.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-400" />
+                    <span className="min-w-0 flex-1 truncate text-sm text-neutral-300">{s.jobs ? jobLabel(s.jobs) : s.label}</span>
+                    <Button variant="ghost" size="sm" className="h-10 shrink-0" onClick={() => addSchedLine(s)}><Plus size={14} /> Add</Button>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
+          {/* Notes */}
+          <Card className="p-4">
+            <h3 className="mb-2 text-[15px] font-semibold text-white">Notes for the day</h3>
+            <Textarea className="h-28 resize-y" placeholder="Anything that isn't a checkbox — who's on what, what to watch, what to order."
+              value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveHeader} />
+          </Card>
+
+          {/* Recent plans */}
+          {recent.length ? (
+            <Card className="p-4">
+              <h3 className="mb-2 text-[15px] font-semibold text-white">Recent game plans</h3>
+              <div className="flex flex-wrap gap-2">
+                {recent.map((r) => (
+                  <Button key={r.plan_date} size="sm" variant="outline" onClick={() => setDate(r.plan_date)}
+                    className={cn("h-9", r.plan_date === date && "border-white bg-white text-neutral-900 hover:bg-neutral-200")}>
+                    {shortDate(r.plan_date)}
+                  </Button>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+        </aside>
+      </div>
     </div>
   );
 }

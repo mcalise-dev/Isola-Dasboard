@@ -2,6 +2,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtDate } from "@/lib/format";
+import { showError, showToast, undoable } from "@/components/Toaster";
+import { askText } from "@/components/Dialogs";
+import { withTimeout, firstError } from "@/lib/load";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Input, Textarea, Field } from "@/components/ui/input";
+import { PageHeader, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
+import { cn } from "@/lib/utils";
+import { Plus, X, Search, Star, MapPin, Phone, ClipboardCheck, Send, CalendarCheck, Ban, Trash2, UserPlus } from "lucide-react";
 
 const emptyLead = {
   job_name: "", customer: "", location: "", job: "",
@@ -16,22 +26,28 @@ const daysSince = (iso: string | null) => {
 
 export default function LeadsTab() {
   const supabase = useMemo(() => createClient(), []);
-  const [leads, setLeads] = useState<any[]>([]);
+  const [leads, setLeads] = useState<any[] | null>(null);
   const [visits, setVisits] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState<any>({ ...emptyLead });
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
 
   async function load() {
-    const [j, v] = await Promise.all([
-      supabase.from("jobs").select("*").eq("status", "lead").order("priority", { ascending: false }).order("created_at", { ascending: true }),
-      supabase.from("site_visits").select("job_id,visit_date"),
-    ]);
-    setLeads(j.data ?? []);
-    setVisits(v.data ?? []);
-    setLoading(false);
+    setErr(null);
+    try {
+      const [j, v] = await withTimeout(Promise.all([
+        supabase.from("jobs").select("*").eq("status", "lead").order("priority", { ascending: false }).order("created_at", { ascending: true }),
+        supabase.from("site_visits").select("job_id,visit_date"),
+      ]));
+      const e = firstError(j, v);
+      if (e) throw new Error(e);
+      setLeads(j.data ?? []);
+      setVisits(v.data ?? []);
+    } catch (e: any) {
+      setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
+    }
   }
   useEffect(() => { load(); }, []);
 
@@ -44,23 +60,24 @@ export default function LeadsTab() {
     return m;
   }, [visits]);
 
-  const shown = leads.filter((l) => {
+  const shown = (leads ?? []).filter((l) => {
     if (!q) return true;
     const hay = `${l.job_name ?? ""} ${l.customer ?? ""} ${l.location ?? ""} ${l.job ?? ""} ${l.notes ?? ""}`.toLowerCase();
     return hay.includes(q.toLowerCase());
   });
 
   async function addLead() {
-    if (!form.job_name.trim() && !form.customer.trim()) { alert("Give it a job name or a customer."); return; }
+    if (!form.job_name.trim() && !form.customer.trim()) { showError("Give it a job name or a customer."); return; }
     setBusy(true);
     const payload: any = { ...form, status: "lead", updated_at: new Date().toISOString() };
     Object.keys(payload).forEach((k) => { if (payload[k] === "") payload[k] = null; });
     if (!payload.job_name) payload.job_name = payload.customer;
     const { error } = await supabase.from("jobs").insert(payload);
     setBusy(false);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     setForm({ ...emptyLead });
     setAdding(false);
+    showToast("Lead saved");
     load();
   }
 
@@ -68,8 +85,13 @@ export default function LeadsTab() {
     const patch: any = { status, updated_at: new Date().toISOString() };
     if (lost_reason) patch.lost_reason = lost_reason;
     const { error } = await supabase.from("jobs").update(patch).eq("id", l.id);
-    if (error) { alert("Update failed: " + error.message); return; }
+    if (error) { showError("Update failed: " + error.message); return; }
     load();
+  }
+
+  async function markLost(l: any) {
+    const r = await askText({ title: "Why is it dead?", body: "Price, no response, not our work…", initial: "No go", confirm: "Mark lost" });
+    if (r !== null) move(l, "lost", r || "No go");
   }
 
   async function togglePriority(l: any) {
@@ -77,108 +99,123 @@ export default function LeadsTab() {
     load();
   }
 
-  async function remove(l: any) {
-    if (!confirm(`Delete lead ${l.job_name ?? l.customer}? This can't be undone.`)) return;
-    const { error } = await supabase.from("jobs").delete().eq("id", l.id);
-    if (error) { alert("Delete failed: " + error.message); return; }
-    load();
+  function remove(l: any) {
+    const before = leads ?? [];
+    undoable({
+      text: `Deleted lead ${l.job_name ?? l.customer}`,
+      hide: () => setLeads(before.filter((x) => x.id !== l.id)),
+      restore: () => setLeads(before),
+      commit: () => supabase.from("jobs").delete().eq("id", l.id),
+    });
   }
-
-  const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-sm font-semibold text-neutral-400 mb-1";
-  const btn = "rounded-lg border border-neutral-600 py-1.5 text-center text-xs font-semibold text-white";
 
   const walked = shown.filter((l) => visitByJob[l.id]);
   const notWalked = shown.filter((l) => !visitByJob[l.id]);
 
+  const header = (
+    <PageHeader
+      title="To quote"
+      sub="Work that hasn't gone out yet — go look, then send the proposal."
+      actions={
+        <Button onClick={() => setAdding(!adding)} variant={adding ? "outline" : "default"}>
+          {adding ? <><X size={16} /> Cancel</> : <><Plus size={16} /> Lead</>}
+        </Button>
+      }
+    />
+  );
+
+  if (err) return <div>{header}<LoadError message={err} onRetry={load} /></div>;
+
   return (
     <div>
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        <div className="rounded-xl border border-neutral-500/30 bg-neutral-500/10 p-3">
-          <div className="text-2xl font-bold text-white leading-none">{notWalked.length}</div>
-          <div className="mt-1 text-sm text-neutral-200">Need a look</div>
-        </div>
-        <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-3">
-          <div className="text-2xl font-bold text-white leading-none">{walked.length}</div>
-          <div className="mt-1 text-sm text-neutral-400">Walked, needs proposal</div>
-        </div>
+      {header}
+
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <Stat label="Need a look" value={leads ? notWalked.length : "—"} tone={notWalked.length ? "warn" : undefined} />
+        <Stat label="Walked, needs proposal" value={leads ? walked.length : "—"} />
       </div>
 
-      <div className="flex gap-2 mb-4">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search To Quote…" className={input} />
-        <button onClick={() => setAdding(!adding)} className="shrink-0 rounded-lg bg-white text-neutral-900 px-3 text-sm font-semibold">{adding ? "Cancel" : "+ Lead"}</button>
+      <div className="relative mb-4">
+        <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search To Quote…" className="pl-9" />
       </div>
 
       {adding ? (
-        <div className="mb-4 rounded-xl border border-white/[0.07] bg-neutral-900 p-4 space-y-3">
-          <div><label className={label}>Job Name</label><input className={input} placeholder="e.g. 59 Cedar St" value={form.job_name} onChange={(e) => setForm({ ...form, job_name: e.target.value })} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={label}>Customer</label><input className={input} value={form.customer} onChange={(e) => setForm({ ...form, customer: e.target.value })} /></div>
-            <div><label className={label}>Location</label><input className={input} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
+        <Card className="mb-4 space-y-3 p-4">
+          <Field label="Job Name"><Input placeholder="e.g. 59 Cedar St" value={form.job_name} onChange={(e) => setForm({ ...form, job_name: e.target.value })} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Customer"><Input value={form.customer} onChange={(e) => setForm({ ...form, customer: e.target.value })} /></Field>
+            <Field label="Location"><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></Field>
+            <Field label="Job Type"><Input placeholder="Concrete, wall…" value={form.job} onChange={(e) => setForm({ ...form, job: e.target.value })} /></Field>
+            <Field label="Contact"><Input value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} /></Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={label}>Job Type</label><input className={input} placeholder="Concrete, wall…" value={form.job} onChange={(e) => setForm({ ...form, job: e.target.value })} /></div>
-            <div><label className={label}>Contact</label><input className={input} value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} /></div>
-          </div>
-          <div><label className={label}>Phone</label><input className={input} inputMode="tel" value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} /></div>
-          <div><label className={label}>Notes</label><textarea rows={2} className={input} placeholder="What they want looked at" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-          <button disabled={busy} onClick={addLead} className="w-full rounded-lg bg-white text-neutral-900 py-2 text-sm font-bold disabled:opacity-50">{busy ? "Saving…" : "Save lead"}</button>
-        </div>
+          <Field label="Phone"><Input inputMode="tel" value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} /></Field>
+          <Field label="Notes"><Textarea rows={2} placeholder="What they want looked at" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
+          <Button disabled={busy} onClick={addLead} className="w-full">{busy ? "Saving…" : "Save lead"}</Button>
+        </Card>
       ) : null}
 
-      {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
-      {!loading && shown.length === 0 ? <p className="text-neutral-400 text-sm">No leads. Anything you still need to go look at goes here.</p> : null}
-
-      <div className="space-y-2.5">
-        {shown.map((l) => {
-          const age = daysSince(l.created_at);
-          const seen = visitByJob[l.id];
-          return (
-            <div key={l.id} className={`bg-neutral-900 border border-white/[0.08] border-l-4 ${seen ? "border-l-emerald-400" : "border-l-neutral-600"} rounded-xl px-4 py-3`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-semibold text-white truncate">
-                    {l.priority ? <span className="text-amber-300 mr-1">★</span> : null}
-                    {l.job_name || l.customer}
+      {!leads ? <ListSkeleton /> : shown.length === 0 ? (
+        <Empty
+          icon={<UserPlus size={26} />}
+          title={q ? "No matches" : "No leads"}
+          body={q ? "Nothing in To Quote matches that search." : "Anything you still need to go look at goes here."}
+          action={!q && !adding ? <Button variant="outline" size="sm" onClick={() => setAdding(true)}><Plus size={15} /> Add a lead</Button> : undefined}
+        />
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {shown.map((l) => {
+            const age = daysSince(l.created_at);
+            const seen = visitByJob[l.id];
+            return (
+              <Card key={l.id} className={cn("flex flex-col border-l-4 px-4 py-3", seen ? "border-l-emerald-400" : "border-l-neutral-600")}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 font-semibold text-white">
+                      {l.priority ? <Star size={14} className="shrink-0 fill-amber-300 text-amber-300" /> : null}
+                      <span className="truncate">{l.job_name || l.customer}</span>
+                    </div>
+                    <div className="truncate text-sm text-neutral-400">{[l.customer, l.location, l.job].filter(Boolean).join(" · ") || "—"}</div>
+                    {l.contact_name || l.contact_phone ? (
+                      <div className="mt-0.5 truncate text-xs text-neutral-400">{[l.contact_name, l.contact_phone].filter(Boolean).join(" · ")}</div>
+                    ) : null}
+                    {l.notes ? <div className="mt-1 whitespace-pre-wrap text-xs text-neutral-400">{l.notes}</div> : null}
                   </div>
-                  <div className="text-sm text-neutral-400 truncate">{[l.customer, l.location, l.job].filter(Boolean).join(" · ") || "—"}</div>
-                  {l.contact_name || l.contact_phone ? (
-                    <div className="text-xs text-neutral-400 truncate mt-0.5">{[l.contact_name, l.contact_phone].filter(Boolean).join(" · ")}</div>
-                  ) : null}
-                  {l.notes ? <div className="text-xs text-neutral-400 mt-1 whitespace-pre-wrap">{l.notes}</div> : null}
-                </div>
-                <div className="shrink-0 text-right">
-                  <button onClick={() => togglePriority(l)} aria-label="Priority" className={`text-lg leading-none ${l.priority ? "text-amber-300" : "text-neutral-500"}`}>★</button>
-                  <div className={`mt-1 text-xs font-bold px-1.5 py-0.5 rounded border ${seen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-neutral-500/30 bg-neutral-500/10 text-neutral-200"}`}>
-                    {seen ? "Walked" : "Go see"}
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => togglePriority(l)} aria-label="Priority">
+                      <Star size={18} className={l.priority ? "fill-amber-300 text-amber-300" : "text-neutral-500"} />
+                    </Button>
+                    <Badge variant={seen ? "success" : "default"}>{seen ? "Walked" : "Go see"}</Badge>
                   </div>
                 </div>
-              </div>
 
-              <div className="mt-1.5 text-xs text-neutral-400">
-                {seen ? `Visited ${fmtDate(seen)}` : age == null ? "" : age === 0 ? "Added today" : `Waiting ${age} day${age === 1 ? "" : "s"}`}
-              </div>
+                <div className="mt-1.5 text-xs text-neutral-400">
+                  {seen ? `Visited ${fmtDate(seen)}` : age == null ? "" : age === 0 ? "Added today" : `Waiting ${age} day${age === 1 ? "" : "s"}`}
+                </div>
 
-              <div className="mt-2.5 grid grid-cols-3 gap-2">
-                {l.location ? (
-                  <a href={`https://maps.google.com/?q=${encodeURIComponent(l.location)}`} target="_blank" rel="noreferrer" className={btn}>Map</a>
-                ) : <span />}
-                {l.contact_phone ? (
-                  <a href={`tel:${String(l.contact_phone).replace(/[^0-9+]/g, "")}`} className={btn}>Call</a>
-                ) : <span />}
-                <a href="/visits" className={btn}>Log visit</a>
-              </div>
+                <div className="mt-auto pt-2.5">
+                  <div className="grid grid-cols-3 gap-2">
+                    {l.location ? (
+                      <Button asChild variant="outline" size="sm" className="h-10"><a href={`https://maps.google.com/?q=${encodeURIComponent(l.location)}`} target="_blank" rel="noreferrer"><MapPin size={14} /> Map</a></Button>
+                    ) : <span />}
+                    {l.contact_phone ? (
+                      <Button asChild variant="outline" size="sm" className="h-10"><a href={`tel:${String(l.contact_phone).replace(/[^0-9+]/g, "")}`}><Phone size={14} /> Call</a></Button>
+                    ) : <span />}
+                    <Button asChild variant="outline" size="sm" className="h-10"><a href="/visits"><ClipboardCheck size={14} /> Log visit</a></Button>
+                  </div>
 
-              <div className="mt-2 grid grid-cols-4 gap-2">
-                <button onClick={() => move(l, "awaiting")} className="rounded-lg bg-white text-neutral-900 py-1.5 text-xs font-bold">Sent</button>
-                <button onClick={() => move(l, "booked")} className={btn}>→ Booked</button>
-                <button onClick={() => { const r = prompt("Why is it dead? (price, no response, not our work…)", "No go"); if (r !== null) move(l, "lost", r || "No go"); }} className={btn}>✕ Lost</button>
-                <button onClick={() => remove(l)} className="rounded-lg border border-red-500/40 py-1.5 text-xs font-semibold text-red-300">Delete</button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                  <div className="mt-2 grid grid-cols-4 gap-2">
+                    <Button size="sm" className="h-10 px-2" onClick={() => move(l, "awaiting")}><Send size={14} /> Sent</Button>
+                    <Button variant="outline" size="sm" className="h-10 px-2" onClick={() => move(l, "booked")}><CalendarCheck size={14} /> Booked</Button>
+                    <Button variant="outline" size="sm" className="h-10 px-2" onClick={() => markLost(l)}><Ban size={14} /> Lost</Button>
+                    <Button variant="destructive" size="sm" className="h-10 px-2" onClick={() => remove(l)} aria-label="Delete"><Trash2 size={14} /><span className="hidden sm:inline">Delete</span></Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       <p className="mt-4 text-xs text-neutral-500">
         To Quote = work that hasn't gone out yet. Log the site visit and the card flips to Walked. Tap Sent once the proposal is out — it moves to Sent and a follow-up task lands on day 3.

@@ -3,6 +3,14 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Job, jobLabel, fmtDate, todayISO } from "@/lib/format";
 import JobPicker from "@/components/JobPicker";
+import { showError, showToast, undoable } from "@/components/Toaster";
+import { withTimeout, firstError } from "@/lib/load";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input, Textarea, Field } from "@/components/ui/input";
+import { PageHeader, Empty, KV, ListSkeleton, LoadError } from "@/components/ui/bits";
+import { Plus, X, ChevronDown, Trash2, ClipboardList } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type Visit = {
   id: string;
@@ -26,115 +34,142 @@ const empty = {
 
 export default function VisitsTab() {
   const supabase = useMemo(() => createClient(), []);
-  const [visits, setVisits] = useState<Visit[]>([]);
+  const [visits, setVisits] = useState<Visit[] | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState<any>({ ...empty, visit_date: todayISO() });
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
 
   async function load() {
-    const [v, j] = await Promise.all([
-      supabase.from("site_visits").select("*").order("visit_date", { ascending: false }).order("created_at", { ascending: false }),
-      supabase.from("jobs").select("id,job_name,customer,location,job,status,paid_date,priority").order("customer"),
-    ]);
-    setVisits((v.data as Visit[]) ?? []);
-    setJobs((j.data as unknown as Job[]) ?? []);
-    setLoading(false);
+    setErr(null);
+    try {
+      const [v, j] = await withTimeout(Promise.all([
+        supabase.from("site_visits").select("*").order("visit_date", { ascending: false }).order("created_at", { ascending: false }),
+        supabase.from("jobs").select("id,job_name,customer,location,job,status,paid_date,priority").order("customer"),
+      ]));
+      const e = firstError(v, j);
+      if (e) throw new Error(e);
+      setVisits((v.data as Visit[]) ?? []);
+      setJobs((j.data as unknown as Job[]) ?? []);
+    } catch (e: any) {
+      setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
+    }
   }
   useEffect(() => { load(); }, []);
   const jobById = useMemo(() => Object.fromEntries(jobs.map((j) => [j.id, j])), [jobs]);
 
   async function save() {
-    if (!form.property_address.trim() && !form.client_company.trim()) { alert("Add at least an address or a client."); return; }
+    if (!form.property_address.trim() && !form.client_company.trim()) { showError("Add at least an address or a client."); return; }
     setBusy(true);
     const payload: any = { ...form };
     Object.keys(payload).forEach((k) => { if (payload[k] === "") payload[k] = null; });
     const { error } = await supabase.from("site_visits").insert(payload);
     setBusy(false);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     setForm({ ...empty, visit_date: todayISO() });
     setAdding(false);
+    showToast("Visit logged");
     load();
   }
 
-  async function remove(v: Visit) {
-    if (!confirm("Delete this site visit?")) return;
-    await supabase.from("site_visits").delete().eq("id", v.id);
-    load();
+  function remove(v: Visit) {
+    const before = visits ?? [];
+    undoable({
+      text: "Deleted site visit",
+      hide: () => setVisits(before.filter((x) => x.id !== v.id)),
+      restore: () => setVisits(before),
+      commit: () => supabase.from("site_visits").delete().eq("id", v.id),
+    });
   }
 
-  const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
-  const label = "block text-sm font-semibold text-neutral-400 mb-1";
+  const header = (
+    <PageHeader
+      title="Site visits"
+      sub="Observed conditions only — no pricing on site records."
+      actions={
+        <Button onClick={() => setAdding(!adding)} variant={adding ? "outline" : "default"}>
+          {adding ? <><X size={16} /> Close</> : <><Plus size={16} /> Visit</>}
+        </Button>
+      }
+    />
+  );
+
+  if (err) return <div>{header}<LoadError message={err} onRetry={load} /></div>;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-neutral-400">Observed conditions only — no pricing on site records.</p>
-        <button onClick={() => setAdding(!adding)} className="rounded-lg bg-white text-neutral-900 px-3.5 py-2 text-sm font-semibold shrink-0">
-          {adding ? "Close" : "+ Visit"}
-        </button>
-      </div>
+      {header}
 
       {adding ? (
-        <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-4 mb-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={label}>Date</label><input type="date" className={input} value={form.visit_date} onChange={(e) => setForm({ ...form, visit_date: e.target.value })} /></div>
-            <div><label className={label}>Weather</label><input className={input} value={form.weather} onChange={(e) => setForm({ ...form, weather: e.target.value })} /></div>
+        <Card className="mb-4 space-y-3 p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Date"><Input type="date" value={form.visit_date} onChange={(e) => setForm({ ...form, visit_date: e.target.value })} /></Field>
+            <Field label="Weather"><Input value={form.weather} onChange={(e) => setForm({ ...form, weather: e.target.value })} /></Field>
           </div>
-          <div><label className={label}>Property Address</label><input className={input} value={form.property_address} onChange={(e) => setForm({ ...form, property_address: e.target.value })} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={label}>Client / Company</label><input className={input} value={form.client_company} onChange={(e) => setForm({ ...form, client_company: e.target.value })} /></div>
-            <div><label className={label}>Met With</label><input className={input} value={form.met_with} onChange={(e) => setForm({ ...form, met_with: e.target.value })} /></div>
+          <Field label="Property Address"><Input value={form.property_address} onChange={(e) => setForm({ ...form, property_address: e.target.value })} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Client / Company"><Input value={form.client_company} onChange={(e) => setForm({ ...form, client_company: e.target.value })} /></Field>
+            <Field label="Met With"><Input value={form.met_with} onChange={(e) => setForm({ ...form, met_with: e.target.value })} /></Field>
           </div>
-          <div><label className={label}>Linked Job</label>
+          <Field label="Linked Job">
             <JobPicker jobs={jobs} value={form.job_id} onChange={(id) => setForm({ ...form, job_id: id })} />
+          </Field>
+          <Field label="Purpose"><Input value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /></Field>
+          <Field label="Dimensions"><Input value={form.dimensions} onChange={(e) => setForm({ ...form, dimensions: e.target.value })} /></Field>
+          <Field label="Observed Conditions"><Textarea rows={3} value={form.observed_conditions} onChange={(e) => setForm({ ...form, observed_conditions: e.target.value })} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Photos Taken"><Input value={form.photos_taken} onChange={(e) => setForm({ ...form, photos_taken: e.target.value })} /></Field>
+            <Field label="Follow-up Needed"><Input value={form.follow_up_needed} onChange={(e) => setForm({ ...form, follow_up_needed: e.target.value })} /></Field>
           </div>
-          <div><label className={label}>Purpose</label><input className={input} value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /></div>
-          <div><label className={label}>Dimensions</label><input className={input} value={form.dimensions} onChange={(e) => setForm({ ...form, dimensions: e.target.value })} /></div>
-          <div><label className={label}>Observed Conditions</label><textarea rows={3} className={input} value={form.observed_conditions} onChange={(e) => setForm({ ...form, observed_conditions: e.target.value })} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={label}>Photos Taken</label><input className={input} value={form.photos_taken} onChange={(e) => setForm({ ...form, photos_taken: e.target.value })} /></div>
-            <div><label className={label}>Follow-up Needed</label><input className={input} value={form.follow_up_needed} onChange={(e) => setForm({ ...form, follow_up_needed: e.target.value })} /></div>
-          </div>
-          <button onClick={save} disabled={busy} className="w-full rounded-lg bg-white text-neutral-900 py-2.5 text-sm font-semibold disabled:opacity-60">
-            {busy ? "Saving…" : "Log Visit"}
-          </button>
-        </div>
+          <Button onClick={save} disabled={busy} className="w-full">{busy ? "Saving…" : "Log Visit"}</Button>
+        </Card>
       ) : null}
 
-      {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
-      {!loading && visits.length === 0 ? <p className="text-neutral-400 text-sm">No site visits logged yet.</p> : null}
-
-      <div className="space-y-2.5">
-        {visits.map((v) => (
-          <div key={v.id} className="rounded-xl border border-white/[0.07] bg-neutral-900">
-            <button className="w-full text-left px-4 py-3" onClick={() => setOpen(open === v.id ? null : v.id)}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-semibold text-white truncate">{v.property_address ?? v.client_company ?? "Site visit"}</div>
-                  <div className="text-xs text-neutral-400 truncate">
+      {!visits ? <ListSkeleton /> : visits.length === 0 ? (
+        <Empty
+          icon={<ClipboardList size={26} />}
+          title="No site visits logged yet"
+          body="Log what you saw on site — dimensions, conditions, who you met."
+          action={!adding ? <Button variant="outline" size="sm" onClick={() => setAdding(true)}><Plus size={15} /> Log a visit</Button> : undefined}
+        />
+      ) : (
+        <div className="grid items-start gap-3 md:grid-cols-2">
+          {visits.map((v) => (
+            <Card key={v.id}>
+              <button className="flex min-h-[56px] w-full items-start gap-3 px-4 py-3 text-left" onClick={() => setOpen(open === v.id ? null : v.id)} aria-expanded={open === v.id}>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold text-white">{v.property_address ?? v.client_company ?? "Site visit"}</div>
+                  <div className="truncate text-xs text-neutral-400">
                     {[fmtDate(v.visit_date), v.client_company, v.purpose].filter(Boolean).join(" · ")}
                   </div>
                 </div>
-              </div>
-            </button>
-            {open === v.id ? (
-              <div className="border-t border-white/[0.08] px-4 py-3 text-sm space-y-1.5">
-                {v.met_with ? <p><span className="text-neutral-400">Met with:</span> {v.met_with}</p> : null}
-                {v.job_id && jobById[v.job_id] ? <p><span className="text-neutral-400">Job:</span> {jobLabel(jobById[v.job_id])}</p> : null}
-                {v.weather ? <p><span className="text-neutral-400">Weather:</span> {v.weather}</p> : null}
-                {v.dimensions ? <p className="whitespace-pre-wrap"><span className="text-neutral-400">Dimensions:</span> {v.dimensions}</p> : null}
-                {v.observed_conditions ? <p className="whitespace-pre-wrap"><span className="text-neutral-400">Observed:</span> {v.observed_conditions}</p> : null}
-                {v.photos_taken ? <p><span className="text-neutral-400">Photos:</span> {v.photos_taken}</p> : null}
-                {v.follow_up_needed ? <p><span className="text-neutral-400">Follow-up:</span> {v.follow_up_needed}</p> : null}
-                <button onClick={() => remove(v)} className="mt-1.5 rounded-lg border border-red-900 px-2.5 py-1 text-xs text-red-400">Delete</button>
-              </div>
-            ) : null}
-          </div>
-        ))}
-      </div>
+                <ChevronDown size={16} className={cn("mt-1 shrink-0 text-neutral-500 transition-transform", open === v.id && "rotate-180")} />
+              </button>
+              {open === v.id ? (
+                <div className="border-t border-border px-4 py-2 text-sm">
+                  {v.met_with ? <KV k="Met with">{v.met_with}</KV> : null}
+                  {v.job_id && jobById[v.job_id] ? <KV k="Job">{jobLabel(jobById[v.job_id])}</KV> : null}
+                  {v.weather ? <KV k="Weather">{v.weather}</KV> : null}
+                  {v.dimensions ? <KV k="Dimensions"><span className="whitespace-pre-wrap">{v.dimensions}</span></KV> : null}
+                  {v.observed_conditions ? (
+                    <div className="border-b border-white/[0.05] py-2">
+                      <div className="text-neutral-400">Observed</div>
+                      <p className="mt-0.5 whitespace-pre-wrap text-neutral-100">{v.observed_conditions}</p>
+                    </div>
+                  ) : null}
+                  {v.photos_taken ? <KV k="Photos">{v.photos_taken}</KV> : null}
+                  {v.follow_up_needed ? <KV k="Follow-up">{v.follow_up_needed}</KV> : null}
+                  <div className="pt-2">
+                    <Button variant="destructive" size="sm" onClick={() => remove(v)}><Trash2 size={14} /> Delete</Button>
+                  </div>
+                </div>
+              ) : null}
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

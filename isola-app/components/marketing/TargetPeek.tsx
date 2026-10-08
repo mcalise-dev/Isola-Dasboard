@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, NativeSelect, Textarea, Label } from "@/components/ui/input";
 import { KV, Skeleton } from "@/components/ui/bits";
-import { showToast, undoable } from "@/components/Toaster";
+import { showToast, undoable, showError } from "@/components/Toaster";
 import { cn } from "@/lib/utils";
 import {
   MContact, Campaign, Activity, TOUCHES, stepsOf, nextStep, logTouch, rel, shortDate, dueTone, validEmail, linkedinOf, telOf,
@@ -47,7 +47,7 @@ export default function TargetPeek({ contact, campaigns, onPatch, onEdit, onDele
   async function save(patch: Partial<MContact>, msg = "Saved") {
     onPatch(c.id, patch);
     const { error } = await sb.from("contacts").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", c.id);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     changed();
     showToast(msg);
   }
@@ -60,7 +60,7 @@ export default function TargetPeek({ contact, campaigns, onPatch, onEdit, onDele
       setActs((a) => [{ id: "tmp-" + Date.now(), contact_id: c.id, type, note: note.trim() || null, occurred_at: todayISO(), created_at: new Date().toISOString() }, ...(a ?? [])]);
       setNote("");
       showToast(patch.seq_step != null ? `${type} logged · sequence step ${patch.seq_step} done` : `${type} logged`);
-    } catch (e: any) { alert("Could not log: " + e.message); }
+    } catch (e: any) { showError("Could not log: " + e.message); }
     setBusy(null);
   }
 

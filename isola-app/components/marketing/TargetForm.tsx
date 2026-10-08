@@ -5,7 +5,7 @@ import { SECTORS, PTYPES } from "@/lib/crm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Input, NativeSelect, Field, Textarea } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { showToast } from "@/components/Toaster";
+import { showToast, showError } from "@/components/Toaster";
 import { MContact, changed } from "./lib";
 
 const blank = { name: "", company: "", title: "", phone: "", email: "", linkedin: "", tier: "B", sector: "Medical", prospect_type: "Property Manager", next_action: "", next_date: "", buildings: "", angle: "" };
@@ -39,7 +39,7 @@ export default function TargetForm({ open, onOpenChange, contact, defaults, onSa
       ? await sb.from("contacts").update(payload).eq("id", contact.id).select("*").single()
       : await sb.from("contacts").insert({ ...payload, stage: "Not started", li_status: "Not Contacted", em_status: "Not Contacted", industry: f.sector === "Medical" ? "medical property" : null }).select("*").single();
     setBusy(false);
-    if (res.error) { alert("Save failed: " + res.error.message); return; }
+    if (res.error) { showError("Save failed: " + res.error.message); return; }
     showToast(contact ? "Saved" : "Target added");
     changed();
     onSaved(res.data as MContact);

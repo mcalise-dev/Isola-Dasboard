@@ -2,6 +2,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { money, fmtDate } from "@/lib/format";
+import { withTimeout } from "@/lib/load";
+import { Card } from "@/components/ui/card";
+import { PageHeader, SectionTitle, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
+import { cn } from "@/lib/utils";
+import { AlertTriangle, BookOpen } from "lucide-react";
 
 type Entry = {
   id: string;
@@ -17,15 +22,30 @@ type Entry = {
 
 export default function ThmTab() {
   const supabase = useMemo(() => createClient(), []);
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    supabase.from("thm_ledger").select("*").order("bucket").order("sort").then(({ data }) => {
+  async function load() {
+    setErr(null);
+    try {
+      const { data, error } = await withTimeout(supabase.from("thm_ledger").select("*").order("bucket").order("sort"));
+      if (error) throw new Error(error.message);
       setEntries((data as Entry[]) ?? []);
-      setLoading(false);
-    });
-  }, []);
+    } catch (e: any) {
+      setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
+    }
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  const header = (
+    <PageHeader
+      title="THM tab"
+      sub="Running balance with THM — settled against QuickBooks Invoice #94"
+    />
+  );
+
+  if (err) return <div>{header}<LoadError message={err} onRetry={load} /></div>;
+  if (!entries) return <div>{header}<ListSkeleton /></div>;
 
   const inv94 = entries.filter((e) => e.bucket === "inv94");
   const standalone = entries.filter((e) => e.bucket !== "inv94");
@@ -36,12 +56,15 @@ export default function ThmTab() {
 
   function row(e: Entry) {
     return (
-      <div key={e.id} className={`flex items-start gap-3 rounded-xl border px-3.5 py-2.5 ${e.is_open ? "border-amber-500/50 bg-amber-500/5" : "border-white/[0.08] bg-neutral-950"}`}>
+      <div key={e.id} className={cn("flex items-start gap-3 border-b border-border px-4 py-3 last:border-0", e.is_open && "bg-amber-500/[0.06]")}>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-white">{e.description}</div>
-          <div className="text-xs text-neutral-400">{[e.ref, e.entry_date ? fmtDate(e.entry_date) : null].filter(Boolean).join(" · ")}{e.is_open ? " · OPEN — number pending" : ""}</div>
+          <div className="text-xs text-neutral-400">
+            {[e.ref, e.entry_date ? fmtDate(e.entry_date) : null].filter(Boolean).join(" · ")}
+            {e.is_open ? <span className="text-amber-300">{" · OPEN — number pending"}</span> : ""}
+          </div>
         </div>
-        <div className={`shrink-0 text-sm font-bold tabular-nums ${e.side === "owes_isola" ? "text-white" : "text-emerald-300"}`}>
+        <div className={cn("shrink-0 text-sm font-bold tabular-nums", e.side === "owes_isola" ? "text-white" : "text-emerald-300")}>
           {e.is_open ? "—" : (e.side === "owes_thm" ? "−" : "") + money(Number(e.amount))}
         </div>
       </div>
@@ -49,34 +72,39 @@ export default function ThmTab() {
   }
 
   return (
-    <div className="pt-2 space-y-4">
-      <div className="rounded-2xl border border-white/[0.07] bg-neutral-900/95 p-4 text-center">
-        <div className="text-sm font-semibold text-neutral-300">THM owes ISOLA — Invoice #94</div>
-        <div className="text-3xl font-extrabold tabular-nums text-white mt-1">{loading ? "…" : money(inv94Balance)}</div>
-        <div className="text-xs text-neutral-400 mt-1">$40,155.50 opening · {money(sum(inv94, "owes_thm"))} applied</div>
+    <div className="space-y-5">
+      {header}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Stat
+          label="THM owes ISOLA — Invoice #94"
+          value={money(inv94Balance)}
+          hint={`$40,155.50 opening · ${money(sum(inv94, "owes_thm"))} applied`}
+          className="sm:col-span-1"
+        />
         {standalone.length ? (
-          <div className="text-xs text-neutral-400 mt-2 border-t border-white/[0.08] pt-2">
-            Standalone (not part of #94): <span className="font-semibold text-white">{money(standaloneBal)}</span> owed to ISOLA
-          </div>
+          <Stat label="Standalone (not part of #94)" value={money(standaloneBal)} hint="owed to ISOLA" />
         ) : null}
       </div>
 
       {openItems.length ? (
-        <div className="rounded-xl border border-amber-500/40 bg-neutral-900 px-3.5 py-2.5 text-xs text-amber-200">
-          {openItems.length} open item{openItems.length > 1 ? "s" : ""} not in the balance yet — tell Claude the number when you have it.
+        <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-200">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+          <span>{openItems.length} open item{openItems.length > 1 ? "s" : ""} not in the balance yet — tell Claude the number when you have it.</span>
         </div>
       ) : null}
 
-      <div>
-        <div className="text-sm font-semibold text-neutral-300 mb-1.5">Applied against Invoice #94</div>
-        <div className="space-y-1.5">{inv94.map(row)}</div>
-      </div>
+      <section>
+        <SectionTitle>Applied against Invoice #94</SectionTitle>
+        {inv94.length ? <Card className="overflow-hidden">{inv94.map(row)}</Card>
+          : <Empty icon={<BookOpen size={24} />} title="No entries yet" body="Job closeouts, payments and reimbursements against #94 show up here." />}
+      </section>
 
       {standalone.length ? (
-        <div>
-          <div className="text-sm font-semibold text-neutral-300 mb-1.5">Standalone settlements</div>
-          <div className="space-y-1.5">{standalone.map(row)}</div>
-        </div>
+        <section>
+          <SectionTitle>Standalone settlements</SectionTitle>
+          <Card className="overflow-hidden">{standalone.map(row)}</Card>
+        </section>
       ) : null}
 
       <p className="text-xs text-neutral-500">Green negative amounts pay the tab down. To log a new job closeout, payment, or reimbursement, tell Claude — the ledger and this tab stay in sync with QuickBooks Invoice #94.</p>

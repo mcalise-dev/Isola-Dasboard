@@ -3,6 +3,15 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { todayISO, fmtDate, jobLabel } from "@/lib/format";
 import JobPicker from "@/components/JobPicker";
+import { showError, showToast, undoable } from "@/components/Toaster";
+import { withTimeout, firstError } from "@/lib/load";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Input, Textarea, Field } from "@/components/ui/input";
+import { PageHeader, SectionTitle, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
+import { cn } from "@/lib/utils";
+import { Plus, Pencil, Trash2, AlertTriangle, NotebookPen } from "lucide-react";
 
 /* ============================================================
    DAILY LOG — the most standard document in construction, and the
@@ -14,36 +23,33 @@ import JobPicker from "@/components/JobPicker";
    day can be reopened and added to rather than duplicated.
    ============================================================ */
 
-const inp =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none";
-const lbl = "block text-sm font-semibold text-neutral-300 mb-1";
-const btn =
-  "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-200 hover:border-neutral-500";
-const btnPrimary =
-  "rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-neutral-900 hover:bg-neutral-200 disabled:opacity-40";
-const card = "rounded-xl bg-white/[0.05] p-3.5";
-
 const WEATHER = ["Clear", "Cloudy", "Rain", "Snow", "Wind", "Hot", "Cold"];
 
 export default function DailyLogTab() {
   const supabase = useMemo(() => createClient(), []);
-  const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<any[] | null>(null);
   const [jobs, setJobs] = useState<any[]>([]);
   const [workers, setWorkers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
   async function load() {
-    const [l, j, w] = await Promise.all([
-      supabase.from("daily_logs").select("*").order("log_date", { ascending: false }).limit(120),
-      supabase.from("jobs").select("id,job_name,customer,location,job,status,paid_date,priority").neq("status", "complete").order("customer"),
-      supabase.from("workers").select("id,name,active").order("name"),
-    ]);
-    setLogs(l.data ?? []);
-    setJobs(j.data ?? []);
-    setWorkers((w.data ?? []).filter((x: any) => x.active !== false));
-    setLoading(false);
+    setErr(null);
+    try {
+      const [l, j, w] = await withTimeout(Promise.all([
+        supabase.from("daily_logs").select("*").order("log_date", { ascending: false }).limit(120),
+        supabase.from("jobs").select("id,job_name,customer,location,job,status,paid_date,priority").neq("status", "complete").order("customer"),
+        supabase.from("workers").select("id,name,active").order("name"),
+      ]));
+      const e = firstError(l, j, w);
+      if (e) throw new Error(e);
+      setLogs(l.data ?? []);
+      setJobs(j.data ?? []);
+      setWorkers((w.data ?? []).filter((x: any) => x.active !== false));
+    } catch (e: any) {
+      setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
+    }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
@@ -57,8 +63,8 @@ export default function DailyLogTab() {
   }
 
   async function save() {
-    if (!editing.job_id) return alert("Pick the job this log is for.");
-    if (!editing.work_performed?.trim()) return alert("Write what got done — that's the whole point of the log.");
+    if (!editing.job_id) return showError("Pick the job this log is for.");
+    if (!editing.work_performed?.trim()) return showError("Write what got done — that's the whole point of the log.");
     setSaving(true);
     const row: any = {
       job_id: editing.job_id,
@@ -79,15 +85,20 @@ export default function DailyLogTab() {
       ? await supabase.from("daily_logs").update(row).eq("id", editing.id)
       : await supabase.from("daily_logs").upsert(row, { onConflict: "job_id,log_date" });
     setSaving(false);
-    if (error) return alert("Save failed: " + error.message);
+    if (error) return showError("Save failed: " + error.message);
     setEditing(null);
+    showToast("Log saved");
     load();
   }
 
-  async function remove(l: any) {
-    if (!confirm(`Delete the log for ${fmtDate(l.log_date)}?`)) return;
-    await supabase.from("daily_logs").delete().eq("id", l.id);
-    load();
+  function remove(l: any) {
+    const before = logs ?? [];
+    undoable({
+      text: `Deleted the log for ${fmtDate(l.log_date)}`,
+      hide: () => setLogs(before.filter((x) => x.id !== l.id)),
+      restore: () => setLogs(before),
+      commit: () => supabase.from("daily_logs").delete().eq("id", l.id),
+    });
   }
 
   function toggleCrew(name: string) {
@@ -95,18 +106,28 @@ export default function DailyLogTab() {
     setEditing({ ...editing, crew: cur.includes(name) ? cur.filter((c) => c !== name) : [...cur, name] });
   }
 
-  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
+  const header = (
+    <PageHeader
+      title="Daily log"
+      sub="What happened on site, day by day"
+      actions={<Button onClick={startNew}><Plus size={16} /> Log today</Button>}
+    />
+  );
+
+  if (err) return <div>{header}<LoadError message={err} onRetry={load} /></div>;
+  if (!logs) return <div>{header}<ListSkeleton /></div>;
 
   const today = logs.filter((l) => l.log_date === todayISO());
   const earlier = logs.filter((l) => l.log_date !== todayISO());
+  const withDelays = logs.filter((l) => l.delays).length;
 
   function row(l: any) {
     const j = jobById[l.job_id];
     return (
-      <div key={l.id} className={card + " space-y-1.5"}>
+      <Card key={l.id} className="space-y-2 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-white truncate">{j ? jobLabel(j) : "—"}</div>
+            <div className="truncate text-sm font-semibold text-white">{j ? jobLabel(j) : "—"}</div>
             <div className="text-xs text-neutral-400">
               {fmtDate(l.log_date)}
               {l.weather ? ` · ${l.weather}` : ""}
@@ -114,140 +135,129 @@ export default function DailyLogTab() {
               {l.hours_on_site ? ` · ${l.hours_on_site} hrs on site` : ""}
             </div>
           </div>
-          <div className="flex gap-1.5 shrink-0">
-            <button onClick={() => setEditing({ ...l, temp_f: l.temp_f ?? "", hours_on_site: l.hours_on_site ?? "" })} className={btn}>Edit</button>
-            <button onClick={() => remove(l)} className="text-neutral-500 hover:text-red-400 text-sm px-1">✕</button>
+          <div className="flex shrink-0 gap-1">
+            <Button variant="outline" size="icon" onClick={() => setEditing({ ...l, temp_f: l.temp_f ?? "", hours_on_site: l.hours_on_site ?? "" })} aria-label="Edit log"><Pencil size={15} /></Button>
+            <Button variant="ghost" size="icon" onClick={() => remove(l)} aria-label="Delete log" className="text-neutral-500 hover:text-red-400"><Trash2 size={15} /></Button>
           </div>
         </div>
         {l.crew?.length ? (
           <div className="flex flex-wrap gap-1">
-            {l.crew.map((c: string) => (
-              <span key={c} className="rounded-md border border-neutral-700 bg-neutral-900 px-1.5 py-0.5 text-xs font-semibold text-neutral-300">{c}</span>
-            ))}
+            {l.crew.map((c: string) => <Badge key={c}>{c}</Badge>)}
           </div>
         ) : null}
-        <p className="text-sm text-neutral-200 whitespace-pre-wrap">{l.work_performed}</p>
+        <p className="whitespace-pre-wrap text-sm text-neutral-200">{l.work_performed}</p>
         {l.delays ? (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200">
-            <span className="font-bold">Delay:</span> {l.delays}
+          <div className="flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+            <span><span className="font-bold">Delay:</span> {l.delays}</span>
           </div>
         ) : null}
         {l.materials_received ? <p className="text-xs text-neutral-400"><span className="font-bold">Delivered:</span> {l.materials_received}</p> : null}
         {l.visitors ? <p className="text-xs text-neutral-400"><span className="font-bold">On site:</span> {l.visitors}</p> : null}
-        {l.notes ? <p className="text-xs text-neutral-400 whitespace-pre-wrap">{l.notes}</p> : null}
-      </div>
+        {l.notes ? <p className="whitespace-pre-wrap text-xs text-neutral-400">{l.notes}</p> : null}
+      </Card>
     );
   }
 
   return (
-    <div className="pb-28 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold text-white">Daily log</h1>
-          <p className="text-xs text-neutral-400">What happened on site, day by day</p>
+    <div className="space-y-5 pb-28">
+      {header}
+
+      {logs.length ? (
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label="Today" value={today.length} hint={today.length ? "logged" : "nothing yet"} tone={today.length ? "ok" : undefined} />
+          <Stat label="Recent logs" value={logs.length} />
+          <Stat label="With delays" value={withDelays} tone={withDelays ? "warn" : undefined} />
         </div>
-        <button onClick={startNew} className={btnPrimary}>＋ Log today</button>
-      </div>
+      ) : null}
 
       {editing ? (
-        <div className={card + " space-y-3"}>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className={lbl}>Job</label>
+        <Card className="space-y-3 p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Job">
               <JobPicker jobs={jobs} value={editing.job_id ?? ""} onChange={(id) => setEditing({ ...editing, job_id: id })} placeholder="Type to find the job…" />
-            </div>
-            <div>
-              <label className={lbl}>Date</label>
-              <input type="date" className={inp} value={editing.log_date} onChange={(e) => setEditing({ ...editing, log_date: e.target.value })} />
-            </div>
+            </Field>
+            <Field label="Date">
+              <Input type="date" value={editing.log_date} onChange={(e) => setEditing({ ...editing, log_date: e.target.value })} />
+            </Field>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className={lbl}>Weather</label>
-              <input className={inp} list="weather-opts" value={editing.weather} onChange={(e) => setEditing({ ...editing, weather: e.target.value })} />
+            <Field label="Weather">
+              <Input list="weather-opts" value={editing.weather} onChange={(e) => setEditing({ ...editing, weather: e.target.value })} />
               <datalist id="weather-opts">{WEATHER.map((w) => <option key={w} value={w} />)}</datalist>
-            </div>
-            <div>
-              <label className={lbl}>Temp °F</label>
-              <input type="number" inputMode="numeric" className={inp} value={editing.temp_f} onChange={(e) => setEditing({ ...editing, temp_f: e.target.value })} />
-            </div>
-            <div>
-              <label className={lbl}>Hrs on site</label>
-              <input type="number" inputMode="decimal" className={inp} value={editing.hours_on_site} onChange={(e) => setEditing({ ...editing, hours_on_site: e.target.value })} />
-            </div>
+            </Field>
+            <Field label="Temp °F">
+              <Input type="number" inputMode="numeric" value={editing.temp_f} onChange={(e) => setEditing({ ...editing, temp_f: e.target.value })} />
+            </Field>
+            <Field label="Hrs on site">
+              <Input type="number" inputMode="decimal" value={editing.hours_on_site} onChange={(e) => setEditing({ ...editing, hours_on_site: e.target.value })} />
+            </Field>
           </div>
 
-          <div>
-            <label className={lbl}>Who was on site</label>
+          <Field label="Who was on site">
             <div className="flex flex-wrap gap-1.5">
               {workers.map((w) => {
                 const on = (editing.crew ?? []).includes(w.name);
                 return (
-                  <button key={w.id} onClick={() => toggleCrew(w.name)}
-                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${on ? "border-neutral-300 bg-neutral-800 text-white" : "border-neutral-700 bg-neutral-900 text-neutral-400"}`}>
+                  <Button key={w.id} type="button" size="sm" variant="outline" onClick={() => toggleCrew(w.name)} aria-pressed={on}
+                    className={cn("h-10", on ? "border-white/60 bg-white/10 text-white" : "text-neutral-400")}>
                     {w.name}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
-          </div>
+          </Field>
 
-          <div>
-            <label className={lbl}>Work performed</label>
-            <textarea rows={3} className={inp} value={editing.work_performed}
+          <Field label="Work performed">
+            <Textarea rows={3} value={editing.work_performed}
               placeholder="Formed and poured the 24×16 pad, stripped forms on the curb…"
               onChange={(e) => setEditing({ ...editing, work_performed: e.target.value })} />
-          </div>
+          </Field>
 
-          <div>
-            <label className={lbl}>Delays or problems</label>
-            <input className={inp} value={editing.delays} placeholder="Rain until 10, waiting on the gate code…"
+          <Field label="Delays or problems">
+            <Input value={editing.delays} placeholder="Rain until 10, waiting on the gate code…"
               onChange={(e) => setEditing({ ...editing, delays: e.target.value })} />
-          </div>
+          </Field>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className={lbl}>Materials delivered</label>
-              <input className={inp} value={editing.materials_received} onChange={(e) => setEditing({ ...editing, materials_received: e.target.value })} />
-            </div>
-            <div>
-              <label className={lbl}>Visitors</label>
-              <input className={inp} value={editing.visitors} placeholder="Inspector, PM, owner"
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Materials delivered">
+              <Input value={editing.materials_received} onChange={(e) => setEditing({ ...editing, materials_received: e.target.value })} />
+            </Field>
+            <Field label="Visitors">
+              <Input value={editing.visitors} placeholder="Inspector, PM, owner"
                 onChange={(e) => setEditing({ ...editing, visitors: e.target.value })} />
-            </div>
+            </Field>
           </div>
 
           <div className="flex gap-2">
-            <button onClick={save} disabled={saving} className={btnPrimary + " flex-1"}>{saving ? "Saving…" : "Save log"}</button>
-            <button onClick={() => setEditing(null)} className={btn}>Cancel</button>
+            <Button onClick={save} disabled={saving} className="flex-1">{saving ? "Saving…" : "Save log"}</Button>
+            <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
           </div>
-        </div>
+        </Card>
       ) : null}
 
       {today.length ? (
-        <section className="space-y-2">
-          <div className="text-sm font-semibold text-neutral-300">Today</div>
-          {today.map(row)}
+        <section>
+          <SectionTitle>Today</SectionTitle>
+          <div className="grid items-start gap-3 md:grid-cols-2">{today.map(row)}</div>
         </section>
       ) : null}
 
       {earlier.length ? (
-        <section className="space-y-2">
-          <div className="text-sm font-semibold text-neutral-300">Earlier</div>
-          {earlier.map(row)}
+        <section>
+          <SectionTitle>Earlier</SectionTitle>
+          <div className="grid items-start gap-3 md:grid-cols-2">{earlier.map(row)}</div>
         </section>
       ) : null}
 
       {logs.length === 0 && !editing ? (
-        <div className={card}>
-          <div className="text-sm font-semibold text-white">No logs yet.</div>
-          <p className="mt-1 text-xs text-neutral-400 leading-relaxed">
-            One entry per job per day. Two minutes at the truck before you pull out. It's what settles
-            an argument six months from now about who was there, what the weather did, and when the
-            gate was locked.
-          </p>
-        </div>
+        <Empty
+          icon={<NotebookPen size={26} />}
+          title="No logs yet"
+          body="One entry per job per day. Two minutes at the truck before you pull out. It's what settles an argument six months from now about who was there, what the weather did, and when the gate was locked."
+          action={<Button variant="outline" size="sm" onClick={startNew}><Plus size={15} /> Log today</Button>}
+        />
       ) : null}
     </div>
   );

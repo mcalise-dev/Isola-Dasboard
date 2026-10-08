@@ -10,7 +10,7 @@ import {
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { createClient } from "@/lib/supabase/client";
 import { STATUS_META, PIPELINE, stageTag, fmtDate, fmtPrice, parsePrice, daysSince, todayISO } from "@/lib/format";
-import { undoable } from "@/components/Toaster";
+import { undoable, showError } from "@/components/Toaster";
 import { editJob } from "@/components/job/JobForm";
 import { nextStep } from "@/components/job/JobRecord";
 import { Button } from "@/components/ui/button";
@@ -150,7 +150,7 @@ export default function JobsScreen() {
       text,
       hide: () => { setJobs(before.map((x) => (x.id === j.id ? { ...x, ...p } : x))); setPeek((cur: any) => (cur && cur.id === j.id ? { ...cur, ...p } : cur)); },
       restore: () => setJobs(before),
-      commit: async () => { const { error } = await sb.from("jobs").update({ ...p, updated_at: new Date().toISOString() }).eq("id", j.id); if (error) alert("Save failed: " + error.message); window.dispatchEvent(new Event("isola:changed")); },
+      commit: async () => { const { error } = await sb.from("jobs").update({ ...p, updated_at: new Date().toISOString() }).eq("id", j.id); if (error) { setJobs(before); showError("Save failed: " + error.message); } window.dispatchEvent(new Event("isola:changed")); },
     });
   }
 

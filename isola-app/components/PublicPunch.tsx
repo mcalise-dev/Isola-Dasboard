@@ -41,6 +41,12 @@ export default function PublicPunch({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
+  const [armed, setArmed] = useState(false); // two-step sign-off: first tap arms, second tap confirms
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 5000);
+    return () => clearTimeout(t);
+  }, [armed]);
 
   async function load() {
     const { data } = await supabase.rpc("public_punch", { p_token: token });
@@ -70,7 +76,8 @@ export default function PublicPunch({ token }: { token: string }) {
   async function signoff() {
     setErr(""); setMsg("");
     if (!name.trim()) return setErr("Type your name to sign off.");
-    if (!confirm("Sign off that all punch list items are complete?")) return;
+    if (!armed) { setArmed(true); return; }
+    setArmed(false);
     setBusy(true);
     const { data, error } = await supabase.rpc("public_punch_signoff", { p_token: token, p_name: name, p_note: note });
     setBusy(false);
@@ -167,8 +174,8 @@ export default function PublicPunch({ token }: { token: string }) {
                     <div className="text-sm font-bold">Everything's complete — sign off</div>
                     <input className={inp} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
                     <input className={inp} placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-                    <button onClick={signoff} disabled={busy} className="w-full rounded-lg bg-emerald-700 px-4 py-3 text-[15px] font-bold text-white disabled:opacity-50">
-                      {busy ? "Saving…" : "Sign off punch list"}
+                    <button onClick={signoff} disabled={busy} className={`w-full rounded-lg px-4 py-3 text-[15px] font-bold text-white disabled:opacity-50 ${armed ? "bg-emerald-900 ring-2 ring-emerald-500" : "bg-emerald-700"}`}>
+                      {busy ? "Saving…" : armed ? "Tap again to confirm — all items complete" : "Sign off punch list"}
                     </button>
                   </div>
                 ) : null}

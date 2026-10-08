@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { jobLabel, todayISO } from "@/lib/format";
+import { showError } from "@/components/Toaster";
 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const t12 = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -163,8 +164,8 @@ function ManualTime({ supabase, crew, onClose, onSaved }: any) {
     : Math.round(derived * Number(worker.rate) * 100) / 100;
 
   async function save() {
-    if (!f.worker_id || !f.job_id) { alert("Pick who it was and which job."); return; }
-    if (derived <= 0) { alert("Enter hours, or a start and end time."); return; }
+    if (!f.worker_id || !f.job_id) { showError("Pick who it was and which job."); return; }
+    if (derived <= 0) { showError("Enter hours, or a start and end time."); return; }
     setBusy(true);
     const { data: cost, error } = await supabase.from("job_costs").insert({
       job_id: f.job_id, entry_date: f.date, category: "Labor", worker: worker.name,
@@ -172,7 +173,7 @@ function ManualTime({ supabase, crew, onClose, onSaved }: any) {
       notes: [f.start && f.end ? `${f.start}–${f.end}` : null, f.note.trim() || null, "entered by hand"].filter(Boolean).join(" · "),
       status: "ok",
     }).select("id").single();
-    if (error) { setBusy(false); alert("Save failed: " + error.message); return; }
+    if (error) { setBusy(false); showError("Save failed: " + error.message); return; }
 
     // keep the timesheet honest too, not just the job cost
     const startIso = new Date(`${f.date}T${f.start || "08:00"}`).toISOString();

@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { STATUS_META, parsePrice, fmtDate } from "@/lib/format";
+import { showError } from "@/components/Toaster";
+import { ask } from "@/components/Dialogs";
 
 const TYPES: Record<string, { label: string; cls: string; hint: string }> = {
   medical:       { label: "Medical",       cls: "bg-red-500/15 text-red-300 border-red-500/30",       hint: "Highest tier — price at the top of the range." },
@@ -96,8 +98,8 @@ export default function CustomerProfile({ id }: { id: string }) {
   }
   async function delNote(nid: string) { await supabase.from("communications").delete().eq("id", nid); load(); }
   async function delProp(pid: string) {
-    if (jobsAt(pid) > 0) { alert("That property has jobs on it — reassign them first."); return; }
-    if (!confirm("Delete this property?")) return;
+    if (jobsAt(pid) > 0) { showError("That property has jobs on it — reassign them first."); return; }
+    if (!(await ask({ title: "Delete this property?", confirm: "Delete", danger: true }))) return;
     await supabase.from("properties").delete().eq("id", pid); load();
   }
 
@@ -401,14 +403,14 @@ function EditCustomer({ supabase, c, onClose, onSaved }: any) {
   const split = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 
   async function save() {
-    if (!f.name.trim()) { alert("Name is required."); return; }
+    if (!f.name.trim()) { showError("Name is required."); return; }
     setBusy(true);
     const { error } = await supabase.from("customers").update({
       ...f, name: f.name.trim(), tags: split(f.tags), qbo_names: split(f.qbo_names),
       client_since: f.client_since || null, updated_at: new Date().toISOString(),
     }).eq("id", c.id);
     setBusy(false);
-    if (error) alert("Save failed: " + error.message); else onSaved();
+    if (error) showError("Save failed: " + error.message); else onSaved();
   }
 
   return (
@@ -459,12 +461,12 @@ function EditProperty({ supabase, customerId, p, onClose, onSaved }: any) {
   const [busy, setBusy] = useState(false);
   const set = (k: string) => (e: any) => setF((s) => ({ ...s, [k]: e.target.value }));
   async function save() {
-    if (!f.address.trim()) { alert("Address is required."); return; }
+    if (!f.address.trim()) { showError("Address is required."); return; }
     setBusy(true);
     const row = { ...f, customer_id: customerId, address: f.address.trim(), updated_at: new Date().toISOString() };
     const { error } = p ? await supabase.from("properties").update(row).eq("id", p.id) : await supabase.from("properties").insert(row);
     setBusy(false);
-    if (error) alert("Save failed: " + error.message); else onSaved();
+    if (error) showError("Save failed: " + error.message); else onSaved();
   }
   return (
     <Modal title={p ? "Edit property" : "Add property"} onClose={onClose}>
@@ -494,15 +496,15 @@ function EditContact({ supabase, customerId, p, onClose, onSaved }: any) {
   const [busy, setBusy] = useState(false);
   const set = (k: string) => (e: any) => setF((s) => ({ ...s, [k]: e.target.value }));
   async function save() {
-    if (!f.name.trim()) { alert("Name is required."); return; }
+    if (!f.name.trim()) { showError("Name is required."); return; }
     setBusy(true);
     const row = { ...f, customer_id: customerId, name: f.name.trim() };
     const { error } = p ? await supabase.from("customer_contacts").update(row).eq("id", p.id) : await supabase.from("customer_contacts").insert(row);
     setBusy(false);
-    if (error) alert("Save failed: " + error.message); else onSaved();
+    if (error) showError("Save failed: " + error.message); else onSaved();
   }
   async function del() {
-    if (!p || !confirm("Remove this person?")) return;
+    if (!p || !(await ask({ title: "Remove this person?", confirm: "Remove", danger: true }))) return;
     await supabase.from("customer_contacts").delete().eq("id", p.id); onSaved();
   }
   return (

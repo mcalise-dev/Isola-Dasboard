@@ -6,6 +6,15 @@ import MyClock from "@/components/MyClock";
 import PipelineNumbers from "@/components/PipelineNumbers";
 import { daysSince, fmtDate, parsePrice } from "@/lib/format";
 import { proposalFollowup, invoiceReminder, reviewRequest, followupStage, invoiceStage, mailto, isThmInvoice, money$ } from "@/lib/emails";
+import { withTimeout, firstError } from "@/lib/load";
+import { showError, showToast } from "@/components/Toaster";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader, SectionTitle, Stat, ListSkeleton, LoadError } from "@/components/ui/bits";
+import { cn } from "@/lib/utils";
+import { Check, Navigation, ChevronRight, Mail, MailCheck, Star, CalendarDays, Pencil } from "lucide-react";
 
 // TODAY (v4.1, 9/22/26) — one screen for the day, replacing the old Home.
 //   1. Where you're going   (today's calendar, in order, with the route)
@@ -38,9 +47,12 @@ export default function TodayTab() {
   const [nextUp, setNextUp] = useState<any[]>([]);
   const [reviewUrl, setReviewUrl] = useState<string>("");
   const [reviewDraft, setReviewDraft] = useState("");
+  const [err, setErr] = useState<string | null>(null);
 
   async function load() {
-    const [j, t, s, gp, ms, cu, cc, pl, ed, ct, mt, th, nx, rs] = await Promise.all([
+    setErr(null);
+    try {
+    const [j, t, s, gp, ms, cu, cc, pl, ed, ct, mt, th, nx, rs] = await withTimeout(Promise.all([
       supabase.from("jobs").select("*"),
       supabase.from("tasks").select("id,title,job_id,due_date,priority,auto_key,done").eq("done", false).lte("due_date", today).order("due_date"),
       supabase.from("schedule_entries").select("id,label,job_id,assignee,sort").eq("entry_date", today).order("sort").order("created_at"),
@@ -55,7 +67,10 @@ export default function TodayTab() {
       supabase.from("thm_ledger").select("side,amount,bucket,is_open"),
       supabase.from("schedule_entries").select("id,entry_date,job_id,label").gt("entry_date", today).order("entry_date").limit(3),
       supabase.from("app_settings").select("value").eq("key", "google_review_url").maybeSingle(),
-    ]);
+    ]));
+    // the day itself (jobs, tasks, calendar, game plan) must load; the side panels stay best-effort like before
+    const e = firstError(j, t, s, gp);
+    if (e) throw new Error(e);
     setReviewUrl((rs.data as any)?.value ?? "");
     setJobs(j.data ?? []);
     setTasks(t.data ?? []);
@@ -71,6 +86,9 @@ export default function TodayTab() {
     setThmBal((th.data ?? []).filter((e: any) => e.bucket === "inv94" && !e.is_open).reduce((a: number, e: any) => a + (e.side === "owes_isola" ? 1 : -1) * Number(e.amount), 0));
     setNextUp(nx.data ?? []);
     setLoading(false);
+    } catch (e: any) {
+      setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? "Couldn't load the day sheet.");
+    }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
@@ -127,9 +145,11 @@ export default function TodayTab() {
 
   async function saveReviewUrl() {
     const v = reviewDraft.trim();
-    if (!/^https?:\/\//i.test(v)) { alert("Paste the full link — it starts with https://"); return; }
-    await supabase.from("app_settings").upsert({ key: "google_review_url", value: v, updated_at: new Date().toISOString() });
+    if (!/^https?:\/\//i.test(v)) { showError("Paste the full link — it starts with https://"); return; }
+    const { error } = await supabase.from("app_settings").upsert({ key: "google_review_url", value: v, updated_at: new Date().toISOString() });
+    if (error) { showError("Save failed: " + error.message); return; }
     setReviewUrl(v); setReviewDraft("");
+    showToast("Review link saved");
   }
 
   function reviewMail(t: any) {
@@ -147,21 +167,27 @@ export default function TodayTab() {
     const m = isFollow ? followupMail(t) : isReview ? reviewMail(t) : null;
     const d = draftByTask[t.id];
     return (
-      <div key={t.id} className="flex items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 py-2.5">
-        <button onClick={() => doneTask(t)} aria-label="Done" className="w-5 h-5 shrink-0 rounded-md border border-neutral-600 text-xs text-transparent hover:text-emerald-300">✓</button>
+      <Card key={t.id} className="flex items-center gap-2 px-1.5 py-1.5">
+        <button onClick={() => doneTask(t)} aria-label="Done" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-accent">
+          <span className="flex h-5 w-5 items-center justify-center rounded-md border border-neutral-600 text-transparent hover:text-emerald-300"><Check size={13} strokeWidth={3} /></span>
+        </button>
         <div className="min-w-0 flex-1">
-          <div className="text-sm text-white truncate">{t.title}</div>
-          <div className="text-xs text-neutral-400 truncate">
-            {late ? <span className="text-red-400 font-semibold">{daysSince(t.due_date)}d overdue · </span> : null}
-            {j ? <Link href={`/?job=${j.id}`} className="underline decoration-neutral-700 underline-offset-2">{j.job_name || j.customer}</Link> : "No job"}
+          <div className="truncate text-sm text-white">{t.title}</div>
+          <div className="truncate text-xs text-neutral-400">
+            {late ? <span className="font-semibold text-red-300">{daysSince(t.due_date)}d overdue · </span> : null}
+            {j ? <Link href={`/?job=${j.id}`} className="underline decoration-neutral-700 underline-offset-2 hover:text-neutral-200">{j.job_name || j.customer}</Link> : "No job"}
           </div>
         </div>
         {d && d.status === "drafted" ? (
-          <a href={GMAIL_DRAFTS} target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-emerald-500/40 px-2 py-1 text-xs font-bold text-emerald-300">Draft ready</a>
+          <Button asChild size="sm" variant="outline" className="h-10 shrink-0 border-emerald-500/40 text-emerald-300">
+            <a href={GMAIL_DRAFTS} target="_blank" rel="noreferrer"><MailCheck size={14} /> Draft ready</a>
+          </Button>
         ) : m ? (
-          <a href={m.href} className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-bold ${m.to ? "border-neutral-600 text-white" : "border-amber-500/40 text-amber-300"}`} title={m.to ?? "No email on file for this customer"}>{isReview ? "" : ""}{m.to ? (isReview ? "Ask" : "Email") : "No email"}</a>
+          <Button asChild size="sm" variant="outline" className={cn("h-10 shrink-0", !m.to && "border-amber-500/40 text-amber-300")}>
+            <a href={m.href} title={m.to ?? "No email on file for this customer"}>{isReview ? <Star size={14} /> : <Mail size={14} />}{m.to ? (isReview ? "Ask" : "Email") : "No email"}</a>
+          </Button>
         ) : null}
-      </div>
+      </Card>
     );
   }
 
@@ -188,138 +214,134 @@ export default function TodayTab() {
     return { href: mailto(who.to, e), to: who.to, stage };
   }
 
-  const card = "pt-1";
-  const h2 = "text-lg font-semibold text-white";
   const hour = Number(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }));
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const dateStr = new Date(today + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
   const doCount = overdue.length + dueToday.length + gpOpen.length;
+  const jump = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const header = (
+    <PageHeader
+      crumb={dateStr}
+      title={`${greeting}, Mike`}
+      sub="Day sheet — where you're going, what's due, and money coming in."
+      actions={routeUrl ? (
+        <Button asChild><a href={routeUrl} target="_blank" rel="noreferrer"><Navigation size={16} /> Start the route — {addrs.length} stop{addrs.length === 1 ? "" : "s"}</a></Button>
+      ) : (
+        <Button asChild variant="outline"><Link href="/schedule"><CalendarDays size={16} /> Calendar</Link></Button>
+      )}
+    />
+  );
+
+  if (err) return <div>{header}<LoadError message={err} onRetry={load} /></div>;
 
   return (
-    <div className="pt-4 space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-white">{greeting}, Mike</h1>
-        <p className="text-sm text-neutral-400">{dateStr}</p>
+    <div>
+      {header}
+
+      <div className="mb-5"><MyClock /></div>
+
+      <div className="mb-6 grid grid-cols-3 gap-3">
+        <Stat label="Stops today" value={loading ? "–" : stops.length} onClick={() => jump("go")} />
+        <Stat label="To do" value={loading ? "–" : doCount} tone={overdue.length ? "bad" : undefined} hint={overdue.length ? `${overdue.length} late` : undefined} onClick={() => jump("do")} />
+        <Stat label="Overdue $" value={loading ? "–" : fmt$(late$)} tone={late$ ? "warn" : undefined} onClick={() => jump("money")} />
       </div>
 
-      <MyClock />
-
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <a href="#go" className={`rounded-xl border p-3 ${stops.length ? "border-neutral-500/40" : "border-white/[0.08]"} bg-neutral-900`}>
-          <div className="text-2xl font-bold tabular-nums text-white">{stops.length}</div>
-          <div className="mt-0.5 text-sm text-neutral-400">Stops today</div>
-        </a>
-        <a href="#do" className={`rounded-xl border p-3 ${overdue.length ? "border-red-500/50" : "border-white/[0.08]"} bg-neutral-900`}>
-          <div className={`text-2xl font-bold tabular-nums ${overdue.length ? "text-red-300" : "text-white"}`}>{doCount}</div>
-          <div className="mt-0.5 text-sm text-neutral-400">To do{overdue.length ? ` · ${overdue.length} late` : ""}</div>
-        </a>
-        <a href="#money" className={`rounded-xl border p-3 ${late$ ? "border-amber-500/50" : "border-white/[0.08]"} bg-neutral-900`}>
-          <div className={`text-2xl font-bold tabular-nums ${late$ ? "text-amber-300" : "text-white"}`}>{fmt$(late$)}</div>
-          <div className="mt-0.5 text-sm text-neutral-400">Overdue $</div>
-        </a>
-      </div>
-
-      {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
-
+      {loading ? <ListSkeleton /> : (
+      <div className="grid items-start gap-x-6 gap-y-8 lg:grid-cols-2">
+      <div className="min-w-0 space-y-8">
       {/* 1 — WHERE YOU'RE GOING */}
-      <div id="go" className={card}>
-        <div className="flex items-baseline justify-between mb-2.5">
-          <h2 className={h2}>Where you're going</h2>
-          <Link href="/schedule" className="text-xs text-neutral-300 font-semibold">Calendar →</Link>
-        </div>
+      <section id="go" className="scroll-mt-20">
+        <SectionTitle right={<Link href="/schedule" className="inline-flex items-center gap-0.5 text-sm font-semibold text-neutral-400 hover:text-white">Calendar <ChevronRight size={15} /></Link>}>Where you're going</SectionTitle>
         {stops.length === 0 ? (
-          <p className="text-sm text-neutral-400">Nothing on the calendar today.{nextUp.length ? ` Next up: ${nextUp.map((e) => `${fmtDate(e.entry_date).replace(/,.*/, "")} ${e.job_id ? (jobById[e.job_id]?.job_name || jobById[e.job_id]?.customer || "") : e.label}`).join(" · ")}` : ""}</p>
+          <p className="rounded-xl border border-dashed border-white/10 px-4 py-5 text-sm text-neutral-500">Nothing on the calendar today.{nextUp.length ? ` Next up: ${nextUp.map((e) => `${fmtDate(e.entry_date).replace(/,.*/, "")} ${e.job_id ? (jobById[e.job_id]?.job_name || jobById[e.job_id]?.customer || "") : e.label}`).join(" · ")}` : ""}</p>
         ) : (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {stops.map(({ e, j }, i) => (
-              <Link key={e.id} href={j ? `/?job=${j.id}` : "/schedule"} className="flex items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 py-2.5 hover:border-neutral-600">
-                <span className="w-5 h-5 shrink-0 rounded-full bg-neutral-500/20 text-neutral-200 text-xs font-bold flex items-center justify-center">{i + 1}</span>
+              <Link key={e.id} href={j ? `/?job=${j.id}` : "/schedule"} className="flex min-h-[56px] items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-2.5 hover:border-white/20">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-neutral-200">{i + 1}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-white truncate">{j ? (j.job_name || j.customer) : e.label}</span>
-                  <span className="block text-xs text-neutral-400 truncate">{[j?.location, e.assignee].filter(Boolean).join(" · ")}</span>
+                  <span className="block truncate text-sm font-semibold text-white">{j ? (j.job_name || j.customer) : e.label}</span>
+                  <span className="block truncate text-xs text-neutral-400">{[j?.location, e.assignee].filter(Boolean).join(" · ")}</span>
                 </span>
+                <ChevronRight size={16} className="shrink-0 text-neutral-600" />
               </Link>
             ))}
           </div>
         )}
         {routeUrl ? (
-          <a href={routeUrl} target="_blank" rel="noreferrer" className="mt-2.5 flex items-center justify-center rounded-xl bg-white text-neutral-900 py-2 text-xs font-bold">Start the route — {addrs.length} stop{addrs.length === 1 ? "" : "s"}</a>
+          <Button asChild variant="outline" className="mt-2.5 w-full lg:hidden">
+            <a href={routeUrl} target="_blank" rel="noreferrer"><Navigation size={15} /> Start the route — {addrs.length} stop{addrs.length === 1 ? "" : "s"}</a>
+          </Button>
         ) : null}
-        {unscheduled ? <Link href="/schedule" className="mt-2 block text-xs text-amber-300">{unscheduled} booked job{unscheduled === 1 ? "" : "s"} still need a date →</Link> : null}
-      </div>
+        {unscheduled ? <Link href="/schedule" className="mt-2 inline-flex min-h-[40px] items-center gap-0.5 text-sm text-amber-300">{unscheduled} booked job{unscheduled === 1 ? "" : "s"} still need a date <ChevronRight size={15} /></Link> : null}
+      </section>
 
       {/* 2 — DO TODAY */}
-      <div id="do" className={card}>
-        <div className="flex items-baseline justify-between mb-2.5">
-          <h2 className={h2}>Do today</h2>
-          <Link href="/tasks" className="text-xs text-neutral-300 font-semibold">All tasks →</Link>
-        </div>
-        {!loading && doCount === 0 ? <p className="text-sm text-neutral-400">Nothing due. <Link href="/gameplan" className="text-neutral-300">Write the game plan →</Link></p> : null}
+      <section id="do" className="scroll-mt-20">
+        <SectionTitle right={<Link href="/tasks" className="inline-flex items-center gap-0.5 text-sm font-semibold text-neutral-400 hover:text-white">All tasks <ChevronRight size={15} /></Link>}>Do today</SectionTitle>
+        {doCount === 0 ? <p className="rounded-xl border border-dashed border-white/10 px-4 py-5 text-sm text-neutral-500">Nothing due. <Link href="/gameplan" className="font-semibold text-neutral-300 hover:text-white">Write the game plan</Link></p> : null}
         {overdue.length ? (
-          <div className="mb-3">
-            <div className="text-sm font-semibold text-red-400 mb-1.5">Overdue · {overdue.length}</div>
-            <div className="space-y-1.5">{overdue.map((t) => taskRow(t, true))}</div>
+          <div className="mb-4">
+            <div className="mb-1.5 text-sm font-semibold text-red-300">Overdue · {overdue.length}</div>
+            <div className="space-y-2">{overdue.map((t) => taskRow(t, true))}</div>
           </div>
         ) : null}
         {dueToday.length ? (
-          <div className="mb-3">
-            <div className="text-sm font-semibold text-amber-300 mb-1.5">Due today · {dueToday.length}</div>
-            <div className="space-y-1.5">{dueToday.map((t) => taskRow(t, false))}</div>
+          <div className="mb-4">
+            <div className="mb-1.5 text-sm font-semibold text-amber-300">Due today · {dueToday.length}</div>
+            <div className="space-y-2">{dueToday.map((t) => taskRow(t, false))}</div>
           </div>
         ) : null}
         {gpOpen.length ? (
           <div className="mb-1">
-            <div className="flex items-baseline justify-between mb-1.5">
-              <div className="text-sm font-semibold text-neutral-300">Game plan{plan?.headline ? ` — ${plan.headline}` : ""}</div>
-              <Link href="/gameplan" className="text-xs text-neutral-400">edit</Link>
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <div className="min-w-0 truncate text-sm font-semibold text-neutral-300">Game plan{plan?.headline ? ` — ${plan.headline}` : ""}</div>
+              <Button asChild variant="ghost" size="sm" className="shrink-0"><Link href="/gameplan"><Pencil size={13} /> Edit</Link></Button>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {gpOpen.map((i) => (
-                <div key={i.id} className="flex items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 py-2">
-                  <button onClick={() => doneItem(i)} aria-label="Done" className="w-5 h-5 shrink-0 rounded-md border border-neutral-600 text-xs text-transparent hover:text-emerald-300">✓</button>
-                  <span className="text-sm text-white truncate">{i.body}</span>
-                </div>
+                <Card key={i.id} className="flex items-center gap-2 px-1.5 py-1">
+                  <button onClick={() => doneItem(i)} aria-label="Done" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-accent">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-md border border-neutral-600 text-transparent hover:text-emerald-300"><Check size={13} strokeWidth={3} /></span>
+                  </button>
+                  <span className="truncate text-sm text-white">{i.body}</span>
+                </Card>
               ))}
             </div>
           </div>
         ) : null}
         {!reviewUrl && tasks.some((t) => t.auto_key === "complete:review") ? (
-          <div className="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-2.5">
-            <div className="text-xs text-amber-200 mb-1.5">Paste your Google review link once and every review ask includes it. (Google Business Profile → "Ask for reviews" → copy link)</div>
+          <Card className="mt-3 border-amber-500/30 bg-amber-500/[0.05] p-3">
+            <div className="mb-2 text-xs text-amber-200">Paste your Google review link once and every review ask includes it. (Google Business Profile → "Ask for reviews" → copy link)</div>
             <div className="flex gap-2">
-              <input value={reviewDraft} onChange={(e) => setReviewDraft(e.target.value)} placeholder="https://g.page/r/…/review"
-                className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-2.5 py-1.5 text-xs" />
-              <button onClick={saveReviewUrl} className="shrink-0 rounded-lg bg-white text-neutral-900 px-3 text-xs font-bold">Save</button>
+              <Input value={reviewDraft} onChange={(e) => setReviewDraft(e.target.value)} placeholder="https://g.page/r/…/review" className="min-w-0 flex-1"
+                onKeyDown={(e) => { if (e.key === "Enter") saveReviewUrl(); }} />
+              <Button variant="outline" onClick={saveReviewUrl} className="shrink-0">Save</Button>
             </div>
-          </div>
+          </Card>
         ) : null}
-        {mktDue ? <Link href="/marketing/campaign?due=1" className="mt-2 block text-xs text-amber-300">{mktDue} marketing follow-up{mktDue === 1 ? "" : "s"} due →</Link> : null}
+        {mktDue ? <Link href="/marketing/campaign?due=1" className="mt-2 inline-flex min-h-[40px] items-center gap-0.5 text-sm text-amber-300">{mktDue} marketing follow-up{mktDue === 1 ? "" : "s"} due <ChevronRight size={15} /></Link> : null}
+      </section>
       </div>
 
+      <div className="min-w-0 space-y-8">
       {/* 3 — MONEY COMING IN */}
-      <div id="money" className={card}>
-        <div className="flex items-baseline justify-between mb-2.5">
-          <h2 className={h2}>Money coming in</h2>
-          <Link href="/money" className="text-xs text-neutral-300 font-semibold">Money →</Link>
-        </div>
-        <div className="grid grid-cols-2 gap-2 mb-3 text-center">
-          <div className="rounded-xl bg-white/[0.05] p-2.5">
-            <div className="text-xl font-extrabold tabular-nums text-white">{fmt$(owed)}</div>
-            <div className="text-sm text-neutral-400 mt-0.5">Owed to you</div>
-          </div>
-          <div className="rounded-xl bg-white/[0.05] p-2.5">
-            <div className={`text-xl font-extrabold tabular-nums ${late$ ? "text-amber-300" : "text-white"}`}>{fmt$(late$)}</div>
-            <div className="text-sm text-neutral-400 mt-0.5">Overdue · {lateInv.length}</div>
-          </div>
+      <section id="money" className="scroll-mt-20">
+        <SectionTitle right={<Link href="/money" className="inline-flex items-center gap-0.5 text-sm font-semibold text-neutral-400 hover:text-white">Money <ChevronRight size={15} /></Link>}>Money coming in</SectionTitle>
+        <div className="mb-4 grid grid-cols-2 gap-3">
+          <Stat label="Owed to you" value={fmt$(owed)} />
+          <Stat label="Overdue" value={fmt$(late$)} tone={late$ ? "warn" : undefined} hint={`${lateInv.length} invoice${lateInv.length === 1 ? "" : "s"}`} />
         </div>
         {toInvoice.length ? (
-          <div className="mb-3">
-            <div className="text-sm font-semibold text-red-400 mb-1.5">Done, not invoiced · {toInvoice.length}</div>
-            <div className="space-y-1.5">
+          <div className="mb-4">
+            <div className="mb-1.5 text-sm font-semibold text-red-300">Done, not invoiced · {toInvoice.length}</div>
+            <div className="space-y-2">
               {toInvoice.map((j) => (
-                <Link key={j.id} href={`/?job=${j.id}`} className="flex items-center gap-2 rounded-xl bg-white/[0.05] px-3 py-2 hover:border-neutral-600">
-                  <span className="min-w-0 flex-1 text-sm text-white truncate">{j.job_name || j.customer}</span>
-                  <span className="shrink-0 text-xs tabular-nums text-neutral-400">{parsePrice(j.price) ? fmt$(parsePrice(j.price)) : ""}</span>
+                <Link key={j.id} href={`/?job=${j.id}`} className="flex min-h-[48px] items-center gap-2 rounded-xl border border-border bg-card px-3.5 py-2 hover:border-white/20">
+                  <span className="min-w-0 flex-1 truncate text-sm text-white">{j.job_name || j.customer}</span>
+                  <span className="shrink-0 text-sm tabular-nums text-neutral-300">{parsePrice(j.price) ? fmt$(parsePrice(j.price)) : ""}</span>
+                  <ChevronRight size={16} className="shrink-0 text-neutral-600" />
                 </Link>
               ))}
             </div>
@@ -327,53 +349,63 @@ export default function TodayTab() {
         ) : null}
         {lateInv.length ? (
           <div>
-            <div className="text-sm font-semibold text-amber-300 mb-1.5">Overdue invoices</div>
-            <div className="space-y-1.5">
+            <div className="mb-1.5 text-sm font-semibold text-amber-300">Overdue invoices</div>
+            <div className="space-y-2">
               {lateInv.map((i, idx) => {
                 const m = invoiceMail(i);
                 const d = m ? draftByInv(i.ref, m.stage) : null;
                 return (
-                  <div key={idx} className="flex items-center gap-2 rounded-xl bg-white/[0.05] px-3 py-2">
+                  <Card key={idx} className="flex items-center gap-2 px-3.5 py-2">
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm text-white truncate">{i.customer}</div>
-                      <div className="text-xs text-neutral-400">#{i.ref} · {money$(Number(i.amount))} · <span className={i.days_overdue > 30 ? "text-red-400" : "text-amber-300"}>{i.days_overdue}d late</span></div>
+                      <div className="truncate text-sm text-white">{i.customer}</div>
+                      <div className="text-xs text-neutral-400">#{i.ref} · {money$(Number(i.amount))} · <span className={i.days_overdue > 30 ? "text-red-300" : "text-amber-300"}>{i.days_overdue}d late</span></div>
                     </div>
                     {d && d.status === "drafted" ? (
-                      <a href={GMAIL_DRAFTS} target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-emerald-500/40 px-2 py-1 text-xs font-bold text-emerald-300">Draft ready</a>
+                      <Button asChild size="sm" variant="outline" className="h-10 shrink-0 border-emerald-500/40 text-emerald-300">
+                        <a href={GMAIL_DRAFTS} target="_blank" rel="noreferrer"><MailCheck size={14} /> Draft ready</a>
+                      </Button>
                     ) : m ? (
-                      <a href={m.href} className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-bold ${m.to ? "border-neutral-600 text-white" : "border-amber-500/40 text-amber-300"}`} title={m.to ?? "No email on file"}>Remind</a>
+                      <Button asChild size="sm" variant="outline" className={cn("h-10 shrink-0", !m.to && "border-amber-500/40 text-amber-300")}>
+                        <a href={m.href} title={m.to ?? "No email on file"}><Mail size={14} /> Remind</a>
+                      </Button>
                     ) : null}
-                  </div>
+                  </Card>
                 );
               })}
             </div>
           </div>
-        ) : (!loading && !toInvoice.length ? <p className="text-sm text-neutral-400">Nothing overdue.</p> : null)}
+        ) : (!toInvoice.length ? <p className="rounded-xl border border-dashed border-white/10 px-4 py-5 text-sm text-neutral-500">Nothing overdue.</p> : null)}
         {billedAhead.length ? (
-          <div className="mt-3">
-            <div className="text-sm font-semibold text-neutral-300 mb-1.5">In QuickBooks, job not done yet · {billedAhead.length}</div>
-            <div className="space-y-1">
+          <Card className="mt-4 p-3.5">
+            <div className="mb-1.5 flex items-center gap-2">
+              <div className="text-sm font-semibold text-neutral-300">In QuickBooks, job not done yet</div>
+              <Badge variant="muted" className="ml-auto">{billedAhead.length}</Badge>
+            </div>
+            <div className="space-y-0.5">
               {billedAhead.map((i, idx) => { const j = jobForRef(i.ref); return (
-                <Link key={idx} href={j ? `/?job=${j.id}` : "/money"} className="flex justify-between text-xs text-neutral-400 hover:text-neutral-200">
+                <Link key={idx} href={j ? `/?job=${j.id}` : "/money"} className="flex min-h-[32px] items-center justify-between gap-2 text-xs text-neutral-400 hover:text-neutral-200">
                   <span className="truncate">#{i.ref} · {j?.job_name || i.customer}</span>
                   <span className="shrink-0 tabular-nums">{money$(Number(i.amount))}</span>
                 </Link>
               ); })}
             </div>
-            <p className="text-xs text-neutral-500 mt-1">Not chased and not counted as overdue. When the job's marked Complete it moves up to "Send the invoice" — update the invoice date in QuickBooks before sending.</p>
-          </div>
+            <p className="mt-1.5 text-xs text-neutral-500">Not chased and not counted as overdue. When the job's marked Complete it moves up to "Send the invoice" — update the invoice date in QuickBooks before sending.</p>
+          </Card>
         ) : null}
         {thmBal != null ? (
-          <Link href="/thm" className="mt-3 flex items-center justify-between rounded-xl bg-white/[0.05] px-3 py-2 hover:border-neutral-600">
-            <span className="text-xs font-semibold text-white">THM tab — Invoice #94</span>
-            <span className="text-xs font-bold text-white tabular-nums">{fmt$(thmBal)} →</span>
+          <Link href="/thm" className="mt-4 flex min-h-[48px] items-center justify-between rounded-xl border border-border bg-card px-3.5 py-2 hover:border-white/20">
+            <span className="text-sm font-semibold text-white">THM tab — Invoice #94</span>
+            <span className="inline-flex items-center gap-1 text-sm font-bold tabular-nums text-white">{fmt$(thmBal)} <ChevronRight size={15} className="text-neutral-500" /></span>
           </Link>
         ) : null}
-        <p className="text-xs text-neutral-500 mt-2">QuickBooks snapshot {snapAt ? new Date(snapAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"} · ask Claude to "refresh the money panel" for the latest.</p>
-      </div>
+        <p className="mt-2 text-xs text-neutral-500">QuickBooks snapshot {snapAt ? new Date(snapAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"} · ask Claude to "refresh the money panel" for the latest.</p>
+      </section>
 
       {/* 4 — PIPELINE */}
       <PipelineNumbers jobs={jobs} compact />
+      </div>
+      </div>
+      )}
     </div>
   );
 }

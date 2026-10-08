@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { copyText } from "@/components/Dialogs";
 
 // "Put it on my phone" (v4.2, 9/22/26): the private subscription link for the .ics feed.
 // Scheduled days + open tasks with a due date show up in the phone's own calendar and
@@ -23,7 +24,7 @@ export default function CalendarLinkCard() {
   const google = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`;
   const toggle = () => setOpen((o) => { try { localStorage.setItem("isola.calcard", o ? "0" : "1"); } catch {} return !o; });
   async function copy() {
-    try { await navigator.clipboard.writeText(https); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { prompt("Copy this link:", https); }
+    try { await navigator.clipboard.writeText(https); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { await copyText(https, "Link copied"); }
   }
   return (
     <div className="rounded-xl border border-white/[0.07] bg-neutral-900 mb-3 overflow-hidden">

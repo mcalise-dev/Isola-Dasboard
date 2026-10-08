@@ -3,6 +3,15 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import MoneyInput from "@/components/MoneyInput";
 import { fmtDate, todayISO } from "@/lib/format";
+import { showError, showToast, undoable } from "@/components/Toaster";
+import { ask } from "@/components/Dialogs";
+import { withTimeout, firstError } from "@/lib/load";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input, NativeSelect, Field } from "@/components/ui/input";
+import { PageHeader, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
+import { cn } from "@/lib/utils";
+import { Plus, Pencil, Archive, ArchiveRestore, Trash2, Snowflake, Check, X } from "lucide-react";
 
 /* ============================================================
    RECURRING WORK — snow above all.
@@ -20,12 +29,9 @@ import { fmtDate, todayISO } from "@/lib/format";
 const fmt2 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt0 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
-const inp =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none";
-const lbl = "block text-sm font-semibold text-neutral-300 mb-1";
-const btn = "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-200 hover:border-neutral-500";
-const btnPrimary = "rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-neutral-900 hover:bg-neutral-200 disabled:opacity-40";
-const card = "rounded-xl bg-white/[0.05] p-3.5";
+// MoneyInput renders a raw <input>; give it the same look as the design-system Input.
+const moneyCls =
+  "h-10 w-full rounded-lg border border-input bg-neutral-950 px-3 text-sm text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white/30";
 
 const RATE_TYPES = [
   { key: "per_event", label: "Per event" },
@@ -40,21 +46,29 @@ export default function SnowTab() {
   const [events, setEvents] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [editC, setEditC] = useState<any>(null);
   const [addE, setAddE] = useState<any>(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    const [c, e, cu, p] = await Promise.all([
-      supabase.from("recurring_contracts").select("*").order("name"),
-      supabase.from("service_events").select("*").order("event_date", { ascending: false }).limit(200),
-      supabase.from("customers").select("id,name").eq("archived", false).order("name"),
-      supabase.from("properties").select("id,customer_id,address,label").order("address"),
-    ]);
-    setContracts(c.data ?? []); setEvents(e.data ?? []);
-    setCustomers(cu.data ?? []); setProperties(p.data ?? []);
-    setLoading(false);
+    setErr(null);
+    try {
+      const [c, e, cu, p] = await withTimeout(Promise.all([
+        supabase.from("recurring_contracts").select("*").order("name"),
+        supabase.from("service_events").select("*").order("event_date", { ascending: false }).limit(200),
+        supabase.from("customers").select("id,name").eq("archived", false).order("name"),
+        supabase.from("properties").select("id,customer_id,address,label").order("address"),
+      ]));
+      const fe = firstError(c, e, cu, p);
+      if (fe) throw new Error(fe);
+      setContracts(c.data ?? []); setEvents(e.data ?? []);
+      setCustomers(cu.data ?? []); setProperties(p.data ?? []);
+      setLoaded(true);
+    } catch (e: any) {
+      setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
+    }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
@@ -66,7 +80,7 @@ export default function SnowTab() {
   const uninvoiced = events.filter((e) => !e.invoiced).reduce((s, e) => s + Number(e.billed_amount || 0), 0);
 
   async function saveContract() {
-    if (!editC.name?.trim()) return alert("Name the contract.");
+    if (!editC.name?.trim()) return showError("Name the contract.");
     setBusy(true);
     const row: any = {
       name: editC.name.trim(),
@@ -86,12 +100,12 @@ export default function SnowTab() {
       ? await supabase.from("recurring_contracts").update(row).eq("id", editC.id)
       : await supabase.from("recurring_contracts").insert(row);
     setBusy(false);
-    if (error) return alert(error.message);
-    setEditC(null); load();
+    if (error) return showError(error.message);
+    setEditC(null); showToast("Account saved"); load();
   }
 
   async function saveEvent() {
-    if (!addE.billed_amount) return alert("Enter what the account was billed — that's what the commission comes off.");
+    if (!addE.billed_amount) return showError("Enter what the account was billed — that's what the commission comes off.");
     const c = contracts.find((x) => x.id === addE.contract_id);
     const pct = Number(c?.commission_pct ?? 10);
     const gross = Number(addE.billed_amount);
@@ -108,20 +122,26 @@ export default function SnowTab() {
       notes: addE.notes || null,
     });
     setBusy(false);
-    if (error) return alert(error.message);
-    setAddE(null); load();
+    if (error) return showError(error.message);
+    setAddE(null); showToast("Event logged"); load();
   }
 
   // Deleting an account takes its events with it (FK cascade), which is why
   // the count is spelled out in the prompt rather than a bare "are you sure".
   async function deleteContract(c: any) {
     const n = eventsFor(c.id).length;
-    const msg = n
-      ? `Delete "${c.name}" and its ${n} logged event${n === 1 ? "" : "s"}?\n\nThat removes ${fmt2(eventsFor(c.id).reduce((s: number, e: any) => s + Number(e.commission_amount || 0), 0))} of tracked commission. Consider Archive instead.`
-      : `Delete "${c.name}"?`;
-    if (!confirm(msg)) return;
+    const ok = await ask({
+      title: n ? `Delete "${c.name}" and its ${n} logged event${n === 1 ? "" : "s"}?` : `Delete "${c.name}"?`,
+      body: n
+        ? `That removes ${fmt2(eventsFor(c.id).reduce((s: number, e: any) => s + Number(e.commission_amount || 0), 0))} of tracked commission. Consider Archive instead.`
+        : undefined,
+      confirm: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     const { error } = await supabase.from("recurring_contracts").delete().eq("id", c.id);
-    if (error) return alert("Delete failed: " + error.message);
+    if (error) return showError("Delete failed: " + error.message);
+    showToast("Account deleted");
     load();
   }
 
@@ -136,156 +156,171 @@ export default function SnowTab() {
     await supabase.from("service_events").update({ [field]: !e[field] }).eq("id", e.id);
     load();
   }
-  async function delEvent(id: string) {
-    if (!confirm("Delete this event?")) return;
-    await supabase.from("service_events").delete().eq("id", id);
-    load();
+  function delEvent(id: string) {
+    const before = events;
+    undoable({
+      text: "Deleted event",
+      hide: () => setEvents(before.filter((x) => x.id !== id)),
+      restore: () => setEvents(before),
+      commit: () => supabase.from("service_events").delete().eq("id", id),
+    });
   }
 
-  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
+  const newAccount = () => setEditC({ service_type: "snow", rate_type: "per_event", commission_pct: 10, performed_by: "THM", active: true });
+
+  const header = (
+    <PageHeader
+      title="Recurring"
+      sub="Snow and seasonal accounts — your commission is 10% of top-line gross"
+      actions={<Button onClick={newAccount}><Plus size={16} /> Account</Button>}
+    />
+  );
+
+  if (err) return <div>{header}<LoadError message={err} onRetry={load} /></div>;
+  if (!loaded) return <div>{header}<ListSkeleton /></div>;
 
   return (
-    <div className="pb-28 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold text-white">Recurring</h1>
-          <p className="text-xs text-neutral-400">Snow and seasonal accounts</p>
-        </div>
-        <button onClick={() => setEditC({ service_type: "snow", rate_type: "per_event", commission_pct: 10, performed_by: "THM", active: true })} className={btnPrimary}>＋ Account</button>
-      </div>
+    <div className="space-y-5 pb-28">
+      {header}
 
-      <div className="grid grid-cols-3 gap-2">
-        {[["Gross billed", fmt0(grossYTD)], ["Your commission", fmt0(commYTD)], ["Not invoiced", fmt0(uninvoiced)]].map(([k, v]) => (
-          <div key={k} className="rounded-xl bg-white/[0.05] px-3 py-2.5">
-            <div className="text-sm font-semibold text-neutral-300">{k}</div>
-            <div className="text-lg font-bold text-white leading-tight tabular-nums">{v}</div>
-          </div>
-        ))}
+      <div className="grid grid-cols-3 gap-3">
+        <Stat label="Gross billed" value={fmt0(grossYTD)} />
+        <Stat label="Your commission" value={fmt0(commYTD)} tone={commYTD ? "ok" : undefined} />
+        <Stat label="Not invoiced" value={fmt0(uninvoiced)} tone={uninvoiced ? "warn" : undefined} />
       </div>
 
       {editC ? (
-        <div className={card + " space-y-3"}>
-          <div><label className={lbl}>Account name</label><input className={inp} value={editC.name ?? ""} placeholder="Lincoln Property Mgmt — winter 26/27" onChange={(e) => setEditC({ ...editC, name: e.target.value })} /></div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className={lbl}>Customer</label>
-              <select className={inp} value={editC.customer_id ?? ""} onChange={(e) => setEditC({ ...editC, customer_id: e.target.value, property_id: "" })}>
+        <Card className="space-y-3 p-4">
+          <Field label="Account name"><Input value={editC.name ?? ""} placeholder="Lincoln Property Mgmt — winter 26/27" onChange={(e) => setEditC({ ...editC, name: e.target.value })} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Customer">
+              <NativeSelect value={editC.customer_id ?? ""} onChange={(e) => setEditC({ ...editC, customer_id: e.target.value, property_id: "" })}>
                 <option value="">—</option>
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={lbl}>Property</label>
-              <select className={inp} value={editC.property_id ?? ""} onChange={(e) => setEditC({ ...editC, property_id: e.target.value })}>
+              </NativeSelect>
+            </Field>
+            <Field label="Property">
+              <NativeSelect value={editC.property_id ?? ""} onChange={(e) => setEditC({ ...editC, property_id: e.target.value })}>
                 <option value="">—</option>
                 {properties.filter((p) => !editC.customer_id || p.customer_id === editC.customer_id).map((p) => (
                   <option key={p.id} value={p.id}>{p.label ? `${p.label} — ${p.address}` : p.address}</option>
                 ))}
-              </select>
-            </div>
+              </NativeSelect>
+            </Field>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><label className={lbl}>Season start</label><input type="date" className={inp} value={editC.season_start ?? ""} onChange={(e) => setEditC({ ...editC, season_start: e.target.value })} /></div>
-            <div><label className={lbl}>Season end</label><input type="date" className={inp} value={editC.season_end ?? ""} onChange={(e) => setEditC({ ...editC, season_end: e.target.value })} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Season start"><Input type="date" value={editC.season_start ?? ""} onChange={(e) => setEditC({ ...editC, season_start: e.target.value })} /></Field>
+            <Field label="Season end"><Input type="date" value={editC.season_end ?? ""} onChange={(e) => setEditC({ ...editC, season_end: e.target.value })} /></Field>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className={lbl}>Rate type</label>
-              <select className={inp} value={editC.rate_type} onChange={(e) => setEditC({ ...editC, rate_type: e.target.value })}>
+            <Field label="Rate type">
+              <NativeSelect value={editC.rate_type} onChange={(e) => setEditC({ ...editC, rate_type: e.target.value })}>
                 {RATE_TYPES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-              </select>
-            </div>
-            <div><label className={lbl}>Rate</label><MoneyInput className={inp} value={editC.rate ?? ""} onChange={(v) => setEditC({ ...editC, rate: v })} /></div>
-            <div><label className={lbl}>Your %</label><input type="number" inputMode="decimal" className={inp} value={editC.commission_pct ?? 10} onChange={(e) => setEditC({ ...editC, commission_pct: e.target.value })} /></div>
+              </NativeSelect>
+            </Field>
+            <Field label="Rate"><MoneyInput className={moneyCls} value={editC.rate ?? ""} onChange={(v) => setEditC({ ...editC, rate: v })} /></Field>
+            <Field label="Your %"><Input type="number" inputMode="decimal" value={editC.commission_pct ?? 10} onChange={(e) => setEditC({ ...editC, commission_pct: e.target.value })} /></Field>
           </div>
-          <div className="rounded-lg border border-white/[0.07] bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-400">
+          <div className="rounded-lg border border-border bg-neutral-950 px-3 py-2 text-xs text-neutral-400">
             Commission is calculated on top-line gross — no costs come out before your cut.
           </div>
           <div className="flex gap-2">
-            <button onClick={saveContract} disabled={busy} className={btnPrimary + " flex-1"}>{busy ? "Saving…" : "Save account"}</button>
-            <button onClick={() => setEditC(null)} className={btn}>Cancel</button>
+            <Button onClick={saveContract} disabled={busy} className="flex-1">{busy ? "Saving…" : "Save account"}</Button>
+            <Button variant="outline" onClick={() => setEditC(null)}>Cancel</Button>
           </div>
+        </Card>
+      ) : null}
+
+      {contracts.length ? (
+        <div className="grid items-start gap-3 md:grid-cols-2">
+          {contracts.map((c) => {
+            const evs = eventsFor(c.id);
+            const gross = evs.reduce((s, e) => s + Number(e.billed_amount || 0), 0);
+            const comm = evs.reduce((s, e) => s + Number(e.commission_amount || 0), 0);
+            return (
+              <Card key={c.id} className={cn("space-y-3 p-4", !c.active && "opacity-60")}>
+                <div className="min-w-0">
+                  <div className="truncate text-[15px] font-semibold text-white">{c.name}</div>
+                  <div className="truncate text-xs text-neutral-400">
+                    {[c.customer_id ? custById[c.customer_id] : null, RATE_TYPES.find((r) => r.key === c.rate_type)?.label,
+                      c.rate ? fmt0(Number(c.rate)) : null, `${c.commission_pct}% to you`, c.performed_by].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-neutral-400">
+                  <span>{evs.length} event{evs.length === 1 ? "" : "s"}</span>
+                  <span className="tabular-nums">{fmt0(gross)} gross</span>
+                  <span className="font-semibold tabular-nums text-emerald-400">{fmt2(comm)} yours</span>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" className="h-10" onClick={() => setAddE({ contract_id: c.id, event_date: todayISO(), billed_amount: "" })}><Plus size={14} /> Event</Button>
+                  <Button size="sm" variant="outline" className="h-10" onClick={() => setEditC({ ...c, rate: c.rate ?? "" })}><Pencil size={14} /> Edit</Button>
+                  <Button size="sm" variant="outline" className="h-10" onClick={() => toggleActive(c)}>
+                    {c.active ? <><Archive size={14} /> Archive</> : <><ArchiveRestore size={14} /> Reopen</>}
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => deleteContract(c)} aria-label="Delete account" className="ml-auto text-neutral-500 hover:text-red-400"><Trash2 size={15} /></Button>
+                </div>
+
+                {addE?.contract_id === c.id ? (
+                  <div className="space-y-3 rounded-lg border border-border bg-neutral-950 p-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Date"><Input type="date" value={addE.event_date} onChange={(e) => setAddE({ ...addE, event_date: e.target.value })} /></Field>
+                      <Field label="Inches"><Input type="number" inputMode="decimal" value={addE.inches ?? ""} onChange={(e) => setAddE({ ...addE, inches: e.target.value })} /></Field>
+                    </div>
+                    <Field label="Billed to the account (gross)"><MoneyInput className={moneyCls} value={addE.billed_amount} onChange={(v) => setAddE({ ...addE, billed_amount: v })} /></Field>
+                    {addE.billed_amount ? (
+                      <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                        Your {c.commission_pct}%: <span className="font-bold">{fmt2(Number(addE.billed_amount) * (Number(c.commission_pct) / 100))}</span>
+                      </div>
+                    ) : null}
+                    <Field label="Notes"><Input value={addE.description ?? ""} placeholder="Plowed and salted, 2 lots" onChange={(e) => setAddE({ ...addE, description: e.target.value })} /></Field>
+                    <div className="flex gap-2">
+                      <Button onClick={saveEvent} disabled={busy} className="flex-1">{busy ? "Saving…" : "Log event"}</Button>
+                      <Button variant="outline" onClick={() => setAddE(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {evs.length ? (
+                  <div className="overflow-hidden rounded-lg border border-border">
+                    {evs.slice(0, 8).map((e) => (
+                      <div key={e.id} className="flex items-center justify-between gap-2 border-b border-border bg-neutral-950 px-3 py-2 last:border-0">
+                        <div className="min-w-0">
+                          <div className="truncate text-[13px] text-white">
+                            {fmtDate(e.event_date)}{e.inches ? ` · ${e.inches}"` : ""} — {fmt0(Number(e.billed_amount))}
+                            <span className="text-emerald-400"> ({fmt2(Number(e.commission_amount))})</span>
+                          </div>
+                          {e.description ? <div className="truncate text-xs text-neutral-400">{e.description}</div> : null}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button onClick={() => toggleEvent(e, "invoiced")} aria-pressed={!!e.invoiced}
+                            className={cn("inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-bold", e.invoiced ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-border text-neutral-400 hover:text-white")}>
+                            {e.invoiced ? <Check size={12} /> : null}INV
+                          </button>
+                          <button onClick={() => toggleEvent(e, "paid")} aria-pressed={!!e.paid}
+                            className={cn("inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-bold", e.paid ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-border text-neutral-400 hover:text-white")}>
+                            {e.paid ? <Check size={12} /> : null}PAID
+                          </button>
+                          <Button size="icon-sm" variant="ghost" onClick={() => delEvent(e.id)} aria-label="Delete event" className="text-neutral-500 hover:text-red-400"><X size={14} /></Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </Card>
+            );
+          })}
         </div>
       ) : null}
 
-      {contracts.map((c) => {
-        const evs = eventsFor(c.id);
-        const gross = evs.reduce((s, e) => s + Number(e.billed_amount || 0), 0);
-        const comm = evs.reduce((s, e) => s + Number(e.commission_amount || 0), 0);
-        return (
-          <div key={c.id} className={card + " space-y-2" + (c.active ? "" : " opacity-60")}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-white truncate">{c.name}</div>
-                <div className="text-xs text-neutral-400 truncate">
-                  {[c.customer_id ? custById[c.customer_id] : null, RATE_TYPES.find((r) => r.key === c.rate_type)?.label,
-                    c.rate ? fmt0(Number(c.rate)) : null, `${c.commission_pct}% to you`, c.performed_by].filter(Boolean).join(" · ")}
-                </div>
-              </div>
-              <div className="flex gap-1.5 shrink-0">
-                <button onClick={() => setAddE({ contract_id: c.id, event_date: todayISO(), billed_amount: "" })} className={btn}>＋ Event</button>
-                <button onClick={() => setEditC({ ...c, rate: c.rate ?? "" })} className={btn}>Edit</button>
-                <button onClick={() => toggleActive(c)} className={btn}>{c.active ? "Archive" : "Reopen"}</button>
-                <button onClick={() => deleteContract(c)} aria-label="Delete account"
-                  className="text-neutral-700 hover:text-red-400 text-sm px-1">✕</button>
-              </div>
-            </div>
-
-            <div className="flex gap-3 text-xs text-neutral-400">
-              <span>{evs.length} event{evs.length === 1 ? "" : "s"}</span>
-              <span>{fmt0(gross)} gross</span>
-              <span className="text-emerald-400 font-semibold">{fmt2(comm)} yours</span>
-            </div>
-
-            {addE?.contract_id === c.id ? (
-              <div className="rounded-lg border border-neutral-700 bg-neutral-900/60 p-2.5 space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <div><label className={lbl}>Date</label><input type="date" className={inp} value={addE.event_date} onChange={(e) => setAddE({ ...addE, event_date: e.target.value })} /></div>
-                  <div><label className={lbl}>Inches</label><input type="number" inputMode="decimal" className={inp} value={addE.inches ?? ""} onChange={(e) => setAddE({ ...addE, inches: e.target.value })} /></div>
-                </div>
-                <div><label className={lbl}>Billed to the account (gross)</label><MoneyInput className={inp} value={addE.billed_amount} onChange={(v) => setAddE({ ...addE, billed_amount: v })} /></div>
-                {addE.billed_amount ? (
-                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200">
-                    Your {c.commission_pct}%: <span className="font-bold">{fmt2(Number(addE.billed_amount) * (Number(c.commission_pct) / 100))}</span>
-                  </div>
-                ) : null}
-                <div><label className={lbl}>Notes</label><input className={inp} value={addE.description ?? ""} placeholder="Plowed and salted, 2 lots" onChange={(e) => setAddE({ ...addE, description: e.target.value })} /></div>
-                <div className="flex gap-2">
-                  <button onClick={saveEvent} disabled={busy} className={btnPrimary + " flex-1"}>{busy ? "Saving…" : "Log event"}</button>
-                  <button onClick={() => setAddE(null)} className={btn}>Cancel</button>
-                </div>
-              </div>
-            ) : null}
-
-            {evs.slice(0, 8).map((e) => (
-              <div key={e.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.07] bg-neutral-900 px-2.5 py-1.5">
-                <div className="min-w-0">
-                  <div className="text-[13px] text-white truncate">
-                    {fmtDate(e.event_date)}{e.inches ? ` · ${e.inches}"` : ""} — {fmt0(Number(e.billed_amount))}
-                    <span className="text-emerald-400"> ({fmt2(Number(e.commission_amount))})</span>
-                  </div>
-                  {e.description ? <div className="text-xs text-neutral-400 truncate">{e.description}</div> : null}
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <button onClick={() => toggleEvent(e, "invoiced")} className={`rounded-md border px-1.5 py-0.5 text-xs font-bold ${e.invoiced ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-neutral-700 text-neutral-400"}`}>INV</button>
-                  <button onClick={() => toggleEvent(e, "paid")} className={`rounded-md border px-1.5 py-0.5 text-xs font-bold ${e.paid ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-neutral-700 text-neutral-400"}`}>PAID</button>
-                  <button onClick={() => delEvent(e.id)} className="text-neutral-500 hover:text-red-400 text-xs px-1">✕</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      })}
-
       {contracts.length === 0 && !editC ? (
-        <div className={card}>
-          <div className="text-sm font-semibold text-white">No accounts set up yet.</div>
-          <p className="mt-1 text-xs text-neutral-400 leading-relaxed">
-            Add each snow account here before the season. Log an event per storm with what the account
-            was billed, and your 10% is calculated and tracked — which also gives you a clean number to
-            settle against the THM tab instead of reconstructing it in March.
-          </p>
-        </div>
+        <Empty
+          icon={<Snowflake size={26} />}
+          title="No accounts set up yet"
+          body="Add each snow account here before the season. Log an event per storm with what the account was billed, and your 10% is calculated and tracked — which also gives you a clean number to settle against the THM tab instead of reconstructing it in March."
+          action={<Button variant="outline" size="sm" onClick={newAccount}><Plus size={15} /> Add an account</Button>}
+        />
       ) : null}
     </div>
   );

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { STATUS_META, LOST_REASONS, fmtDate, fmtPrice, parsePrice, todayISO, daysSince } from "@/lib/format";
-import { undoable, showToast } from "@/components/Toaster";
+import { undoable, showToast, showError } from "@/components/Toaster";
 import { editJob, LEAD_SOURCES } from "@/components/job/JobForm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import JobChecklist from "@/components/JobChecklist";
 import MyClock from "@/components/MyClock";
 import { CostsPanel, LaborPanel, TasksPanel, PhotosPanel, SchedulePanel, JobbookCard, ActivityPanel } from "@/components/job/panels";
 import { cn } from "@/lib/utils";
+import { ask } from "@/components/Dialogs";
 import {
   Phone, Navigation, Pencil, MoreHorizontal, Star, Trash2, XCircle, ChevronLeft, MapPin, Hammer, ThumbsUp,
   CalendarPlus, Play, CheckCircle2, FileText, Banknote, ArrowRight, Briefcase, Building2,
@@ -112,7 +113,7 @@ export default function JobRecord({ id }: { id: string }) {
       text, hide: () => setJob({ ...before, ...p }), restore: () => setJob(before),
       commit: async () => {
         const { error } = await sb.from("jobs").update({ ...p, updated_at: new Date().toISOString() }).eq("id", id);
-        if (error) alert("Save failed: " + error.message);
+        if (error) showError("Save failed: " + error.message);
         window.dispatchEvent(new Event("isola:changed"));
       },
     });
@@ -129,9 +130,9 @@ export default function JobRecord({ id }: { id: string }) {
     patch(p, `Moved to ${STATUS_META[key].label}`);
   }
   async function del() {
-    if (!confirm(`Delete ${job.job_name || job.customer}? This can't be undone.`)) return;
+    if (!(await ask({ title: `Delete ${job.job_name || job.customer}?`, body: "This can't be undone.", confirm: "Delete", danger: true }))) return;
     const { error } = await sb.from("jobs").delete().eq("id", id);
-    if (error) { alert("Delete failed: " + error.message); return; }
+    if (error) { showError("Delete failed: " + error.message); return; }
     window.dispatchEvent(new Event("isola:changed"));
     showToast("Job deleted");
     router.push("/");
@@ -139,7 +140,7 @@ export default function JobRecord({ id }: { id: string }) {
   async function setField(field: string, value: any) {
     setJob({ ...job, [field]: value });
     const { error } = await sb.from("jobs").update({ [field]: value, updated_at: new Date().toISOString() }).eq("id", id);
-    if (error) alert("Save failed: " + error.message); else showToast("Saved");
+    if (error) showError("Save failed: " + error.message); else showToast("Saved");
   }
 
   const StepIcon = step?.icon;

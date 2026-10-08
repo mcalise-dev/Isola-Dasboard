@@ -23,7 +23,7 @@ import { Segmented } from "@/components/ui/tabs";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, Input, Textarea } from "@/components/ui/input";
-import { showToast, undoable } from "@/components/Toaster";
+import { showToast, undoable, showError } from "@/components/Toaster";
 
 type Entry = { id: string; entry_date: string; job_id: string | null; label: string | null; notes: string | null; sort: number | null; assignee: string | null; assignees: string[] | null };
 type Worker = { id: string; name: string; active: boolean; is_owner: boolean | null; rate: number | null };
@@ -191,7 +191,7 @@ export default function DispatchBoard() {
     const rows = dates.filter((d) => !taken.has(d)).map((d) => ({ entry_date: d, job_id: job.id, assignees: who }));
     if (rows.length) {
       const { error } = await supabase.from("schedule_entries").insert(rows);
-      if (error) { alert("Could not schedule: " + error.message); return false; }
+      if (error) { showError("Could not schedule: " + error.message); return false; }
     }
     // days already on the board: add the crew to them instead of doubling the job up
     let joined = 0;
@@ -201,7 +201,7 @@ export default function DispatchBoard() {
       if (next.length !== cur.length) {
         joined++;
         const { error } = await supabase.from("schedule_entries").update({ assignees: next, updated_at: new Date().toISOString() }).eq("id", x.id);
-        if (error) { alert("Could not add crew: " + error.message); return false; }
+        if (error) { showError("Could not add crew: " + error.message); return false; }
       }
     }
     if (dates.length) await stampStart(job.id, dates[0]);
@@ -225,7 +225,7 @@ export default function DispatchBoard() {
       const next = toName ? union(minus, [toName]) : minus;
       setEntries((xs) => xs.map((x) => (x.id === e.id ? withCrew(x, next) : x)));
       const { error } = await supabase.from("schedule_entries").update({ assignees: next, updated_at: now }).eq("id", e.id);
-      if (error) { alert("Move failed: " + error.message); load(); return; }
+      if (error) { showError("Move failed: " + error.message); load(); return; }
       showToast(toName ? (fromName ? `${fromName} → ${toName}` : `Assigned to ${toName}`) : `${fromName} taken off`);
       changed();
       return;
@@ -248,7 +248,7 @@ export default function DispatchBoard() {
       ({ error } = await supabase.from("schedule_entries").insert({ entry_date: date, job_id: e.job_id, label: e.job_id ? null : e.label, notes: e.notes, assignees: toName ? [toName] : [] }));
       if (!error) ({ error } = await supabase.from("schedule_entries").update({ assignees: minus, updated_at: now }).eq("id", e.id));
     }
-    if (error) { alert("Move failed: " + error.message); load(); return; }
+    if (error) { showError("Move failed: " + error.message); load(); return; }
     if (e.job_id) await stampStart(e.job_id, date);
     showToast(`Moved ${toName ?? fromName ?? "to Unassigned"} · ${md(date)}${!solo ? " (rest of crew stays — open the day to move everyone)" : ""}`);
     await load();
@@ -605,7 +605,7 @@ function EntrySheet({ entry, job, options, onClose, supabase, entries, setEntrie
     if (!entry) return;
     setEntries((xs) => xs.map((x) => (x.id === entry.id ? { ...x, ...p } : x)));
     const { error } = await supabase.from("schedule_entries").update({ ...p, updated_at: new Date().toISOString() }).eq("id", entry.id);
-    if (error) { alert("Save failed: " + error.message); reload(); return; }
+    if (error) { showError("Save failed: " + error.message); reload(); return; }
     showToast(toast);
     changed();
   }
@@ -620,7 +620,7 @@ function EntrySheet({ entry, job, options, onClose, supabase, entries, setEntrie
     }
     const row: any = { entry_date: d, assignees: crewOn(entry), job_id: entry.job_id, label: entry.job_id ? null : entry.label };
     const { error } = await supabase.from("schedule_entries").insert(row);
-    if (error) { alert("Could not add: " + error.message); return; }
+    if (error) { showError("Could not add: " + error.message); return; }
     showToast("Added " + dayLong(d));
     await reload();
     changed();

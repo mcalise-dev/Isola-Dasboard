@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Phone, Navigation, ChevronLeft } from "lucide-react";
 import { CheckRow, Empty, H, dayLabel } from "@/components/field/shared";
+import { showError } from "@/components/Toaster";
 
 // Crew view of one job: where, who to call, the scope, the days, punch list, tasks, photos.
 // Nothing about price, costs, invoices or Mike's private notes.
@@ -25,17 +26,17 @@ export default function FieldJob() {
   async function setPunch(pid: string, done: boolean) {
     setD((x: any) => ({ ...x, punch: x.punch.map((p: any) => (p.id === pid ? { ...p, done } : p)) }));
     const { error } = await supabase.rpc("crew_set_punch", { p_id: pid, p_done: done });
-    if (error) { alert("Couldn't save: " + error.message); load(); }
+    if (error) { showError("Couldn't save: " + error.message); load(); }
   }
   async function setCheck(cid: string, done: boolean) {
     setD((x: any) => ({ ...x, checklist: x.checklist.map((k: any) => (k.id === cid ? { ...k, done } : k)) }));
     const { error } = await supabase.rpc("crew_set_checklist", { p_id: cid, p_done: done });
-    if (error) { alert("Couldn't save: " + error.message); load(); }
+    if (error) { showError("Couldn't save: " + error.message); load(); }
   }
   async function setTask(tid: string, done: boolean) {
     setD((x: any) => ({ ...x, tasks: x.tasks.map((p: any) => (p.id === tid ? { ...p, done } : p)) }));
     const { error } = await supabase.rpc("crew_set_task", { p_id: tid, p_done: done });
-    if (error) { alert("Couldn't save: " + error.message); load(); }
+    if (error) { showError("Couldn't save: " + error.message); load(); }
   }
 
   const back = <button onClick={() => router.back()} className="inline-flex items-center gap-1 -ml-1 mb-2 text-sm font-semibold text-neutral-300 min-h-[40px]"><ChevronLeft size={18} /> Back</button>;

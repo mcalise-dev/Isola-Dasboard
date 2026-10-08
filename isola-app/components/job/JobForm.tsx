@@ -6,7 +6,7 @@ import { STATUS_META } from "@/lib/format";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Field, Input, NativeSelect, Textarea } from "@/components/ui/input";
-import { showToast } from "@/components/Toaster";
+import { showToast, showError } from "@/components/Toaster";
 
 // v4.6: one add/edit job form for the whole app. Open it with
 //   window.dispatchEvent(new CustomEvent("isola:new-job"))            → new job
@@ -47,7 +47,7 @@ export default function JobForm() {
   const set = (patch: any) => setForm((f: any) => ({ ...f, ...patch }));
 
   async function save() {
-    if (!form.customer.trim()) { alert("Pick a customer, or add a new one."); return; }
+    if (!form.customer.trim()) { showError("Pick a customer, or add a new one."); return; }
     setBusy(true);
     const payload: any = { ...form, updated_at: new Date().toISOString() };
     Object.keys(payload).forEach((k) => { if (payload[k] === "") payload[k] = null; });
@@ -61,7 +61,7 @@ export default function JobForm() {
       if (found) { cid = found.id; payload.customer = found.name; }
       else {
         const { data: made, error } = await supabase.from("customers").insert({ name: payload.customer, contact_name: payload.contact_name, phone: payload.contact_phone, lead_source: payload.lead_source }).select("id").single();
-        if (error) { setBusy(false); alert("Could not create the customer: " + error.message); return; }
+        if (error) { setBusy(false); showError("Could not create the customer: " + error.message); return; }
         cid = made.id;
       }
     }
@@ -79,7 +79,7 @@ export default function JobForm() {
       ? await supabase.from("jobs").update(payload).eq("id", editing.id).select("id").single()
       : await supabase.from("jobs").insert(payload).select("id").single();
     setBusy(false);
-    if (res.error) { alert("Save failed: " + res.error.message); return; }
+    if (res.error) { showError("Save failed: " + res.error.message); return; }
     setOpen(false);
     window.dispatchEvent(new Event("isola:changed"));
     showToast(editing ? "Job saved" : "Job added");

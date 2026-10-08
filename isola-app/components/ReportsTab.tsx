@@ -1,6 +1,12 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { withTimeout, firstError } from "@/lib/load";
+import { PageHeader, SectionTitle, Stat, Progress, ListSkeleton, LoadError } from "@/components/ui/bits";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { AlertTriangle, ChevronRight, X } from "lucide-react";
 
 /* ============================================================
    REPORTS — the view across jobs the app never had. Everything here
@@ -20,7 +26,6 @@ import { createClient } from "@/lib/supabase/client";
    ============================================================ */
 
 const fmt0 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
-const card = "rounded-xl bg-white/[0.05] p-3.5";
 
 type Drill = { kind: "tile" | "type"; key: string; label: string } | null;
 
@@ -31,24 +36,35 @@ export default function ReportsTab() {
   const [custs, setCusts] = useState<any[]>([]);
   const [qbo, setQbo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
   const [drill, setDrill] = useState<Drill>(null);
 
-  useEffect(() => {
-    (async () => {
-      const [f, e, c, m] = await Promise.all([
+  async function load() {
+    setErr(null);
+    try {
+      const [f, e, c, m] = await withTimeout(Promise.all([
         supabase.from("job_financials").select("*"),
         supabase.from("estimates").select("id,status,sell_price,cost_total,customer_id,job_type"),
         supabase.from("customers").select("id,name,client_type"),
         supabase.from("money_snapshot").select("data,updated_at").eq("id", 1).maybeSingle(),
-      ]);
+      ]));
+      const bad = firstError(f, e, c, m);
+      if (bad) throw new Error(bad);
       setFin(f.data ?? []); setEsts(e.data ?? []); setCusts(c.data ?? []);
       setQbo(m.data ?? null);
       setLoading(false);
-    })();
+    } catch (e: any) {
+      setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
+    }
+  }
+
+  useEffect(() => {
+    load();
     /* eslint-disable-next-line */
   }, []);
 
-  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
+  if (err) return <div className="pb-28"><PageHeader title="Reports" sub="Tap any number to see the jobs behind it" /><LoadError message={err} onRetry={load} /></div>;
+  if (loading) return <div className="pb-28"><PageHeader title="Reports" sub="Tap any number to see the jobs behind it" /><ListSkeleton rows={5} /></div>;
 
   const priced = fin.filter((f) => Number(f.contract_total) > 0);
   const withCosts = priced.filter((f) => Number(f.actual_cost) > 0);
@@ -122,13 +138,10 @@ export default function ReportsTab() {
   const toggle = (kind: "tile" | "type", key: string, label: string) =>
     setDrill(isOpen(kind, key) ? null : { kind, key, label });
 
-  const tile = (key: string, label: string, value: string, sub: string, tone?: string) => (
-    <button key={key} onClick={() => toggle("tile", key, label)}
-      className={`rounded-xl border px-3 py-2.5 text-left ${isOpen("tile", key) ? "border-neutral-300 bg-neutral-900" : "border-white/[0.08] bg-neutral-950 hover:border-neutral-600"}`}>
-      <div className="text-sm font-semibold text-neutral-300">{label}</div>
-      <div className={`text-xl font-bold leading-tight tabular-nums ${tone ?? "text-white"}`}>{value}</div>
-      <div className="text-xs text-neutral-400">{sub}</div>
-    </button>
+  const tile = (key: string, label: string, value: string, sub: string, tone?: "ok" | "warn" | "bad") => (
+    <Stat key={key} label={label} value={value} hint={sub} tone={tone}
+      onClick={() => toggle("tile", key, label)}
+      className={cn(isOpen("tile", key) && "border-white/60 ring-1 ring-white/30")} />
   );
 
   /* ---------- the drill-down list ---------- */
@@ -136,185 +149,204 @@ export default function ReportsTab() {
     if (!drill) return null;
     const jobs = drillJobs(drill);
     return (
-      <div className="rounded-xl border border-neutral-300/30 bg-neutral-900 p-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold text-neutral-300">
-            {drill.label} — {jobs.length} job{jobs.length === 1 ? "" : "s"}
-          </div>
-          <button onClick={() => setDrill(null)} className="text-xs font-semibold text-neutral-400 underline">Close</button>
-        </div>
-        {jobs.length === 0 ? (
-          <p className="text-xs text-neutral-400">
-            Nothing here yet — this figure comes from QuickBooks invoices with no job in the app.
-          </p>
-        ) : jobs.map((f) => (
-          <a key={f.job_id} href={`/billing?job=${f.job_id}`}
-            className="block rounded-lg bg-white/[0.05] px-2.5 py-2 hover:border-neutral-600">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-white truncate">{f.job_name || "—"}</div>
-                <div className="text-xs text-neutral-400 truncate">
-                  {f.customer}{f.qbo_invoice_ref ? ` · QB ${f.qbo_invoice_ref}` : " · not invoiced"}
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <div className="text-sm font-bold text-white tabular-nums">{fmt0(Number(f.contract_total))}</div>
-                <div className="text-xs text-neutral-400 tabular-nums">
-                  {Number(f.balance_due) > 0 ? `${fmt0(Number(f.balance_due))} owed` : "paid"}
-                </div>
-              </div>
+      <Card className="border-white/25">
+        <CardHeader>
+          <CardTitle className="min-w-0 flex-1 truncate">
+            {drill.label} <span className="font-normal text-neutral-400">— {jobs.length} job{jobs.length === 1 ? "" : "s"}</span>
+          </CardTitle>
+          <Button variant="ghost" size="icon-sm" onClick={() => setDrill(null)} aria-label="Close"><X size={16} /></Button>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {jobs.length === 0 ? (
+            <p className="text-sm text-neutral-400">
+              Nothing here yet — this figure comes from QuickBooks invoices with no job in the app.
+            </p>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2">
+              {jobs.map((f) => (
+                <a key={f.job_id} href={`/billing?job=${f.job_id}`}
+                  className="block rounded-lg border border-border bg-neutral-950 px-3 py-2.5 transition-colors hover:border-white/25">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-white">{f.job_name || "—"}</div>
+                      <div className="truncate text-xs text-neutral-400">
+                        {f.customer}{f.qbo_invoice_ref ? ` · QB ${f.qbo_invoice_ref}` : " · not invoiced"}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-semibold tabular-nums text-white">{fmt0(Number(f.contract_total))}</div>
+                      <div className="text-xs tabular-nums text-neutral-400">
+                        {Number(f.balance_due) > 0 ? `${fmt0(Number(f.balance_due))} owed` : "paid"}
+                      </div>
+                    </div>
+                  </div>
+                  {Number(f.actual_cost) > 0 ? (
+                    <div className="mt-1 flex flex-wrap gap-2 text-xs text-neutral-500">
+                      <span>cost {fmt0(Number(f.actual_cost))}</span>
+                      {Number(f.partner_share) > 0 ? <span className="text-amber-300/80">{f.partner} {fmt0(Number(f.partner_share))}</span> : null}
+                      <span className="text-emerald-400/80">you keep {fmt0(Number(f.net_to_isola))}</span>
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-xs text-amber-300/70">no costs logged — margin not real</div>
+                  )}
+                </a>
+              ))}
             </div>
-            {Number(f.actual_cost) > 0 ? (
-              <div className="mt-1 flex flex-wrap gap-2 text-xs text-neutral-500">
-                <span>cost {fmt0(Number(f.actual_cost))}</span>
-                {Number(f.partner_share) > 0 ? <span className="text-amber-300/80">{f.partner} {fmt0(Number(f.partner_share))}</span> : null}
-                <span className="text-emerald-400/80">you keep {fmt0(Number(f.net_to_isola))}</span>
-              </div>
-            ) : (
-              <div className="mt-1 text-xs text-amber-300/70">no costs logged — margin not real</div>
-            )}
-          </a>
-        ))}
-        <p className="text-xs text-neutral-500">Tap a job to open it in Billing, where you can edit it.</p>
-      </div>
+          )}
+          <p className="text-xs text-neutral-500">Tap a job to open it in Billing, where you can edit it.</p>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="pb-28 space-y-4">
-      <div>
-        <h1 className="text-lg font-bold text-white">Reports</h1>
-        <p className="text-xs text-neutral-400">Tap any number to see the jobs behind it</p>
-      </div>
+    <div className="pb-28 space-y-5">
+      <PageHeader className="mb-0" title="Reports" sub="Tap any number to see the jobs behind it" />
 
-      <div className="grid grid-cols-2 gap-2">
-        {tile("collected", "Collected", fmt0(totPaid), `${invoiced.length} invoiced jobs`, "text-emerald-400")}
-        {tile("owed", "Invoiced — owed", fmt0(owedReal), "billed, not paid", owedReal > 0 ? "text-amber-300" : "text-white")}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+        {tile("collected", "Collected", fmt0(totPaid), `${invoiced.length} invoiced jobs`, "ok")}
+        {tile("owed", "Invoiced — owed", fmt0(owedReal), "billed, not paid", owedReal > 0 ? "warn" : undefined)}
         {tile("quoted", "Quoted pipeline", fmt0(quotedTotal), `${quoted.length} priced, no invoice`)}
         {tile("contracted", "Contracted", fmt0(totContract), `${priced.length} priced jobs`)}
-      </div>
-
-      {/* ---- what's actually yours ---- */}
-      <div className="grid grid-cols-2 gap-2">
-        {tile("keep", "You keep", fmt0(totKeep), `${withCosts.length} jobs with costs`, "text-emerald-400")}
-        {tile("partner", "To partners", fmt0(totPartner), "THM profit shares", totPartner > 0 ? "text-amber-300" : "text-white")}
+        {/* ---- what's actually yours ---- */}
+        {tile("keep", "You keep", fmt0(totKeep), `${withCosts.length} jobs with costs`, "ok")}
+        {tile("partner", "To partners", fmt0(totPartner), "THM profit shares", totPartner > 0 ? "warn" : undefined)}
       </div>
 
       {drill?.kind === "tile" ? drillPanel() : null}
 
-      {withCosts.length ? (
-        <div className={card}>
-          <div className="flex justify-between items-baseline">
-            <span className="text-sm font-semibold text-neutral-300">True margin</span>
-            <span className="text-2xl font-bold text-white tabular-nums">{trueMargin.toFixed(1)}%</span>
-          </div>
-          <p className="mt-1 text-xs text-neutral-500 leading-relaxed">
-            What you keep, over what you billed, on the {withCosts.length} jobs that have real costs against them —
-            after job costs and after the partner's share. Job-level margins read far higher; this is the one that pays you.
-          </p>
-        </div>
-      ) : null}
+      <div className="grid gap-3 md:grid-cols-2">
+        {withCosts.length ? (
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm font-semibold text-neutral-300">True margin</span>
+                <span className="text-2xl font-semibold tabular-nums text-white">{trueMargin.toFixed(1)}%</span>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-neutral-500">
+                What you keep, over what you billed, on the {withCosts.length} jobs that have real costs against them —
+                after job costs and after the partner's share. Job-level margins read far higher; this is the one that pays you.
+              </p>
+            </CardContent>
+          </Card>
+        ) : null}
 
-      {qboAR > 0 ? (
-        <div className={card + " space-y-1.5"}>
-          <div className="text-sm font-semibold text-neutral-300">Against QuickBooks</div>
-          <div className="flex justify-between text-sm">
-            <span className="text-neutral-400">QuickBooks A/R</span>
-            <span className="text-neutral-200 tabular-nums">{fmt0(qboAR)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-neutral-400">Owed on jobs in this app</span>
-            <span className="text-neutral-200 tabular-nums">{fmt0(owedReal)}</span>
-          </div>
-          <div className="flex justify-between border-t border-white/[0.08] pt-1.5 text-sm">
-            <span className="text-neutral-400">Invoiced with no job here</span>
-            <span className="text-neutral-200 tabular-nums">{fmt0(unlinkedAR)}</span>
-          </div>
-          <p className="text-xs text-neutral-500 leading-relaxed">
-            That last line is mostly the THM tab, which is a ledger rather than a job. If it grows,
-            it means invoices are being raised in QuickBooks without a job here to carry the costs —
-            which is exactly the work whose margin nobody can see.
-          </p>
-          {qbo?.updated_at ? (
-            <p className="text-xs text-neutral-700">
-              QuickBooks figures as of {new Date(qbo.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+        {qboAR > 0 ? (
+          <Card>
+            <CardHeader><CardTitle>Against QuickBooks</CardTitle></CardHeader>
+            <CardContent className="space-y-1.5">
+              <div className="flex justify-between text-sm">
+                <span className="text-neutral-400">QuickBooks A/R</span>
+                <span className="tabular-nums text-neutral-200">{fmt0(qboAR)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-neutral-400">Owed on jobs in this app</span>
+                <span className="tabular-nums text-neutral-200">{fmt0(owedReal)}</span>
+              </div>
+              <div className="flex justify-between border-t border-border pt-1.5 text-sm">
+                <span className="text-neutral-400">Invoiced with no job here</span>
+                <span className="tabular-nums text-neutral-200">{fmt0(unlinkedAR)}</span>
+              </div>
+              <p className="text-xs leading-relaxed text-neutral-500">
+                That last line is mostly the THM tab, which is a ledger rather than a job. If it grows,
+                it means invoices are being raised in QuickBooks without a job here to carry the costs —
+                which is exactly the work whose margin nobody can see.
+              </p>
+              {qbo?.updated_at ? (
+                <p className="text-xs text-neutral-600">
+                  QuickBooks figures as of {new Date(qbo.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
+      </div>
 
       {/* ---- data-quality reality check ---- */}
       {missing.length ? (
         <button onClick={() => toggle("tile", "missing", "Priced jobs with no costs")}
-          className={`w-full text-left rounded-xl border p-3 ${isOpen("tile", "missing") ? "border-amber-400 bg-amber-500/15" : "border-amber-500/40 bg-amber-500/10"}`}>
-          <div className="text-sm font-semibold text-amber-300">
-            {missing.length} priced job{missing.length === 1 ? "" : "s"} with no costs logged
+          className={cn("flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors",
+            isOpen("tile", "missing") ? "border-amber-400 bg-amber-500/15" : "border-amber-500/40 bg-amber-500/10 hover:border-amber-400/70")}>
+          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-300" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-amber-300">
+              {missing.length} priced job{missing.length === 1 ? "" : "s"} with no costs logged
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-amber-100/80">
+              Those jobs show 100% margin because nothing has been spent against them in the app.
+              Every margin below is computed from the {withCosts.length} job{withCosts.length === 1 ? "" : "s"} that
+              do have costs. Tap to see which ones.
+            </p>
           </div>
-          <p className="mt-1 text-xs text-amber-100/80 leading-relaxed">
-            Those jobs show 100% margin because nothing has been spent against them in the app.
-            Every margin below is computed from the {withCosts.length} job{withCosts.length === 1 ? "" : "s"} that
-            do have costs. Tap to see which ones.
-          </p>
+          <ChevronRight size={18} className="mt-0.5 shrink-0 text-amber-300/70" />
         </button>
       ) : null}
 
       {/* ---- where the money actually is ---- */}
-      <div className={card + " space-y-2"}>
-        <div className="text-sm font-semibold text-neutral-300">Margin by work type</div>
-        {typeRows.length === 0 ? (
-          <p className="text-xs text-neutral-500">Nothing to show until at least one job has costs logged against it.</p>
-        ) : typeRows.map((r) => (
-          <button key={r.type} onClick={() => toggle("type", r.type, r.type)}
-            className={`w-full text-left space-y-1 rounded-lg px-2 py-1.5 ${isOpen("type", r.type) ? "bg-neutral-900" : "hover:bg-neutral-900/60"}`}>
-            <div className="flex justify-between text-sm">
-              <span className="text-neutral-300 truncate">{r.type} <span className="text-neutral-500">×{r.n}</span></span>
-              <span className={`tabular-nums font-semibold ${r.margin < 20 ? "text-amber-300" : "text-emerald-400"}`}>{r.margin.toFixed(0)}%</span>
-            </div>
-            <div className="h-1.5 rounded-full bg-neutral-800 overflow-hidden">
-              <div className={`h-full ${r.margin < 20 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.max(0, Math.min(100, r.margin))}%` }} />
-            </div>
-            <div className="text-xs text-neutral-500">{fmt0(r.rev)} billed · {fmt0(r.cost)} cost · {fmt0(r.rev - r.cost)} net</div>
-          </button>
-        ))}
-      </div>
+      <section>
+        <SectionTitle>Margin by work type</SectionTitle>
+        <Card>
+          <CardContent className="space-y-1 pt-3">
+            {typeRows.length === 0 ? (
+              <p className="py-2 text-sm text-neutral-500">Nothing to show until at least one job has costs logged against it.</p>
+            ) : typeRows.map((r) => (
+              <button key={r.type} onClick={() => toggle("type", r.type, r.type)}
+                className={cn("w-full space-y-1.5 rounded-lg px-2 py-2 text-left transition-colors", isOpen("type", r.type) ? "bg-white/[0.07]" : "hover:bg-white/[0.04]")}>
+                <div className="flex justify-between text-sm">
+                  <span className="truncate text-neutral-200">{r.type} <span className="text-neutral-500">×{r.n}</span></span>
+                  <span className={cn("font-semibold tabular-nums", r.margin < 20 ? "text-amber-300" : "text-emerald-400")}>{r.margin.toFixed(0)}%</span>
+                </div>
+                <Progress value={r.margin} tone={r.margin < 20 ? "warn" : "ok"} />
+                <div className="text-xs text-neutral-500">{fmt0(r.rev)} billed · {fmt0(r.cost)} cost · {fmt0(r.rev - r.cost)} net</div>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      </section>
 
       {drill?.kind === "type" ? drillPanel() : null}
 
-      {/* ---- estimate vs actual ---- */}
-      <div className={card + " space-y-2"}>
-        <div className="text-sm font-semibold text-neutral-300">Estimate vs actual</div>
-        {variance.length === 0 ? (
-          <p className="text-xs text-neutral-500">
-            Fills in once a job priced in the Build tab is finished with its costs logged. This is the
-            one that tells you which work you underprice — worth the wait.
-          </p>
-        ) : variance.map((f) => {
-          const v = Number(f.cost_variance_pct);
-          return (
-            <a key={f.job_id} href={`/billing?job=${f.job_id}`} className="flex justify-between gap-2 text-sm hover:bg-neutral-900/60 rounded px-1">
-              <span className="text-neutral-300 truncate">{f.job_name}</span>
-              <span className={`shrink-0 tabular-nums font-semibold ${v > 10 ? "text-red-400" : v < -10 ? "text-emerald-400" : "text-neutral-300"}`}>
-                {v > 0 ? "+" : ""}{v}% {v > 0 ? "over" : "under"}
-              </span>
-            </a>
-          );
-        })}
+      <div className="grid gap-3 md:grid-cols-2">
+        {/* ---- estimate vs actual ---- */}
+        <Card>
+          <CardHeader><CardTitle>Estimate vs actual</CardTitle></CardHeader>
+          <CardContent className="space-y-0.5">
+            {variance.length === 0 ? (
+              <p className="text-sm text-neutral-500">
+                Fills in once a job priced in the Build tab is finished with its costs logged. This is the
+                one that tells you which work you underprice — worth the wait.
+              </p>
+            ) : variance.map((f) => {
+              const v = Number(f.cost_variance_pct);
+              return (
+                <a key={f.job_id} href={`/billing?job=${f.job_id}`} className="flex min-h-[40px] items-center justify-between gap-2 rounded-md px-2 text-sm hover:bg-white/[0.04]">
+                  <span className="truncate text-neutral-300">{f.job_name}</span>
+                  <span className={cn("shrink-0 font-semibold tabular-nums", v > 10 ? "text-red-400" : v < -10 ? "text-emerald-400" : "text-neutral-300")}>
+                    {v > 0 ? "+" : ""}{v}% {v > 0 ? "over" : "under"}
+                  </span>
+                </a>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        {/* ---- win rate ---- */}
+        <Card>
+          <CardHeader><CardTitle>Win rate by client type</CardTitle></CardHeader>
+          <CardContent className="space-y-1.5">
+            {Object.keys(byClient).length === 0 ? (
+              <p className="text-sm text-neutral-500">Mark builds won or lost on the Build tab and this fills in.</p>
+            ) : Object.entries(byClient).map(([k, v]) => (
+              <div key={k} className="flex justify-between text-sm">
+                <span className="capitalize text-neutral-300">{k.replace("_", " ")}</span>
+                <span className="tabular-nums text-neutral-200">{Math.round((v.won / v.total) * 100)}% <span className="text-neutral-500">({v.won}/{v.total})</span></span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
 
-      {/* ---- win rate ---- */}
-      <div className={card + " space-y-2"}>
-        <div className="text-sm font-semibold text-neutral-300">Win rate by client type</div>
-        {Object.keys(byClient).length === 0 ? (
-          <p className="text-xs text-neutral-500">Mark builds won or lost on the Build tab and this fills in.</p>
-        ) : Object.entries(byClient).map(([k, v]) => (
-          <div key={k} className="flex justify-between text-sm">
-            <span className="text-neutral-300">{k.replace("_", " ")}</span>
-            <span className="tabular-nums text-neutral-200">{Math.round((v.won / v.total) * 100)}% <span className="text-neutral-500">({v.won}/{v.total})</span></span>
-          </div>
-        ))}
-      </div>
-
-      <p className="text-xs text-neutral-500 leading-relaxed">
+      <p className="text-xs leading-relaxed text-neutral-500">
         One caveat worth holding onto: even "you keep" is job-level. Truck, insurance, phone, fuel
         between jobs and your own unbilled hours aren't in here. Real business profit is lower.
       </p>

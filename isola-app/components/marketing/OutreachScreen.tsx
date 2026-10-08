@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, NativeSelect, Textarea, Label } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { showToast } from "@/components/Toaster";
+import { showToast, showError } from "@/components/Toaster";
 import { cn } from "@/lib/utils";
 import {
   MContact, Campaign, Step, CHANNELS, TierBadge, SeqBar, SeqLine, stepsOf, nextStep, logTouch, fillTemplate,
@@ -111,14 +111,14 @@ function Inner() {
       patchLocal(c.id, p);
       setActs((a) => [...a, { contact_id: c.id, type: touchFor(n.step.channel) }]);
       showToast(`Step ${n.idx + 1} done for ${c.name}`);
-    } catch (e: any) { alert("Could not save: " + e.message); }
+    } catch (e: any) { showError("Could not save: " + e.message); }
     setBusy(null);
   }
 
   async function saveSteps(next: Step[] | null) {
     if (!camp) return;
     const { error } = await sb.from("campaigns").update({ steps: next }).eq("id", camp.id);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     setCampaigns((ks) => ks.map((k) => (k.id === camp.id ? { ...k, steps: next } : k)));
     showToast("Sequence saved");
   }
@@ -126,7 +126,7 @@ function Inner() {
   async function enroll(ids: string[]) {
     if (!camp || !ids.length) return;
     const { error } = await sb.from("contacts").update({ campaign_id: camp.id, seq_step: 0, seq_started: today, updated_at: new Date().toISOString() }).in("id", ids);
-    if (error) { alert("Enroll failed: " + error.message); return; }
+    if (error) { showError("Enroll failed: " + error.message); return; }
     setContacts((cs) => cs.map((c) => (ids.includes(c.id) ? { ...c, campaign_id: camp.id, seq_step: 0, seq_started: today } : c)));
     changed();
     showToast(`Enrolled ${ids.length} target${ids.length === 1 ? "" : "s"}`);

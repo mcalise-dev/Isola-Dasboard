@@ -21,7 +21,7 @@ import { Table, TableWrap, TBody, TD, TH, THead, TR } from "@/components/ui/tabl
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { editJob } from "@/components/job/JobForm";
-import { showToast, undoable } from "@/components/Toaster";
+import { showToast, undoable, showError } from "@/components/Toaster";
 import {
   ContactDialog, EditCustomerDialog, PropertyDialog, StageChip, TYPES,
   changed, invoicesFor, jobDate, jobName, jobPrice, lower, money0, money2, tel,
@@ -116,7 +116,7 @@ export default function CustomerRecord({ id }: { id: string }) {
   async function patchCustomer(p: any, toast = "Saved") {
     setC((x: any) => ({ ...x, ...p }));
     const { error } = await supabase.from("customers").update({ ...p, updated_at: new Date().toISOString() }).eq("id", id);
-    if (error) { alert("Save failed: " + error.message); load(); return; }
+    if (error) { showError("Save failed: " + error.message); load(); return; }
     showToast(toast);
     changed();
   }
@@ -126,7 +126,7 @@ export default function CustomerRecord({ id }: { id: string }) {
     const row = { job_name: `New job — ${c.name}`, customer: c.name, customer_id: c.id, status: "lead", contact_name: c.contact_name || null, contact_phone: c.phone || null, lead_source: c.lead_source || null };
     const { data, error } = await supabase.from("jobs").insert(row).select("*").single();
     setCreating(false);
-    if (error) { alert("Could not create the job: " + error.message); return; }
+    if (error) { showError("Could not create the job: " + error.message); return; }
     changed();
     router.push(`/jobs/${data.id}`);
     setTimeout(() => editJob(data), 50);
@@ -134,7 +134,7 @@ export default function CustomerRecord({ id }: { id: string }) {
 
   function removeProperty(p: any) {
     const n = jobs.filter((j) => j.property_id === p.id).length;
-    if (n) { alert("That property has jobs on it — move them to another property first."); return; }
+    if (n) { showError("That property has jobs on it — move them to another property first."); return; }
     undoable({
       text: `Removed ${p.address}`,
       hide: () => setProps((xs) => xs.filter((x) => x.id !== p.id)),
@@ -492,7 +492,7 @@ function ActivityTab({ supabase, customerId, jobs, links, visits, comms, onAdded
       attachment_b64: file?.b64 ?? null, attachment_name: file?.name ?? null,
     });
     setBusy(false);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     setBody(""); setFile(null);
     showToast("Logged");
     onAdded();

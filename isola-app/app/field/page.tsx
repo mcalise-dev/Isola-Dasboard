@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Navigation, Timer } from "lucide-react";
 import { StopCard, CheckRow, Empty, H, iso, dayLabel, type Stop } from "@/components/field/shared";
+import { showError } from "@/components/Toaster";
 
 // Crew Today: where we're going, the checklist for jobs they're assigned to (next 7 days), and the punch list / tasks on the jobs they can see.
 export default function FieldToday() {
@@ -26,17 +27,17 @@ export default function FieldToday() {
   async function setPunch(id: string, done: boolean) {
     setTodo((x) => ({ ...x, punch: x.punch.map((p) => (p.id === id ? { ...p, done } : p)) }));
     const { error } = await supabase.rpc("crew_set_punch", { p_id: id, p_done: done });
-    if (error) { alert("Couldn't save: " + error.message); load(); }
+    if (error) { showError("Couldn't save: " + error.message); load(); }
   }
   async function setCheck(id: string, done: boolean) {
     setTodo((x) => ({ ...x, checklist: x.checklist.map((k) => (k.id === id ? { ...k, done } : k)) }));
     const { error } = await supabase.rpc("crew_set_checklist", { p_id: id, p_done: done });
-    if (error) { alert("Couldn't save: " + error.message); load(); }
+    if (error) { showError("Couldn't save: " + error.message); load(); }
   }
   async function setTask(id: string, done: boolean) {
     setTodo((x) => ({ ...x, tasks: x.tasks.map((p) => (p.id === id ? { ...p, done } : p)) }));
     const { error } = await supabase.rpc("crew_set_task", { p_id: id, p_done: done });
-    if (error) { alert("Couldn't save: " + error.message); load(); }
+    if (error) { showError("Couldn't save: " + error.message); load(); }
   }
 
   const addrs = (stops ?? []).filter((s) => s.location).map((s) => s.location as string);

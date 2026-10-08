@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtDate } from "@/lib/format";
 import { compressImage, openImage } from "@/lib/image";
+import { showError, undoable } from "@/components/Toaster";
+import { ask, copyText } from "@/components/Dialogs";
 
 /* Punch list for one job — what the PM (or Mike) wants fixed before
    final payment. Each item can carry a photo of the problem and a photo
@@ -56,7 +58,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
       photo_b64: form.photo || null,
     });
     setBusy(false);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     setForm({ item: "", priority: "normal", due_date: "", raised_by: "", photo: "" });
     load();
   }
@@ -66,7 +68,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
     setRows(rows.map((x) => (x.id === t.id ? { ...x, done, done_at: done ? new Date().toISOString() : null } : x)));
     const { error } = await supabase.from("punch_list")
       .update({ done, done_at: done ? new Date().toISOString() : null }).eq("id", t.id);
-    if (error) { alert("Save failed: " + error.message); load(); }
+    if (error) { showError("Save failed: " + error.message); load(); }
   }
 
   async function setPhoto(t: Item, field: "photo_b64" | "fixed_photo_b64", file: File) {
@@ -74,31 +76,36 @@ export default function PunchList({ jobId }: { jobId: string }) {
     const patch: any = { [field]: b64 };
     if (field === "fixed_photo_b64" && !t.done) { patch.done = true; patch.done_at = new Date().toISOString(); }
     const { error } = await supabase.from("punch_list").update(patch).eq("id", t.id);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     load();
   }
 
-  async function remove(t: Item) {
-    if (!confirm(`Delete punch item "${t.item}"?`)) return;
-    const { error } = await supabase.from("punch_list").delete().eq("id", t.id);
-    if (error) { alert("Delete failed: " + error.message); return; }
-    load();
+  function remove(t: Item) {
+    undoable({
+      text: "Punch item deleted",
+      hide: () => setRows((r) => r.filter((x) => x.id !== t.id)),
+      restore: () => load(),
+      commit: async () => {
+        const { error } = await supabase.from("punch_list").delete().eq("id", t.id);
+        if (error) { showError("Delete failed: " + error.message); load(); }
+      },
+    });
   }
 
   async function shareLink() {
     let s = share;
     if (!s) {
       const { data, error } = await supabase.from("punch_shares").insert({ job_id: jobId }).select("token,viewed_at,signed_off_by,signed_off_at,signoff_note").single();
-      if (error) { alert("Couldn't make the link: " + error.message); return; }
+      if (error) { showError("Couldn't make the link: " + error.message); return; }
       s = data as Share; setShare(s);
     }
     const url = `${window.location.origin}/punch/${s.token}`;
     try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); }
-    catch { prompt("Copy this link:", url); }
+    catch { await copyText(url, "Link copied"); }
   }
 
   async function reopenSignoff() {
-    if (!confirm("Clear the client's sign-off so they can add more items?")) return;
+    if (!(await ask({ title: "Reopen the punch list?", body: "This clears the client's sign-off so they can add more items.", confirm: "Reopen" }))) return;
     await supabase.from("punch_shares").update({ signed_off_by: null, signed_off_at: null, signoff_note: null }).eq("job_id", jobId);
     load();
   }

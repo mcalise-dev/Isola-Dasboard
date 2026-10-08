@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtDate, todayISO } from "@/lib/format";
-import { undoable, showToast } from "@/components/Toaster";
+import { undoable, showToast, showError } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
@@ -60,21 +60,21 @@ export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () =
     if (files.length === 1) { setReceipt(await shrink(files[0])); return; }
     setBusy(true);
     let imgs: string[];
-    try { imgs = await Promise.all(files.map(shrink)); } catch { setBusy(false); alert("Couldn't read one of those images. Try again."); return; }
+    try { imgs = await Promise.all(files.map(shrink)); } catch { setBusy(false); showError("Couldn't read one of those images. Try again."); return; }
     const { error } = await sb.from("job_costs").insert(imgs.map((b64) => ({ job_id: jobId, entry_date: f.entry_date, receipt_b64: b64, status: "pending" })));
     setBusy(false);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     showToast(`${imgs.length} receipts saved as pending`);
     load(); onChange?.(); changed();
   }
   async function add() {
     const amt = Number(f.amount);
-    if (!receipt && (!f.vendor.trim() || !amt)) { alert("Add a receipt photo, or fill in vendor and amount."); return; }
+    if (!receipt && (!f.vendor.trim() || !amt)) { showError("Add a receipt photo, or fill in vendor and amount."); return; }
     setBusy(true);
     const pending = !f.vendor.trim() || !amt;
     const { error } = await sb.from("job_costs").insert({ job_id: jobId, entry_date: f.entry_date, vendor: f.vendor.trim() || null, category: f.category || null, amount: amt || null, notes: f.notes.trim() || null, receipt_b64: receipt || null, status: pending ? "pending" : "ok" });
     setBusy(false);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     setF({ vendor: "", category: f.category, amount: "", entry_date: todayISO(), notes: "" }); setReceipt("");
     showToast("Cost logged");
     load(); onChange?.(); changed();
@@ -149,11 +149,11 @@ export function LaborPanel({ jobId, onChange }: { jobId: string; onChange?: () =
   const total = (rows ?? []).reduce((a, l) => a + Number(l.amount ?? 0), 0);
   async function add() {
     const hours = Number(f.hours), rate = Number(f.rate);
-    if (!f.worker.trim() || !hours || !rate) { alert("Worker, hours, and rate are required."); return; }
+    if (!f.worker.trim() || !hours || !rate) { showError("Worker, hours, and rate are required."); return; }
     setBusy(true);
     const { error } = await sb.from("job_costs").insert({ job_id: jobId, entry_date: f.entry_date, category: "Labor", worker: f.worker.trim(), hours, rate, amount: Math.round(hours * rate * 100) / 100, paid: f.paid, status: "ok" })
     setBusy(false);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     setF({ worker: f.worker.trim(), hours: "", rate: f.rate, entry_date: todayISO(), paid: true });
     showToast("Labor logged");
     load(); onChange?.(); changed();
@@ -218,7 +218,7 @@ export function TasksPanel({ jobId }: { jobId: string }) {
   async function add() {
     if (!title.trim()) return;
     const { error } = await sb.from("tasks").insert({ title: title.trim(), job_id: jobId, due_date: due || null });
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     setTitle(""); setDue(""); load(); changed();
   }
   async function toggle(t: any) {
@@ -229,7 +229,7 @@ export function TasksPanel({ jobId }: { jobId: string }) {
   async function crewToggle(t: any) {
     setRows((r) => (r ?? []).map((x) => (x.id === t.id ? { ...x, crew_visible: !x.crew_visible } : x)));
     const { error } = await sb.from("tasks").update({ crew_visible: !t.crew_visible }).eq("id", t.id);
-    if (error) { alert("Save failed: " + error.message); load(); }
+    if (error) { showError("Save failed: " + error.message); load(); }
   }
   function remove(t: any) {
     const prev = rows ?? [];
@@ -293,7 +293,7 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
       const b64 = await shrink(file).catch(() => "");
       if (!b64) continue;
       const { error } = await sb.from("job_photos").insert({ job_id: jobId, phase, photo_b64: b64 });
-      if (error) { alert("Photo save failed: " + error.message); break; }
+      if (error) { showError("Photo save failed: " + error.message); break; }
     }
     setBusy(false); load();
   }
@@ -361,7 +361,7 @@ export function SchedulePanel({ job, entries, crew, onChange }: { job: any; entr
     const rows = dates.filter((x) => !have.has(x)).map((x) => ({ entry_date: x, job_id: job.id, assignee: f.who || null }));
     if (rows.length) {
       const { error } = await sb.from("schedule_entries").insert(rows);
-      if (error) { setBusy(false); alert("Could not schedule: " + error.message); return; }
+      if (error) { setBusy(false); showError("Could not schedule: " + error.message); return; }
     }
     // first time a booked job lands on the calendar, that day becomes its start date
     if (!job.start_date && ["booked", "progress"].includes(job.status)) {
@@ -411,7 +411,7 @@ export function JobbookCard({ jobId }: { jobId: string }) {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [jobId]);
   async function download() {
     const { data } = await sb.from("jobbooks").select("file_name,file_b64").eq("job_id", jobId).maybeSingle();
-    if (!data?.file_b64) { alert("No file stored for this jobbook yet."); return; }
+    if (!data?.file_b64) { showError("No file stored for this jobbook yet."); return; }
     const a = document.createElement("a");
     a.href = data.file_b64.startsWith("data:") ? data.file_b64 : "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," + data.file_b64;
     a.download = data.file_name ?? "jobbook.xlsx"; a.click();
@@ -421,7 +421,7 @@ export function JobbookCard({ jobId }: { jobId: string }) {
     const b64: string = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] ?? ""); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
     const { error } = await sb.from("jobbooks").upsert({ job_id: jobId, file_name: file.name, file_b64: b64, updated_at: new Date().toISOString() }, { onConflict: "job_id" });
     setBusy(false);
-    if (error) { alert("Upload failed: " + error.message); return; }
+    if (error) { showError("Upload failed: " + error.message); return; }
     load();
   }
   return (

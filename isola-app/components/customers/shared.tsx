@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, Input, NativeSelect, Textarea } from "@/components/ui/input";
-import { showToast } from "@/components/Toaster";
+import { showToast, showError } from "@/components/Toaster";
 
 export const TYPES: Record<string, { label: string; hint: string }> = {
   medical: { label: "Medical", hint: "Highest tier — price at the top of the range." },
@@ -89,12 +89,12 @@ export function NewCustomerDialog({ open, onOpenChange, supabase, customers, onS
   }, [customers, f.name, f.phone, exact]);
 
   async function save() {
-    if (!f.name.trim()) { alert("Name is required."); return; }
+    if (!f.name.trim()) { showError("Name is required."); return; }
     if (exact) return;
     setBusy(true);
     const { data, error } = await supabase.from("customers").insert({ ...f, name: f.name.trim(), client_since: new Date().toISOString().slice(0, 10) }).select("id").single();
     setBusy(false);
-    if (error) { alert(error.message.includes("duplicate") ? "You already have a customer with that name." : "Save failed: " + error.message); return; }
+    if (error) { showError(error.message.includes("duplicate") ? "You already have a customer with that name." : "Save failed: " + error.message); return; }
     showToast("Customer added");
     changed();
     onSaved(data.id);
@@ -158,7 +158,7 @@ export function EditCustomerDialog({ c, open, onOpenChange, supabase, customers,
   const clash = (customers ?? []).find((x) => x.id !== c?.id && lower(x.name) === lower(f.name));
 
   async function save() {
-    if (!f.name.trim()) { alert("Name is required."); return; }
+    if (!f.name.trim()) { showError("Name is required."); return; }
     if (clash) return;
     setBusy(true);
     const { error } = await supabase.from("customers").update({
@@ -166,7 +166,7 @@ export function EditCustomerDialog({ c, open, onOpenChange, supabase, customers,
       client_since: f.client_since || null, updated_at: new Date().toISOString(),
     }).eq("id", c.id);
     setBusy(false);
-    if (error) { alert(error.message.includes("duplicate") ? "Another customer already has that name." : "Save failed: " + error.message); return; }
+    if (error) { showError(error.message.includes("duplicate") ? "Another customer already has that name." : "Save failed: " + error.message); return; }
     showToast("Saved");
     changed();
     onSaved();
@@ -215,12 +215,12 @@ export function PropertyDialog({ p, open, onOpenChange, supabase, customerId, on
   useEffect(() => { if (open) setF(init()); }, [open, p?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k: string) => (e: any) => setF((s) => ({ ...s, [k]: e.target.value }));
   async function save() {
-    if (!f.address.trim()) { alert("Address is required."); return; }
+    if (!f.address.trim()) { showError("Address is required."); return; }
     setBusy(true);
     const row = { ...f, customer_id: customerId, address: f.address.trim(), updated_at: new Date().toISOString() };
     const { error } = p ? await supabase.from("properties").update(row).eq("id", p.id) : await supabase.from("properties").insert(row);
     setBusy(false);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     showToast(p ? "Property saved" : "Property added");
     changed();
     onSaved();
@@ -257,12 +257,12 @@ export function ContactDialog({ p, open, onOpenChange, supabase, customerId, onS
   useEffect(() => { if (open) setF(init()); }, [open, p?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k: string) => (e: any) => setF((s) => ({ ...s, [k]: e.target.value }));
   async function save() {
-    if (!f.name.trim()) { alert("Name is required."); return; }
+    if (!f.name.trim()) { showError("Name is required."); return; }
     setBusy(true);
     const row = { ...f, customer_id: customerId, name: f.name.trim() };
     const { error } = p ? await supabase.from("customer_contacts").update(row).eq("id", p.id) : await supabase.from("customer_contacts").insert(row);
     setBusy(false);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     showToast(p ? "Saved" : "Person added");
     changed();
     onSaved();

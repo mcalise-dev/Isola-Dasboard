@@ -1,3 +1,5 @@
+import { showError } from "@/components/Toaster";
+
 // Shrink a phone photo to a JPEG data URI so it can live in a text column.
 // EXIF orientation is honored by createImageBitmap in modern browsers.
 export async function compressImage(file: File, maxEdge = 1100, quality = 0.7): Promise<string> {
@@ -15,6 +17,6 @@ export async function compressImage(file: File, maxEdge = 1100, quality = 0.7): 
 
 export function openImage(src: string) {
   const w = window.open();
-  if (!w) return alert("Allow pop-ups to view the photo.");
+  if (!w) { showError("Allow pop-ups to view the photo."); return; }
   w.document.write(`<body style="margin:0;background:#000"><img src="${src}" style="max-width:100%;display:block;margin:auto"></body>`);
 }

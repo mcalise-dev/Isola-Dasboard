@@ -2,6 +2,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtDate } from "@/lib/format";
+import { withTimeout } from "@/lib/load";
+import { showError, showToast, undoable } from "@/components/Toaster";
+import { copyText } from "@/components/Dialogs";
+import { PageHeader, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input, Textarea, Field, Label } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import { Plus, Link2, Search, ChevronDown, Phone, Mail, Pencil, Trash2, Eye, Paperclip, Check, X, Users, FileText } from "lucide-react";
 
 /* ============================================================
    VENDORS — subs and suppliers, and the paperwork Isola needs
@@ -15,22 +26,16 @@ import { fmtDate } from "@/lib/format";
    "updated" so they get reviewed.
    ============================================================ */
 
-const inp =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none";
-const lbl = "block text-sm font-semibold text-neutral-300 mb-1";
-const btn =
-  "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-200 hover:border-neutral-500";
-const btnPrimary =
-  "rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-neutral-900 hover:bg-neutral-200 disabled:opacity-40";
-const card = "rounded-xl bg-white/[0.05] p-3.5";
-const chip = (on: boolean) =>
-  `rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${on ? "border-neutral-300 bg-neutral-800 text-white" : "border-neutral-700 bg-neutral-900 text-neutral-400"}`;
+const chip = (on: boolean) => cn(
+  "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-semibold transition-colors",
+  on ? "border-white bg-white text-neutral-900" : "border-border bg-neutral-950 text-neutral-400 hover:text-white hover:border-white/25"
+);
 
 const STATUS: Record<string, { label: string; cls: string }> = {
-  new: { label: "New — review", cls: "bg-sky-500/15 text-sky-300" },
-  updated: { label: "Updated — review", cls: "bg-sky-500/15 text-sky-300" },
-  approved: { label: "Approved", cls: "bg-emerald-500/15 text-emerald-300" },
-  inactive: { label: "Inactive", cls: "bg-neutral-700/50 text-neutral-400" },
+  new: { label: "New — review", cls: "border-sky-500/30 bg-sky-500/10 text-sky-300" },
+  updated: { label: "Updated — review", cls: "border-sky-500/30 bg-sky-500/10 text-sky-300" },
+  approved: { label: "Approved", cls: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" },
+  inactive: { label: "Inactive", cls: "border-white/10 bg-transparent text-neutral-400" },
 };
 const needsReview = (v: any) => v.status === "new" || v.status === "updated";
 
@@ -59,6 +64,7 @@ export default function VendorsTab() {
   const supabase = useMemo(() => createClient(), []);
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState<"" | "review" | "coi" | "w9">("");
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<any>(null);
@@ -66,22 +72,27 @@ export default function VendorsTab() {
   const [docs, setDocs] = useState<any[]>([]);
   const [upload, setUpload] = useState<any>(null);
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   async function load() {
-    const { data, error } = await supabase.from("vendor_overview").select("*").order("company");
-    if (error) alert("Couldn't load vendors: " + error.message);
-    setRows(data ?? []);
-    setLoading(false);
+    setErr(null);
+    try {
+      const { data, error } = await withTimeout(supabase.from("vendor_overview").select("*").order("company"));
+      if (error) throw new Error("Couldn't load vendors: " + error.message);
+      setRows(data ?? []);
+      setLoading(false);
+    } catch (e: any) {
+      setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
+    }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   async function loadDocs(id: string) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("vendor_documents")
       .select("id,doc_type,file_name,mime_type,expires_at,insurer,submitted_at")
       .eq("vendor_id", id)
       .order("submitted_at", { ascending: false });
+    if (error) showError("Couldn't load documents: " + error.message);
     setDocs(data ?? []);
   }
 
@@ -109,7 +120,7 @@ export default function VendorsTab() {
   }, [rows, filter, q]);
 
   async function save() {
-    if (!editing.company?.trim()) return alert("Company name is required.");
+    if (!editing.company?.trim()) return showError("Company name is required.");
     setBusy(true);
     const row: any = {
       company: editing.company.trim(),
@@ -126,25 +137,32 @@ export default function VendorsTab() {
       ? await supabase.from("vendors").update(row).eq("id", editing.id)
       : await supabase.from("vendors").insert(row);
     setBusy(false);
-    if (error) return alert(error.message.includes("vendors_company_email_uq") ? "That vendor is already on the list." : "Save failed: " + error.message);
+    if (error) return showError(error.message.includes("vendors_company_email_uq") ? "That vendor is already on the list." : "Save failed: " + error.message);
+    showToast(editing.id ? "Vendor updated" : "Vendor added");
     setEditing(null); load();
   }
 
   async function setStatus(v: any, status: string) {
     const { error } = await supabase.from("vendors").update({ status, updated_at: new Date().toISOString() }).eq("id", v.id);
-    if (error) return alert(error.message);
+    if (error) return showError(error.message);
+    showToast(`${v.company} → ${STATUS[status]?.label ?? status}`);
     load();
   }
 
-  async function remove(v: any) {
-    if (!confirm(`Delete ${v.company} and all of its documents?`)) return;
-    const { error } = await supabase.from("vendors").delete().eq("id", v.id);
-    if (error) return alert(error.message);
-    setOpenId(null); load();
+  // deleting a vendor takes its documents with it — the row disappears now, Undo puts it back
+  function remove(v: any) {
+    const before = rows;
+    setOpenId(null);
+    undoable({
+      text: `Deleted ${v.company} and its documents`,
+      hide: () => setRows((cur) => cur.filter((x) => x.id !== v.id)),
+      restore: () => setRows(before),
+      commit: () => supabase.from("vendors").delete().eq("id", v.id),
+    });
   }
 
   async function saveUpload(v: any) {
-    if (!upload?.file_b64) return alert("Attach the file first.");
+    if (!upload?.file_b64) return showError("Attach the file first.");
     setBusy(true);
     const { error } = await supabase.from("vendor_documents").insert({
       vendor_id: v.id,
@@ -156,15 +174,16 @@ export default function VendorsTab() {
       insurer: upload.doc_type === "coi" ? upload.insurer?.trim() || null : null,
     });
     setBusy(false);
-    if (error) return alert("Upload failed: " + error.message);
+    if (error) return showError("Upload failed: " + error.message);
+    showToast("Document saved");
     setUpload(null); loadDocs(v.id); load();
   }
 
   async function view(d: any) {
     const w = window.open();
-    if (!w) return alert("Allow pop-ups to view the file.");
+    if (!w) return showError("Allow pop-ups to view the file.");
     const { data } = await supabase.from("vendor_documents").select("file_b64,mime_type").eq("id", d.id).maybeSingle();
-    if (!data?.file_b64) { w.close(); return alert("File not found."); }
+    if (!data?.file_b64) { w.close(); return showError("File not found."); }
     w.document.write(
       data.mime_type?.startsWith("image/")
         ? `<img src="${data.file_b64}" style="max-width:100%">`
@@ -172,105 +191,88 @@ export default function VendorsTab() {
     );
   }
 
-  async function removeDoc(v: any, d: any) {
-    if (!confirm(`Delete this ${d.doc_type.toUpperCase()}?`)) return;
-    await supabase.from("vendor_documents").delete().eq("id", d.id);
-    loadDocs(v.id); load();
+  function removeDoc(v: any, d: any) {
+    const before = docs;
+    undoable({
+      text: `Deleted ${d.doc_type === "w9" ? "W-9" : d.doc_type.toUpperCase()}`,
+      hide: () => setDocs((cur) => cur.filter((x) => x.id !== d.id)),
+      restore: () => setDocs(before),
+      commit: async () => {
+        const r = await supabase.from("vendor_documents").delete().eq("id", d.id);
+        if (!r.error) load(); // COI / W-9 status on the vendor row comes from its documents
+        return r;
+      },
+    });
   }
 
   async function copyLink() {
     const url = `${window.location.origin}/vendor-submit`;
-    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); }
-    catch { prompt("Copy this link:", url); }
+    await copyText(url, "Upload link copied");
   }
 
-  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
+  const header = (
+    <PageHeader
+      title="Vendors"
+      sub="Subs & suppliers — COIs and W-9s"
+      actions={<>
+        <Button variant="outline" onClick={copyLink}><Link2 size={16} /> Copy upload link</Button>
+        <Button onClick={() => { setOpenId(null); setEditing({ status: "approved" }); }}><Plus size={16} /> Add vendor</Button>
+      </>}
+    />
+  );
+
+  if (err) return <div className="pb-28">{header}<LoadError message={err} onRetry={load} /></div>;
+  if (loading) return <div className="pb-28">{header}<ListSkeleton /></div>;
+
+  const set = (k: string, val: any) => setEditing((e: any) => ({ ...e, [k]: val }));
 
   return (
-    <div className="pb-28 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold text-white">Vendors</h1>
-          <p className="text-xs text-neutral-400">Subs & suppliers — COIs and W-9s</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={copyLink} className={btn}>{copied ? "Link copied ✓" : "Copy upload link"}</button>
-          <button onClick={() => { setOpenId(null); setEditing({ status: "approved" }); }} className={btnPrimary}>＋ Add</button>
-        </div>
-      </div>
+    <div className="pb-28 space-y-5">
+      {header}
 
       {rows.length ? (
         <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => setFilter(filter === "review" ? "" : "review")} className={card + " text-left"}>
-            <div className={`text-xl font-bold ${counts.review ? "text-sky-300" : "text-white"}`}>{counts.review}</div>
-            <div className="text-xs text-neutral-400">To review</div>
-          </button>
-          <button onClick={() => setFilter(filter === "coi" ? "" : "coi")} className={card + " text-left"}>
-            <div className={`text-xl font-bold ${counts.coi ? "text-red-400" : "text-white"}`}>{counts.coi}</div>
-            <div className="text-xs text-neutral-400">COI problems</div>
-          </button>
-          <button onClick={() => setFilter(filter === "w9" ? "" : "w9")} className={card + " text-left"}>
-            <div className={`text-xl font-bold ${counts.w9 ? "text-amber-300" : "text-white"}`}>{counts.w9}</div>
-            <div className="text-xs text-neutral-400">Missing W-9</div>
-          </button>
-        </div>
-      ) : null}
-
-      {editing ? (
-        <div className={card + " space-y-3"}>
-          <div className="text-sm font-semibold text-white">{editing.id ? "Edit vendor" : "New vendor"}</div>
-          <div><label className={lbl}>Company</label><input className={inp} value={editing.company ?? ""} onChange={(e) => setEditing({ ...editing, company: e.target.value })} /></div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><label className={lbl}>Contact</label><input className={inp} value={editing.contact_name ?? ""} onChange={(e) => setEditing({ ...editing, contact_name: e.target.value })} /></div>
-            <div><label className={lbl}>Trade</label><input className={inp} value={editing.trade ?? ""} placeholder="Concrete finishing, supplier…" onChange={(e) => setEditing({ ...editing, trade: e.target.value })} /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><label className={lbl}>Phone</label><input className={inp} type="tel" value={editing.phone ?? ""} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} /></div>
-            <div><label className={lbl}>Email</label><input className={inp} type="email" value={editing.email ?? ""} onChange={(e) => setEditing({ ...editing, email: e.target.value })} /></div>
-          </div>
-          <div><label className={lbl}>Address</label><input className={inp} value={editing.address ?? ""} onChange={(e) => setEditing({ ...editing, address: e.target.value })} /></div>
-          <div><label className={lbl}>Notes</label><textarea className={inp} rows={2} value={editing.notes ?? ""} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} /></div>
-          <div>
-            <label className={lbl}>Status</label>
-            <div className="flex flex-wrap gap-1.5">
-              {Object.entries(STATUS).map(([k, s]) => (
-                <button key={k} onClick={() => setEditing({ ...editing, status: k })} className={chip(editing.status === k)}>{s.label}</button>
-              ))}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={save} disabled={busy} className={btnPrimary + " flex-1"}>{busy ? "Saving…" : "Save"}</button>
-            <button onClick={() => setEditing(null)} className={btn}>Cancel</button>
-          </div>
+          <Stat label="To review" value={<span className={counts.review ? "text-sky-300" : undefined}>{counts.review}</span>}
+            onClick={() => setFilter(filter === "review" ? "" : "review")} className={cn(filter === "review" && "border-white/60")} />
+          <Stat label="COI problems" value={counts.coi} tone={counts.coi ? "bad" : undefined}
+            onClick={() => setFilter(filter === "coi" ? "" : "coi")} className={cn(filter === "coi" && "border-white/60")} />
+          <Stat label="Missing W-9" value={counts.w9} tone={counts.w9 ? "warn" : undefined}
+            onClick={() => setFilter(filter === "w9" ? "" : "w9")} className={cn(filter === "w9" && "border-white/60")} />
         </div>
       ) : null}
 
       {rows.length ? (
-        <div className="space-y-2">
-          <input className={inp} placeholder="Search company, contact, trade…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <div className="flex flex-wrap gap-1.5">
-            <button onClick={() => setFilter("")} className={chip(!filter)}>All {rows.length}</button>
-            <button onClick={() => setFilter("review")} className={chip(filter === "review")}>To review {counts.review}</button>
-            <button onClick={() => setFilter("coi")} className={chip(filter === "coi")}>COI problems {counts.coi}</button>
-            <button onClick={() => setFilter("w9")} className={chip(filter === "w9")}>Missing W-9 {counts.w9}</button>
+        <div className="space-y-2 md:flex md:items-center md:gap-3 md:space-y-0">
+          <div className="relative md:w-72">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+            <Input className="pl-9" placeholder="Search company, contact, trade…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <div className="-mx-4 flex gap-1.5 overflow-x-auto no-scrollbar px-4 md:mx-0 md:px-0">
+            <button onClick={() => setFilter("")} className={chip(!filter)}>All <span className="tabular-nums opacity-70">{rows.length}</span></button>
+            <button onClick={() => setFilter("review")} className={chip(filter === "review")}>To review <span className="tabular-nums opacity-70">{counts.review}</span></button>
+            <button onClick={() => setFilter("coi")} className={chip(filter === "coi")}>COI problems <span className="tabular-nums opacity-70">{counts.coi}</span></button>
+            <button onClick={() => setFilter("w9")} className={chip(filter === "w9")}>Missing W-9 <span className="tabular-nums opacity-70">{counts.w9}</span></button>
           </div>
         </div>
       ) : null}
 
-      <div className="space-y-2">
+      <div className="grid items-start gap-2 md:grid-cols-2">
         {shown.map((v) => {
           const c = coiState(v);
-          const st = STATUS[v.status] ?? { label: v.status, cls: "bg-neutral-700/50 text-neutral-300" };
+          const st = STATUS[v.status] ?? { label: v.status, cls: "border-white/10 text-neutral-300" };
           const open = openId === v.id;
           return (
-            <div key={v.id} className={card + " space-y-2"}>
-              <button onClick={() => toggle(v)} className="w-full text-left">
+            <Card key={v.id} className={cn("overflow-hidden", open && "border-white/25 md:col-span-2")}>
+              <button onClick={() => toggle(v)} className="w-full px-4 py-3.5 text-left hover:bg-white/[0.02]" aria-expanded={open}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold text-white truncate">{v.company}</div>
-                    <div className="text-xs text-neutral-400 truncate">{[v.trade, v.contact_name].filter(Boolean).join(" · ") || "—"}</div>
+                    <div className="truncate text-sm font-semibold text-white">{v.company}</div>
+                    <div className="truncate text-xs text-neutral-400">{[v.trade, v.contact_name].filter(Boolean).join(" · ") || "—"}</div>
                   </div>
-                  <span className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>{st.label}</span>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Badge className={st.cls}>{st.label}</Badge>
+                    <ChevronDown size={16} className={cn("text-neutral-500 transition-transform", open && "rotate-180")} />
+                  </div>
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-semibold">
                   <span className={c.cls}>{c.text}</span>
@@ -279,93 +281,127 @@ export default function VendorsTab() {
               </button>
 
               {open ? (
-                <div className="space-y-3 border-t border-neutral-800 pt-3">
-                  <div className="space-y-0.5 text-sm text-neutral-300">
-                    {v.phone ? <div><a className="underline decoration-neutral-600" href={`tel:${v.phone}`}>{v.phone}</a></div> : null}
-                    {v.email ? <div><a className="underline decoration-neutral-600" href={`mailto:${v.email}`}>{v.email}</a></div> : null}
+                <div className="space-y-4 border-t border-border px-4 py-4">
+                  <div className="space-y-1 text-sm text-neutral-300">
+                    {v.phone ? <a className="flex min-h-[32px] items-center gap-2 hover:text-white" href={`tel:${v.phone}`}><Phone size={14} className="text-neutral-500" />{v.phone}</a> : null}
+                    {v.email ? <a className="flex min-h-[32px] items-center gap-2 hover:text-white" href={`mailto:${v.email}`}><Mail size={14} className="text-neutral-500" />{v.email}</a> : null}
                     {v.address ? <div className="text-neutral-400">{v.address}</div> : null}
                     {v.coi_insurer ? <div className="text-neutral-400">Insurer: {v.coi_insurer}</div> : null}
-                    {v.notes ? <div className="text-neutral-400 whitespace-pre-wrap">{v.notes}</div> : null}
+                    {v.notes ? <div className="whitespace-pre-wrap text-neutral-400">{v.notes}</div> : null}
                   </div>
 
                   <div className="flex flex-wrap gap-1.5">
-                    {needsReview(v) ? <button onClick={() => setStatus(v, "approved")} className={btn + " border-emerald-700 text-emerald-300"}>Mark approved</button> : null}
-                    <button onClick={() => { setOpenId(null); setEditing({ ...v }); }} className={btn}>Edit</button>
-                    <button onClick={() => setUpload({ doc_type: "coi" })} className={btn}>＋ COI</button>
-                    <button onClick={() => setUpload({ doc_type: "w9" })} className={btn}>＋ W-9</button>
-                    <button onClick={() => setUpload({ doc_type: "other" })} className={btn}>＋ Other</button>
+                    {needsReview(v) ? <Button variant="success" size="sm" className="h-10 md:h-8" onClick={() => setStatus(v, "approved")}><Check size={14} /> Mark approved</Button> : null}
+                    <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => { setOpenId(null); setEditing({ ...v }); }}><Pencil size={14} /> Edit</Button>
+                    <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => setUpload({ doc_type: "coi" })}><Plus size={14} /> COI</Button>
+                    <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => setUpload({ doc_type: "w9" })}><Plus size={14} /> W-9</Button>
+                    <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => setUpload({ doc_type: "other" })}><Plus size={14} /> Other</Button>
                     {v.status !== "inactive"
-                      ? <button onClick={() => setStatus(v, "inactive")} className={btn}>Set inactive</button>
-                      : <button onClick={() => setStatus(v, "approved")} className={btn}>Reactivate</button>}
-                    <button onClick={() => remove(v)} className="px-2 text-sm text-neutral-500 hover:text-red-400">Delete</button>
+                      ? <Button variant="ghost" size="sm" className="h-10 md:h-8" onClick={() => setStatus(v, "inactive")}>Set inactive</Button>
+                      : <Button variant="ghost" size="sm" className="h-10 md:h-8" onClick={() => setStatus(v, "approved")}>Reactivate</Button>}
+                    <Button variant="destructive" size="sm" className="h-10 md:h-8" onClick={() => remove(v)}><Trash2 size={14} /> Delete</Button>
                   </div>
 
                   {upload ? (
-                    <div className="rounded-lg border border-neutral-800 p-3 space-y-2">
+                    <div className="space-y-3 rounded-lg border border-border bg-neutral-950 p-3">
                       <div className="text-sm font-semibold text-white">Add {upload.doc_type === "coi" ? "COI" : upload.doc_type === "w9" ? "W-9" : "document"}</div>
                       {upload.doc_type === "coi" ? (
                         <div className="grid grid-cols-2 gap-2">
-                          <div><label className={lbl}>Expires</label><input type="date" className={inp} value={upload.expires_at ?? ""} onChange={(e) => setUpload({ ...upload, expires_at: e.target.value })} /></div>
-                          <div><label className={lbl}>Insurer</label><input className={inp} value={upload.insurer ?? ""} onChange={(e) => setUpload({ ...upload, insurer: e.target.value })} /></div>
+                          <Field label="Expires"><Input type="date" value={upload.expires_at ?? ""} onChange={(e) => setUpload({ ...upload, expires_at: e.target.value })} /></Field>
+                          <Field label="Insurer"><Input value={upload.insurer ?? ""} onChange={(e) => setUpload({ ...upload, insurer: e.target.value })} /></Field>
                         </div>
                       ) : null}
                       <div className="flex items-center gap-2">
-                        <label className={btn + " cursor-pointer"}>
-                          Attach file or photo
+                        <label className="inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-input px-4 text-sm font-semibold text-foreground hover:border-white/25 hover:bg-accent">
+                          <Paperclip size={16} /> Attach file or photo
                           <input type="file" accept="image/*,application/pdf" className="hidden"
                             onChange={async (e) => {
                               const f = e.target.files?.[0]; e.currentTarget.value = "";
                               if (!f) return;
-                              if (f.size > 8_000_000) return alert("That file is over 8 MB — take a photo of it instead.");
+                              if (f.size > 8_000_000) return showError("That file is over 8 MB — take a photo of it instead.");
                               const b64 = await readFile(f);
                               setUpload((u: any) => ({ ...u, file_b64: b64, file_name: f.name, mime_type: f.type }));
                             }} />
                         </label>
-                        {upload.file_b64 ? <span className="truncate text-xs text-emerald-400">{upload.file_name} ✓</span> : null}
+                        {upload.file_b64 ? <span className="inline-flex min-w-0 items-center gap-1 text-xs font-semibold text-emerald-400"><Check size={14} className="shrink-0" /><span className="truncate">{upload.file_name}</span></span> : null}
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => saveUpload(v)} disabled={busy || !upload.file_b64} className={btnPrimary + " flex-1"}>{busy ? "Saving…" : "Save document"}</button>
-                        <button onClick={() => setUpload(null)} className={btn}>Cancel</button>
+                        <Button className="flex-1 sm:flex-none" onClick={() => saveUpload(v)} disabled={busy || !upload.file_b64}>{busy ? "Saving…" : "Save document"}</Button>
+                        <Button variant="outline" onClick={() => setUpload(null)}>Cancel</Button>
                       </div>
                     </div>
                   ) : null}
 
                   <div className="space-y-1.5">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Documents</div>
-                    {docs.length === 0 ? <div className="text-xs text-neutral-500">None on file.</div> : null}
+                    <Label className="text-xs uppercase tracking-wide text-neutral-500">Documents</Label>
+                    {docs.length === 0 ? <div className="text-sm text-neutral-500">None on file.</div> : null}
                     {docs.map((d) => (
-                      <div key={d.id} className="flex items-center justify-between gap-2 text-sm">
-                        <div className="min-w-0">
-                          <span className="font-semibold text-neutral-200">{d.doc_type === "coi" ? "COI" : d.doc_type === "w9" ? "W-9" : "Other"}</span>
-                          <span className="text-neutral-400"> · {fmtDate(d.submitted_at?.slice(0, 10))}{d.expires_at ? ` · exp ${fmtDate(d.expires_at)}` : ""}</span>
-                          {d.file_name ? <div className="truncate text-xs text-neutral-500">{d.file_name}</div> : null}
+                      <div key={d.id} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-neutral-950 px-3 py-2 text-sm">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <FileText size={16} className="shrink-0 text-neutral-500" />
+                          <div className="min-w-0">
+                            <span className="font-semibold text-neutral-200">{d.doc_type === "coi" ? "COI" : d.doc_type === "w9" ? "W-9" : "Other"}</span>
+                            <span className="text-neutral-400"> · {fmtDate(d.submitted_at?.slice(0, 10))}{d.expires_at ? ` · exp ${fmtDate(d.expires_at)}` : ""}</span>
+                            {d.file_name ? <div className="truncate text-xs text-neutral-500">{d.file_name}</div> : null}
+                          </div>
                         </div>
-                        <div className="flex shrink-0 gap-1.5">
-                          <button onClick={() => view(d)} className={btn}>View</button>
-                          <button onClick={() => removeDoc(v, d)} className="px-1 text-sm text-neutral-500 hover:text-red-400">✕</button>
+                        <div className="flex shrink-0 gap-1">
+                          <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => view(d)}><Eye size={14} /> View</Button>
+                          <Button variant="ghost" size="icon" className="text-neutral-500 hover:text-red-400 md:h-8 md:w-8" onClick={() => removeDoc(v, d)} aria-label="Delete document"><X size={16} /></Button>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               ) : null}
-            </div>
+            </Card>
           );
         })}
-
-        {rows.length && shown.length === 0 ? <div className="text-sm text-neutral-500">Nothing matches.</div> : null}
-
-        {rows.length === 0 && !editing ? (
-          <div className={card}>
-            <div className="text-sm font-semibold text-white">No vendors yet.</div>
-            <p className="mt-1 text-xs text-neutral-400 leading-relaxed">
-              Add the subs you use, or text them the upload link — they fill in their info and attach
-              their COI and W-9 themselves, and it shows up here to review. A sub working uninsured on
-              your job is a claim on your policy.
-            </p>
-          </div>
-        ) : null}
       </div>
+
+      {rows.length && shown.length === 0 ? <Empty title="Nothing matches." body="Try a different search or filter." /> : null}
+
+      {rows.length === 0 ? (
+        <Empty
+          icon={<Users size={28} />}
+          title="No vendors yet."
+          body="Add the subs you use, or text them the upload link — they fill in their info and attach their COI and W-9 themselves, and it shows up here to review. A sub working uninsured on your job is a claim on your policy."
+          action={<Button variant="outline" onClick={copyLink}><Link2 size={16} /> Copy upload link</Button>}
+        />
+      ) : null}
+
+      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+        {editing ? (
+          <DialogContent>
+            <DialogHeader><DialogTitle>{editing.id ? "Edit vendor" : "New vendor"}</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <Field label="Company"><Input value={editing.company ?? ""} onChange={(e) => set("company", e.target.value)} /></Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Contact"><Input value={editing.contact_name ?? ""} onChange={(e) => set("contact_name", e.target.value)} /></Field>
+                <Field label="Trade"><Input value={editing.trade ?? ""} placeholder="Concrete finishing, supplier…" onChange={(e) => set("trade", e.target.value)} /></Field>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Phone"><Input type="tel" value={editing.phone ?? ""} onChange={(e) => set("phone", e.target.value)} /></Field>
+                <Field label="Email"><Input type="email" value={editing.email ?? ""} onChange={(e) => set("email", e.target.value)} /></Field>
+              </div>
+              <Field label="Address"><Input value={editing.address ?? ""} onChange={(e) => set("address", e.target.value)} /></Field>
+              <Field label="Notes"><Textarea rows={2} value={editing.notes ?? ""} onChange={(e) => set("notes", e.target.value)} /></Field>
+              <div>
+                <Label>Status</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(STATUS).map(([k, s]) => (
+                    <button key={k} type="button" onClick={() => set("status", k)} className={chip(editing.status === k)}>{s.label}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+              <Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        ) : null}
+      </Dialog>
     </div>
   );
 }

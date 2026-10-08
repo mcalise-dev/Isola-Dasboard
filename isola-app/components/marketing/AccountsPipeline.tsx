@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { NativeSelect } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TableWrap, Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
-import { showToast } from "@/components/Toaster";
+import { showToast, showError } from "@/components/Toaster";
 import { cn } from "@/lib/utils";
 import { MContact, Activity, TierBadge, rel, shortDate, dueTone, jobPrice, norm, changed, useIsPhone } from "./lib";
 
@@ -128,7 +128,7 @@ export default function AccountsPipeline() {
     if (acc.customer) ops.push(sb.from("customers").update({ account_stage: stage }).eq("id", acc.customer.id));
     const res = await Promise.all(ops);
     const err = res.find((r) => r.error)?.error;
-    if (err) { alert("Save failed: " + err.message); return; }
+    if (err) { showError("Save failed: " + err.message); return; }
     changed();
     showToast(`${acc.name} → ${stageLabel(stage)}`);
   }

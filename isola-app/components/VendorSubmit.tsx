@@ -21,7 +21,7 @@ async function readFile(file: File): Promise<string> {
   });
 }
 
-function FilePick({ label, file, onPick }: { label: string; file: F; onPick: (f: F) => void }) {
+function FilePick({ label, file, onPick, onError }: { label: string; file: F; onPick: (f: F) => void; onError: (msg: string) => void }) {
   return (
     <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-dashed border-neutral-400 bg-neutral-50 px-3 py-3 hover:border-neutral-900">
       <span className="text-sm font-semibold text-neutral-800">{label}</span>
@@ -30,7 +30,8 @@ function FilePick({ label, file, onPick }: { label: string; file: F; onPick: (f:
         onChange={async (e) => {
           const f = e.target.files?.[0]; e.currentTarget.value = "";
           if (!f) return;
-          if (f.size > 10_000_000) return alert("That file is over 10 MB. Try a photo or a smaller PDF.");
+          if (f.size > 10_000_000) return onError("That file is over 10 MB. Try a photo or a smaller PDF.");
+          onError("");
           onPick({ b64: await readFile(f), name: f.name, mime: f.type });
         }} />
     </label>
@@ -104,7 +105,7 @@ export default function VendorSubmit() {
 
             <div className="space-y-3 border-t border-neutral-200 pt-5">
               <div className="text-sm font-bold">Certificate of insurance</div>
-              <FilePick label="Attach COI" file={coi} onPick={setCoi} />
+              <FilePick label="Attach COI" file={coi} onPick={setCoi} onError={setErr} />
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div><label className={lbl}>Policy expires{coi ? " *" : ""}</label><input className={inp} type="date" value={v.expires} onChange={set("expires")} /></div>
                 <div><label className={lbl}>Insurance company</label><input className={inp} value={v.insurer} onChange={set("insurer")} /></div>
@@ -113,7 +114,7 @@ export default function VendorSubmit() {
 
             <div className="space-y-3 border-t border-neutral-200 pt-5">
               <div className="text-sm font-bold">W-9</div>
-              <FilePick label="Attach W-9" file={w9} onPick={setW9} />
+              <FilePick label="Attach W-9" file={w9} onPick={setW9} onError={setErr} />
             </div>
 
             {err ? <div className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{err}</div> : null}

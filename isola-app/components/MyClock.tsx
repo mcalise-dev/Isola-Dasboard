@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { jobLabel } from "@/lib/format";
+import { ask } from "@/components/Dialogs";
 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const t12 = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -105,7 +106,7 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
   }
 
   async function scrap() {
-    if (!confirm("Throw this punch away without logging any time?")) return;
+    if (!(await ask({ title: "Throw this punch away?", body: "No time will be logged.", confirm: "Throw away", danger: true }))) return;
     await supabase.from("time_clock").delete().eq("id", openPunch.id);
     load();
   }

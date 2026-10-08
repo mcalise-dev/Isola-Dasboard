@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { showToast } from "@/components/Toaster";
+import { showToast, showError } from "@/components/Toaster";
 import { KeyRound, UserPlus, Power, Eye } from "lucide-react";
+import { ask, copyText } from "@/components/Dialogs";
 
 // v4.4: crew app logins, managed from Crew & time. Creating / resetting / turning off a
 // login goes through the crew-accounts edge function (owner-only). Crew sign in with just
@@ -60,14 +61,14 @@ export default function CrewLogins({ workers }: { workers: any[] }) {
       else await call({ action: "reset", user_id: form.login.user_id, password });
       setDone({ username: form.mode === "create" ? username : form.login.username, password });
       load();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { showError(e.message); }
     setBusy(false);
   }
 
   async function toggle(login: any, on: boolean) {
-    if (!on && !confirm(`Turn off ${login.username}'s login? They're signed out and can't get back in until you turn it on.`)) return;
+    if (!on && !(await ask({ title: `Turn off ${login.username}'s login?`, body: "They're signed out and can't get back in until you turn it on.", confirm: "Turn off", danger: true }))) return;
     try { await call({ action: on ? "on" : "off", user_id: login.user_id }); showToast(on ? "Login turned on" : "Login turned off"); load(); }
-    catch (e: any) { alert(e.message); }
+    catch (e: any) { showError(e.message); }
   }
 
   const crew = workers.filter((w) => !w.is_owner && w.active);
@@ -120,7 +121,7 @@ export default function CrewLogins({ workers }: { workers: any[] }) {
                 </div>
                 <p className="text-sm text-neutral-400">This is the only time the password shows. They sign in with just the name — no email.</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={async () => { const t = `Isola crew app: ${window.location.origin}\nName: ${done.username}\nPassword: ${done.password}`; try { await navigator.clipboard.writeText(t); showToast("Copied"); } catch { window.prompt("Copy this:", t); } }} className="rounded-lg bg-white text-neutral-900 min-h-[44px] font-bold">Copy</button>
+                  <button onClick={async () => { const t = `Isola crew app: ${window.location.origin}\nName: ${done.username}\nPassword: ${done.password}`; await copyText(t, "Copied"); }} className="rounded-lg bg-white text-neutral-900 min-h-[44px] font-bold">Copy</button>
                   <button onClick={() => setForm(null)} className="rounded-lg border border-neutral-600 min-h-[44px] font-semibold text-white">Done</button>
                 </div>
               </div>

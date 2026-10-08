@@ -4,6 +4,17 @@ import { createClient } from "@/lib/supabase/client";
 import MyClock from "@/components/MyClock";
 import CrewClock from "@/components/CrewClock";
 import CrewLogins from "@/components/CrewLogins";
+import { showError, showToast } from "@/components/Toaster";
+import { ask, copyText } from "@/components/Dialogs";
+import { withTimeout, firstError } from "@/lib/load";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Input, NativeSelect, Field } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { PageHeader, SectionTitle, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
+import { cn } from "@/lib/utils";
+import { Plus, Copy, ExternalLink, LogOut, ChevronRight, Clock } from "lucide-react";
 
 const money = (n: any) => (n == null ? "—" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const hhmm = (from: string, to?: string | null) => {
@@ -18,21 +29,28 @@ export default function CrewTab() {
   const [workers, setWorkers] = useState<any[]>([]);
   const [punches, setPunches] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<any>(null);
   const [, setTick] = useState(0);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 60000); return () => clearInterval(t); }, []);
 
   async function load() {
-    const since = new Date(Date.now() - 14 * 86400000).toISOString();
-    const [{ data: w }, { data: p }, { data: j }] = await Promise.all([
-      supabase.from("workers").select("*").order("name"),
-      supabase.from("time_clock").select("*").gte("clock_in", since).order("clock_in", { ascending: false }),
-      supabase.from("jobs").select("id,job_name,customer,location"),
-    ]);
-    setWorkers(w ?? []); setPunches(p ?? []); setJobs(j ?? []); setLoading(false);
+    setErr(null);
+    try {
+      const since = new Date(Date.now() - 14 * 86400000).toISOString();
+      const [w, p, j] = await withTimeout(Promise.all([
+        supabase.from("workers").select("*").order("name"),
+        supabase.from("time_clock").select("*").gte("clock_in", since).order("clock_in", { ascending: false }),
+        supabase.from("jobs").select("id,job_name,customer,location"),
+      ]));
+      const e = firstError(w, p, j);
+      if (e) throw new Error(e);
+      setWorkers(w.data ?? []); setPunches(p.data ?? []); setJobs(j.data ?? []); setLoaded(true);
+    } catch (e: any) {
+      setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
+    }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
@@ -43,18 +61,27 @@ export default function CrewTab() {
   async function forceOut(p: any) {
     const w = wRow(p.worker_id);
     if (!w) return;
-    if (!confirm(`Clock ${w.name} out now?`)) return;
-    await supabase.rpc("crew_punch_out", { p_pin: w.pin, p_note: "Closed by Mike" });
+    if (!(await ask({ title: `Clock ${w.name} out now?`, confirm: "Clock out" }))) return;
+    const { error } = await supabase.rpc("crew_punch_out", { p_pin: w.pin, p_note: "Closed by Mike" });
+    if (error) showError("Clock out failed: " + error.message); else showToast(`${w.name} clocked out`);
     load();
   }
 
   const clockUrl = typeof window !== "undefined" ? `${window.location.origin}/clock` : "/clock";
   async function copyClock() {
-    try { await navigator.clipboard.writeText(clockUrl); } catch { window.prompt("Copy this link:", clockUrl); }
-    setCopied(true); setTimeout(() => setCopied(false), 2000);
+    await copyText(clockUrl, "Link copied");
   }
 
-  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
+  const header = (
+    <PageHeader
+      title="Crew & time"
+      sub="Who's on the clock, hours by job, and crew PINs"
+      actions={<Button variant="outline" onClick={() => setEditing({})}><Plus size={16} /> Crew member</Button>}
+    />
+  );
+
+  if (err) return <div>{header}<LoadError message={err} onRetry={load} /></div>;
+  if (!loaded) return <div>{header}<ListSkeleton /></div>;
 
   const onClock = punches.filter((p) => !p.clock_out);
   const today = new Date().toDateString();
@@ -63,105 +90,108 @@ export default function CrewTab() {
   const unpaid = punches.filter((p) => p.clock_out);
 
   return (
-    <div className="pt-2 space-y-3">
+    <div className="space-y-5">
+      {header}
       <MyClock />
       <CrewClock onChanged={load} />
-      <div className="grid grid-cols-3 gap-2">
-        <Tile v={String(onClock.length)} l="On the clock" tone={onClock.length ? "amber" : undefined} />
-        <Tile v={todayHours.toFixed(1)} l="Hours today" />
-        <Tile v={String(workers.filter((w) => w.active).length)} l="Crew" />
+      <div className="grid grid-cols-3 gap-3">
+        <Stat label="On the clock" value={onClock.length} tone={onClock.length ? "warn" : undefined} />
+        <Stat label="Hours today" value={todayHours.toFixed(1)} />
+        <Stat label="Crew" value={workers.filter((w) => w.active).length} />
       </div>
 
-      <div className="rounded-xl border border-white/[0.07] bg-neutral-900 px-3.5 py-3">
-        <div className="text-sm font-semibold text-neutral-300">Crew clock-in link</div>
-        <div className="mt-1 text-xs text-neutral-400 break-all">{clockUrl}</div>
-        <div className="flex gap-1.5 mt-2">
-          <button onClick={copyClock} className={btn}>{copied ? "Copied ✓" : "Copy link"}</button>
-          <a href="/clock" target="_blank" rel="noopener noreferrer" className={btn}>Open</a>
+      <Card className="p-4">
+        <div className="text-[15px] font-semibold text-white">Crew clock-in link</div>
+        <div className="mt-1 break-all text-xs text-neutral-400">{clockUrl}</div>
+        <div className="mt-3 flex gap-2">
+          <Button variant="outline" size="sm" className="h-10" onClick={copyClock}><Copy size={14} /> Copy link</Button>
+          <Button asChild variant="outline" size="sm" className="h-10"><a href="/clock" target="_blank" rel="noopener noreferrer"><ExternalLink size={14} /> Open</a></Button>
         </div>
         <p className="mt-2 text-xs text-neutral-500">Send this to the guys once — they save it to their home screen and punch in with their PIN. Hours post to the job automatically.</p>
-      </div>
+      </Card>
 
       {onClock.length ? (
-        <div>
-          <div className="text-sm font-semibold text-amber-300 mb-1.5">On the clock right now</div>
-          <div className="space-y-1.5">
+        <section>
+          <SectionTitle><span className="text-amber-300">On the clock right now</span></SectionTitle>
+          <div className="grid gap-2 md:grid-cols-2">
             {onClock.map((p) => (
-              <div key={p.id} className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3.5 py-2.5 flex items-center justify-between gap-2">
+              <div key={p.id} className="flex items-center justify-between gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
                 <div className="min-w-0">
                   <div className="text-sm font-bold text-white">{wName(p.worker_id)}</div>
-                  <div className="text-xs text-neutral-300 truncate">{jName(p.job_id)}</div>
+                  <div className="truncate text-xs text-neutral-300">{jName(p.job_id)}</div>
                   <div className="text-xs text-neutral-400">in at {t12(p.clock_in)}</div>
                 </div>
-                <div className="text-right shrink-0">
-                  <div className="text-lg font-extrabold text-white tabular-nums">{hhmm(p.clock_in)}</div>
-                  <button onClick={() => forceOut(p)} className="text-xs text-neutral-400 underline">clock out</button>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <div className="text-lg font-extrabold tabular-nums text-white">{hhmm(p.clock_in)}</div>
+                  <Button variant="outline" size="sm" onClick={() => forceOut(p)}><LogOut size={14} /> Clock out</Button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       ) : null}
 
-      <div>
-        <div className="text-sm font-semibold text-neutral-300 mb-1.5">Last 14 days</div>
-        <div className="space-y-1">
-          {unpaid.length === 0 ? <p className="text-xs text-neutral-500">No punches yet.</p> : null}
-          {unpaid.map((p) => {
-            const w = wRow(p.worker_id);
-            const hrs = (new Date(p.clock_out).getTime() - new Date(p.clock_in).getTime()) / 3600000;
-            const amt = w?.rate_type === "daily" ? w?.rate : hrs * (w?.rate ?? 0);
-            return (
-              <div key={p.id} className="rounded-lg bg-white/[0.05] px-3 py-2 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-white">{wName(p.worker_id)} · <span className="text-neutral-400 font-normal">{jName(p.job_id)}</span></div>
-                  <div className="text-xs text-neutral-500">
-                    {new Date(p.clock_in).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {t12(p.clock_in)}–{t12(p.clock_out)}
-                    {p.job_cost_id ? "" : " · not costed"}
+      <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,340px)]">
+        <section className="min-w-0">
+          <SectionTitle>Last 14 days</SectionTitle>
+          {unpaid.length === 0 ? (
+            <Empty icon={<Clock size={24} />} title="No punches yet" body="Finished punches from the last two weeks show up here." />
+          ) : (
+            <Card className="overflow-hidden">
+              {unpaid.map((p) => {
+                const w = wRow(p.worker_id);
+                const hrs = (new Date(p.clock_out).getTime() - new Date(p.clock_in).getTime()) / 3600000;
+                const amt = w?.rate_type === "daily" ? w?.rate : hrs * (w?.rate ?? 0);
+                return (
+                  <div key={p.id} className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5 last:border-0">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-white">{wName(p.worker_id)} · <span className="font-normal text-neutral-400">{jName(p.job_id)}</span></div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-neutral-500">
+                        <span>{new Date(p.clock_in).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {t12(p.clock_in)}–{t12(p.clock_out)}</span>
+                        {p.job_cost_id ? null : <Badge variant="warning" className="px-1.5 py-0 text-[11px]">not costed</Badge>}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-bold tabular-nums text-white">{hrs.toFixed(2)} h</div>
+                      <div className="text-xs tabular-nums text-neutral-400">{money(amt)}</div>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-xs font-bold text-white tabular-nums">{hrs.toFixed(2)} h</div>
-                  <div className="text-xs text-neutral-400 tabular-nums">{money(amt)}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                );
+              })}
+            </Card>
+          )}
+        </section>
 
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <div className="text-sm font-semibold text-neutral-300">Crew &amp; PINs</div>
-          <button onClick={() => setEditing({})} className="text-xs font-semibold text-neutral-300 underline">+ Add</button>
-        </div>
-        <div className="space-y-1">
-          {workers.map((w) => (
-            <button key={w.id} onClick={() => setEditing(w)} className="w-full text-left rounded-lg bg-white/[0.05] px-3 py-2 flex items-center justify-between gap-2 hover:border-neutral-600">
-              <div>
-                <div className={`text-xs font-semibold ${w.active ? "text-white" : "text-neutral-500 line-through"}`}>{w.name}</div>
-                <div className="text-xs text-neutral-500">PIN {w.pin}</div>
-              </div>
-              <div className="text-xs text-neutral-400 tabular-nums">
-                {w.rate ? `$${w.rate}/${w.rate_type === "daily" ? "day" : "hr"}` : "no rate"}
-              </div>
-            </button>
-          ))}
-        </div>
+        <section className="min-w-0">
+          <SectionTitle right={<Button variant="ghost" size="sm" onClick={() => setEditing({})}><Plus size={14} /> Add</Button>}>Crew &amp; PINs</SectionTitle>
+          {workers.length === 0 ? (
+            <Empty title="No crew yet" body="Add each guy with a PIN so they can punch in." />
+          ) : (
+            <Card className="overflow-hidden">
+              {workers.map((w) => (
+                <button key={w.id} onClick={() => setEditing(w)} className="flex min-h-[52px] w-full items-center justify-between gap-2 border-b border-border px-4 py-2.5 text-left last:border-0 hover:bg-white/[0.03]">
+                  <div className="min-w-0">
+                    <div className={cn("text-sm font-semibold", w.active ? "text-white" : "text-neutral-500 line-through")}>{w.name}</div>
+                    <div className="text-xs text-neutral-500">PIN {w.pin}</div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs tabular-nums text-neutral-400">
+                    {w.rate ? `$${w.rate}/${w.rate_type === "daily" ? "day" : "hr"}` : "no rate"}
+                    <ChevronRight size={15} className="text-neutral-600" />
+                  </div>
+                </button>
+              ))}
+            </Card>
+          )}
+        </section>
       </div>
 
       <CrewLogins workers={workers} />
 
-      {editing ? <WorkerEditor supabase={supabase} worker={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} /> : null}
-    </div>
-  );
-}
-
-function Tile({ v, l, tone }: { v: string; l: string; tone?: "amber" }) {
-  return (
-    <div className={`rounded-xl border ${tone === "amber" ? "border-amber-500/50" : "border-white/[0.08]"} bg-neutral-900 p-2.5 text-center`}>
-      <div className={`text-base font-bold leading-none ${tone === "amber" ? "text-amber-300" : "text-white"}`}>{v}</div>
-      <div className="mt-1 text-sm text-neutral-400">{l}</div>
+      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+        {editing ? (
+          <WorkerEditor key={editing.id ?? "new"} supabase={supabase} worker={editing.id ? editing : null} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+        ) : null}
+      </Dialog>
     </div>
   );
 }
@@ -175,48 +205,40 @@ function WorkerEditor({ supabase, worker, onClose, onSaved }: any) {
   const set = (k: string) => (e: any) => setF((s) => ({ ...s, [k]: e.target.value }));
 
   async function save() {
-    if (!f.name.trim() || !f.pin.trim()) { alert("Name and PIN are required."); return; }
+    if (!f.name.trim() || !f.pin.trim()) { showError("Name and PIN are required."); return; }
     setBusy(true);
     const row = { name: f.name.trim(), pin: f.pin.trim(), rate: Number(f.rate) || null, rate_type: f.rate_type, phone: f.phone || null, active: f.active };
     const { error } = worker
       ? await supabase.from("workers").update(row).eq("id", worker.id)
       : await supabase.from("workers").insert(row);
     setBusy(false);
-    if (error) alert("Save failed: " + error.message); else onSaved();
+    if (error) showError("Save failed: " + error.message); else { showToast("Saved"); onSaved(); }
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 anim-fade">
-      <div className="w-full max-w-sm rounded-2xl bg-white/[0.05] p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-bold text-white">{worker ? "Edit crew member" : "Add crew member"}</div>
-          <button onClick={onClose} className="text-neutral-400 text-lg leading-none">✕</button>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>{worker ? "Edit crew member" : "Add crew member"}</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-3">
+        <Field label="Name"><Input value={f.name} onChange={set("name")} /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="PIN"><Input value={f.pin} onChange={set("pin")} inputMode="numeric" /></Field>
+          <Field label="Phone"><Input value={f.phone} onChange={set("phone")} inputMode="tel" /></Field>
         </div>
-        <div className="space-y-2.5">
-          <F l="Name"><input value={f.name} onChange={set("name")} className={inp} /></F>
-          <div className="grid grid-cols-2 gap-2">
-            <F l="PIN"><input value={f.pin} onChange={set("pin")} inputMode="numeric" className={inp} /></F>
-            <F l="Phone"><input value={f.phone} onChange={set("phone")} inputMode="tel" className={inp} /></F>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <F l="Rate"><input value={f.rate} onChange={set("rate")} inputMode="decimal" className={inp} /></F>
-            <F l="Per"><select value={f.rate_type} onChange={set("rate_type")} className={inp}><option value="hourly">Hour</option><option value="daily">Day</option></select></F>
-          </div>
-          <label className="flex items-center gap-2 text-xs text-neutral-300">
-            <input type="checkbox" checked={f.active} onChange={(e) => setF((s) => ({ ...s, active: e.target.checked }))} />
-            Active — can clock in
-          </label>
-          <button onClick={save} disabled={busy} className="w-full rounded-xl bg-white text-black py-2.5 text-sm font-bold disabled:opacity-50">
-            {busy ? "Saving…" : "Save"}
-          </button>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Rate"><Input value={f.rate} onChange={set("rate")} inputMode="decimal" /></Field>
+          <Field label="Per"><NativeSelect value={f.rate_type} onChange={set("rate_type")}><option value="hourly">Hour</option><option value="daily">Day</option></NativeSelect></Field>
         </div>
+        <label className="flex min-h-[40px] items-center gap-2 text-sm text-neutral-300">
+          <input type="checkbox" className="h-4 w-4" checked={f.active} onChange={(e) => setF((s) => ({ ...s, active: e.target.checked }))} />
+          Active — can clock in
+        </label>
       </div>
-    </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
+      </DialogFooter>
+    </DialogContent>
   );
-}
-
-const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500";
-const btn = "px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500 whitespace-nowrap";
-function F({ l, children }: { l: string; children: React.ReactNode }) {
-  return <label className="block"><span className="block text-sm font-semibold text-neutral-400 mb-1">{l}</span>{children}</label>;
 }

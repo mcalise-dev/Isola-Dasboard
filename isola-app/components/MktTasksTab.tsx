@@ -2,6 +2,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { coShort } from "@/lib/crm";
+import { withTimeout, firstError } from "@/lib/load";
+import { showError, showToast, undoable } from "@/components/Toaster";
+import { PageHeader, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input, NativeSelect } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { Plus, Check, X, ChevronDown, Megaphone } from "lucide-react";
 
 type MktTask = {
   id: string;
@@ -19,10 +28,10 @@ type ContactLite = { id: string; name: string; company: string | null };
 
 const TIMEFRAMES = ["Short term", "Long term", "Ongoing", "Someday"];
 const CHANNELS = ["Call", "Email", "LinkedIn", "Walk-through", "One-pager", "Other"];
-const PRIO_CLS: Record<string, string> = {
-  high: "bg-red-500/15 text-red-300 border-red-500/30",
-  medium: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  low: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30",
+const PRIO_VARIANT: Record<string, "danger" | "warning" | "muted"> = {
+  high: "danger",
+  medium: "warning",
+  low: "muted",
 };
 const todayISO = () => {
   const d = new Date();
@@ -38,6 +47,7 @@ export default function MktTasksTab() {
   const [tasks, setTasks] = useState<MktTask[]>([]);
   const [contacts, setContacts] = useState<ContactLite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [title, setTitle] = useState("");
   const [contactId, setContactId] = useState("");
@@ -47,13 +57,20 @@ export default function MktTasksTab() {
   const [due, setDue] = useState("");
 
   async function load() {
-    const [t, c] = await Promise.all([
-      supabase.from("mkt_tasks").select("*").order("created_at", { ascending: false }),
-      supabase.from("contacts").select("id,name,company").order("name"),
-    ]);
-    setTasks((t.data as MktTask[]) ?? []);
-    setContacts((c.data as ContactLite[]) ?? []);
-    setLoading(false);
+    setErr(null);
+    try {
+      const [t, c] = await withTimeout(Promise.all([
+        supabase.from("mkt_tasks").select("*").order("created_at", { ascending: false }),
+        supabase.from("contacts").select("id,name,company").order("name"),
+      ]));
+      const bad = firstError(t, c);
+      if (bad) throw new Error(bad);
+      setTasks((t.data as MktTask[]) ?? []);
+      setContacts((c.data as ContactLite[]) ?? []);
+      setLoading(false);
+    } catch (e: any) {
+      setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
+    }
   }
   useEffect(() => { load(); }, []);
 
@@ -97,36 +114,43 @@ export default function MktTasksTab() {
       due_date: when === "date" && due ? due : null,
       timeframe: when && when !== "date" ? when : null,
     });
-    if (error) { alert("Add failed: " + error.message); return; }
+    if (error) { showError("Add failed: " + error.message); return; }
     setTitle(""); setContactId(""); setChannel(""); setWhen(""); setDue("");
+    showToast("Task added");
     load();
   }
 
   async function toggle(t: MktTask) {
-    await supabase.from("mkt_tasks").update({ done: !t.done, completed_at: !t.done ? new Date().toISOString() : null }).eq("id", t.id);
+    const { error } = await supabase.from("mkt_tasks").update({ done: !t.done, completed_at: !t.done ? new Date().toISOString() : null }).eq("id", t.id);
+    if (error) { showError("Save failed: " + error.message); return; }
     load();
   }
 
-  async function remove(t: MktTask) {
-    if (!confirm("Delete this task?")) return;
-    await supabase.from("mkt_tasks").delete().eq("id", t.id);
-    load();
+  function remove(t: MktTask) {
+    const before = tasks;
+    undoable({
+      text: "Task deleted",
+      hide: () => setTasks((cur) => cur.filter((x) => x.id !== t.id)),
+      restore: () => setTasks(before),
+      commit: () => supabase.from("mkt_tasks").delete().eq("id", t.id),
+    });
   }
-
-  const input = "rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400";
 
   function row(t: MktTask) {
     const c = t.contact_id ? contactById[t.contact_id] : null;
     return (
-      <div key={t.id} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-neutral-900 px-3.5 py-3">
-        <button onClick={() => toggle(t)} aria-label="Toggle done" className={`w-5 h-5 shrink-0 rounded-md border flex items-center justify-center text-xs ${t.done ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300" : "border-neutral-600 text-transparent"}`}>
-          ✓
+      <Card key={t.id} className="flex items-center gap-2 py-1.5 pl-1.5 pr-1.5">
+        <button onClick={() => toggle(t)} aria-label={t.done ? "Mark not done" : "Mark done"}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-white/[0.05]">
+          <span className={cn("flex h-5 w-5 items-center justify-center rounded-md border", t.done ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-300" : "border-neutral-500 text-transparent")}>
+            <Check size={13} strokeWidth={3} />
+          </span>
         </button>
-        <div className="flex-1 min-w-0">
-          <div className={`text-sm ${t.done ? "line-through text-neutral-400" : "text-white"}`}>{t.title}</div>
-          <div className="text-xs text-neutral-400 truncate">
+        <div className="min-w-0 flex-1 py-1">
+          <div className={cn("text-sm", t.done ? "text-neutral-400 line-through" : "text-white")}>{t.title}</div>
+          <div className="truncate text-xs text-neutral-400">
             {t.due_date ? (
-              <span className={!t.done && t.due_date <= todayISO() ? "text-red-400 font-semibold" : "text-neutral-400"}>
+              <span className={!t.done && t.due_date <= todayISO() ? "font-semibold text-red-400" : "text-neutral-400"}>
                 {!t.done && t.due_date < todayISO() ? "Overdue · " : "Due "}{fmtDue(t.due_date)}
               </span>
             ) : t.timeframe ? <span>{t.timeframe}</span> : null}
@@ -135,67 +159,84 @@ export default function MktTasksTab() {
           </div>
         </div>
         {!t.done ? (
-          <span className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-full border ${PRIO_CLS[t.priority] ?? PRIO_CLS.medium}`}>{t.priority}</span>
+          <Badge variant={PRIO_VARIANT[t.priority] ?? "warning"} className="shrink-0 capitalize">{t.priority}</Badge>
         ) : null}
-        <button onClick={() => remove(t)} className="shrink-0 text-neutral-500 hover:text-red-400 text-sm" aria-label="Delete">✕</button>
-      </div>
+        <Button variant="ghost" size="icon" className="shrink-0 text-neutral-500 hover:text-red-400" onClick={() => remove(t)} aria-label="Delete"><X size={16} /></Button>
+      </Card>
     );
   }
 
+  const overdueN = openTasks.filter((t) => t.due_date && t.due_date < todayISO()).length;
+  const header = <PageHeader title="Marketing tasks" sub="Outreach to do — calls, emails, walk-throughs" />;
+
+  if (err) return <div className="pb-28">{header}<LoadError message={err} onRetry={load} /></div>;
+
   return (
-    <div>
-      {dueNow ? (
-        <div className="mb-3 rounded-xl border border-amber-500/40 bg-neutral-900 px-4 py-2.5 text-sm text-amber-300 font-semibold">
-          {dueNow} marketing task{dueNow === 1 ? "" : "s"} due now
+    <div className="pb-28">
+      {header}
+
+      {!loading ? (
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          <Stat label="Open" value={openTasks.length} />
+          <Stat label="Due now" value={dueNow} tone={dueNow ? (overdueN ? "bad" : "warn") : undefined} />
+          <Stat label="Done" value={doneTasks.length} tone={doneTasks.length ? "ok" : undefined}
+            onClick={doneTasks.length ? () => setShowDone(!showDone) : undefined} />
         </div>
       ) : null}
-      <div className="rounded-xl border border-white/[0.07] bg-neutral-900 p-3.5 mb-4 space-y-2.5">
-        <input className={`${input} w-full`} placeholder="New marketing task… e.g. Call Carpionato PM office" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
-        <div className="flex gap-2">
-          <select className={`${input} flex-1 min-w-0`} value={contactId} onChange={(e) => setContactId(e.target.value)}>
+
+      <Card className="mb-5 space-y-2.5 p-3.5">
+        <Input placeholder="New marketing task… e.g. Call Carpionato PM office" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <NativeSelect className="min-w-0" value={contactId} onChange={(e) => setContactId(e.target.value)}>
             <option value="">No contact</option>
             {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` — ${coShort(c.company)}` : ""}</option>)}
-          </select>
-          <select className={input} value={channel} onChange={(e) => setChannel(e.target.value)}>
+          </NativeSelect>
+          <NativeSelect className="w-auto" value={channel} onChange={(e) => setChannel(e.target.value)}>
             <option value="">Type</option>
             {CHANNELS.map((c) => <option key={c}>{c}</option>)}
-          </select>
+          </NativeSelect>
         </div>
-        <div className="flex gap-2">
-          <select className={`${input} flex-1 min-w-0`} value={when} onChange={(e) => setWhen(e.target.value)}>
+        <div className="flex flex-wrap gap-2 sm:flex-nowrap">
+          <NativeSelect className="min-w-0 flex-1 basis-full sm:basis-auto" value={when} onChange={(e) => setWhen(e.target.value)}>
             <option value="">When? (optional)</option>
             <option value="date">Specific date…</option>
             {TIMEFRAMES.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          {when === "date" ? <input type="date" className={input} value={due} onChange={(e) => setDue(e.target.value)} /> : null}
-          <select className={input} value={prio} onChange={(e) => setPrio(e.target.value)}>
+          </NativeSelect>
+          {when === "date" ? <Input type="date" className="w-auto min-w-0 flex-1 sm:flex-none" value={due} onChange={(e) => setDue(e.target.value)} /> : null}
+          <NativeSelect className="w-auto" value={prio} onChange={(e) => setPrio(e.target.value)}>
             <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
-          </select>
-          <button onClick={add} className="rounded-lg bg-white text-neutral-900 px-4 text-sm font-semibold">Add</button>
+          </NativeSelect>
+          <Button className="ml-auto" onClick={add} disabled={!title.trim()}><Plus size={16} /> Add</Button>
         </div>
-      </div>
+      </Card>
 
-      {loading ? <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div> : null}
-      <div className="space-y-4">
-        {sections.map((s) => (
-          <div key={s.key}>
-            <div className={`flex items-baseline gap-2 pb-1.5 text-sm font-semibold ${s.cls}`}>
-              {s.label}<span className="text-neutral-500 font-semibold">{s.items.length}</span>
-            </div>
-            <div className="space-y-2">{s.items.map(row)}</div>
+      {loading ? <ListSkeleton /> : (
+        <>
+          <div className="space-y-5">
+            {sections.map((s) => (
+              <section key={s.key}>
+                <div className={cn("flex items-baseline gap-2 pb-2 text-sm font-semibold", s.cls)}>
+                  {s.label}<span className="font-semibold tabular-nums text-neutral-500">{s.items.length}</span>
+                </div>
+                <div className="space-y-2">{s.items.map(row)}</div>
+              </section>
+            ))}
           </div>
-        ))}
-      </div>
-      {!loading && openTasks.length === 0 ? <p className="text-neutral-400 text-sm">No marketing tasks yet. Add the week&apos;s outreach here.</p> : null}
+          {openTasks.length === 0 ? (
+            <Empty icon={<Megaphone size={28} />} title="No marketing tasks yet." body="Add the week's outreach here." />
+          ) : null}
 
-      {doneTasks.length ? (
-        <div className="mt-6">
-          <button onClick={() => setShowDone(!showDone)} className="text-sm font-semibold text-neutral-500">
-            {showDone ? "Hide" : "Show"} completed ({doneTasks.length})
-          </button>
-          {showDone ? <div className="space-y-2 mt-2.5">{doneTasks.map(row)}</div> : null}
-        </div>
-      ) : null}
+          {doneTasks.length ? (
+            <div className="mt-6">
+              <Button variant="ghost" size="sm" className="h-10 px-2 text-neutral-400" onClick={() => setShowDone(!showDone)}>
+                <ChevronDown size={16} className={cn("transition-transform", showDone && "rotate-180")} />
+                {showDone ? "Hide" : "Show"} completed ({doneTasks.length})
+              </Button>
+              {showDone ? <div className="mt-2.5 space-y-2">{doneTasks.map(row)}</div> : null}
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

@@ -1,7 +1,18 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { fmtDate, jobLabel, parsePrice } from "@/lib/format";
+import { withTimeout, firstError } from "@/lib/load";
+import { showError, showToast } from "@/components/Toaster";
+import { copyText } from "@/components/Dialogs";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input, Textarea, Field } from "@/components/ui/input";
+import { PageHeader, SectionTitle, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Eye, Copy, Pencil, Link2, Check, X, RotateCcw, FileText, Plus } from "lucide-react";
 
 const fmt$ = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 
@@ -14,28 +25,35 @@ function newToken() {
 
 export default function ProposalsTab() {
   const supabase = useMemo(() => createClient(), []);
-  const [jobs, setJobs] = useState<any[]>([]);
+  const [jobs, setJobs] = useState<any[] | null>(null);
   const [links, setLinks] = useState<Record<string, any>>({});
-  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<any>(null);
-  const [copied, setCopied] = useState("");
 
   async function load() {
-    const { data } = await supabase
-      .from("jobs")
-      .select("id,job_name,customer,location,job,price,status,proposal_status,quoted_date,scope_of_work,contact_phone,updated_at")
-      .neq("proposal_status", "none")
-      .not("proposal_status", "is", null)
-      .order("quoted_date", { ascending: true });
-    setJobs(data ?? []);
-    const { data: pl } = await supabase
-      .from("proposal_links")
-      .select("*")
-      .order("created_at", { ascending: false });
-    const byJob: Record<string, any> = {};
-    (pl ?? []).forEach((l: any) => { if (!byJob[l.job_id]) byJob[l.job_id] = l; });
-    setLinks(byJob);
-    setLoading(false);
+    setErr(null);
+    try {
+      const [j, pl] = await withTimeout(Promise.all([
+        supabase
+          .from("jobs")
+          .select("id,job_name,customer,location,job,price,status,proposal_status,quoted_date,scope_of_work,contact_phone,updated_at")
+          .neq("proposal_status", "none")
+          .not("proposal_status", "is", null)
+          .order("quoted_date", { ascending: true }),
+        supabase
+          .from("proposal_links")
+          .select("*")
+          .order("created_at", { ascending: false }),
+      ]));
+      const e = firstError(j, pl);
+      if (e) throw new Error(e);
+      const byJob: Record<string, any> = {};
+      (pl.data ?? []).forEach((l: any) => { if (!byJob[l.job_id]) byJob[l.job_id] = l; });
+      setLinks(byJob);
+      setJobs(j.data ?? []);
+    } catch (e: any) {
+      setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
+    }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
@@ -43,18 +61,19 @@ export default function ProposalsTab() {
     const patch: any = { proposal_status, updated_at: new Date().toISOString() };
     if (proposal_status === "sent" && !j.quoted_date) patch.quoted_date = new Date().toISOString().slice(0, 10);
     const { error } = await supabase.from("jobs").update(patch).eq("id", j.id);
-    if (error) alert("Update failed: " + error.message); else load();
+    if (error) showError("Update failed: " + error.message); else load();
   }
 
   const linkUrl = (t: string) => `${typeof window !== "undefined" ? window.location.origin : ""}/p/${t}`;
 
   async function copy(t: string) {
-    const url = linkUrl(t);
-    try { await navigator.clipboard.writeText(url); } catch { window.prompt("Copy this link:", url); }
-    setCopied(t); setTimeout(() => setCopied(""), 2000);
+    await copyText(linkUrl(t), "Link copied");
   }
 
   const daysOut = (j: any) => (j.quoted_date ? Math.floor((Date.now() - new Date(j.quoted_date + "T12:00:00").getTime()) / 86400000) : null);
+
+  if (err && !jobs) return <div><PageHeader title="Proposals" sub="Out for signature, signed and declined" /><LoadError message={err} onRetry={load} /></div>;
+  if (!jobs) return <div><PageHeader title="Proposals" sub="Out for signature, signed and declined" /><ListSkeleton /></div>;
 
   const sent = jobs.filter((j) => j.proposal_status === "sent").sort((a, b) => (daysOut(b) ?? -1) - (daysOut(a) ?? -1));
   const signed = jobs.filter((j) => j.proposal_status === "signed" || j.proposal_status === "accepted");
@@ -66,36 +85,37 @@ export default function ProposalsTab() {
 
   function pill(j: any) {
     const d = daysOut(j);
-    if (d == null) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-400">no date</span>;
-    if (d > 30) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-red-500/40 bg-red-500/10 text-red-300">expired · {d}d</span>;
-    if (d > 21) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-300">{30 - d}d left</span>;
-    if (d > 14) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-200">{d}d out — check in</span>;
-    return <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-neutral-700 text-neutral-300">{d}d out</span>;
+    if (d == null) return <Badge variant="muted">no date</Badge>;
+    if (d > 30) return <Badge variant="danger">expired · {d}d</Badge>;
+    if (d > 21) return <Badge variant="warning">{30 - d}d left</Badge>;
+    if (d > 14) return <Badge variant="warning">{d}d out — check in</Badge>;
+    return <Badge>{d}d out</Badge>;
   }
 
   function hubRow(j: any) {
     const l = links[j.id];
     if (!l) return (
-      <button onClick={() => setEditing({ job: j })}
-        className="mt-2 w-full rounded-lg border border-dashed border-neutral-700 py-1.5 text-xs font-semibold text-neutral-400 hover:border-neutral-500 hover:text-neutral-200">
-        Create client link
-      </button>
+      <Button variant="outline" className="mt-3 w-full border-dashed" onClick={() => setEditing({ job: j })}>
+        <Link2 size={15} /> Create client link
+      </Button>
     );
-    const tone = l.status === "approved" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-      : l.status === "declined" ? "border-neutral-700 bg-neutral-900 text-neutral-400"
-      : l.view_count > 0 ? "border-neutral-500/40 bg-neutral-500/10 text-neutral-300"
-      : "border-neutral-700 bg-neutral-900 text-neutral-400";
+    const variant = l.status === "approved" ? "success" : l.status === "declined" ? "muted" : l.view_count > 0 ? "default" : "muted";
     const label = l.status === "approved" ? `Approved by ${l.approved_by ?? "client"}`
       : l.status === "declined" ? "Declined online"
       : l.view_count > 0 ? `Opened ${l.view_count}×${l.viewed_at ? " · last " + new Date(l.viewed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}`
       : "Link sent — not opened yet";
     return (
-      <div className="mt-2 space-y-1.5">
-        <div className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${tone}`}>{label}</div>
-        <div className="flex gap-1.5">
-          <a href={`/p/${l.token}`} target="_blank" rel="noopener noreferrer" className={btn}>View</a>
-          <button onClick={() => copy(l.token)} className={btn}>{copied === l.token ? "Copied ✓" : "Copy link"}</button>
-          <button onClick={() => setEditing({ job: j, link: l })} className={btn}>Edit</button>
+      <div className="mt-3 space-y-2">
+        <Badge variant={variant as any} className="whitespace-normal">
+          {l.status === "approved" ? <Check size={12} /> : l.view_count > 0 ? <Eye size={12} /> : <Link2 size={12} />}
+          {label}
+        </Badge>
+        <div className="grid grid-cols-3 gap-2">
+          <Button asChild variant="outline" size="sm" className="h-10">
+            <a href={`/p/${l.token}`} target="_blank" rel="noopener noreferrer"><Eye size={14} /> View</a>
+          </Button>
+          <Button variant="outline" size="sm" className="h-10" onClick={() => copy(l.token)}><Copy size={14} /> Copy link</Button>
+          <Button variant="outline" size="sm" className="h-10" onClick={() => setEditing({ job: j, link: l })}><Pencil size={14} /> Edit</Button>
         </div>
       </div>
     );
@@ -103,74 +123,75 @@ export default function ProposalsTab() {
 
   function card(j: any, actions: { label: string; to: string }[]) {
     return (
-      <div key={j.id} className="rounded-xl bg-white/[0.05] px-3.5 py-2.5">
+      <Card key={j.id} className="flex flex-col px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-white truncate">{jobLabel(j)}</div>
-            <div className="text-xs text-neutral-400 mt-0.5">{j.quoted_date ? "sent " + fmtDate(j.quoted_date) : "no send date"}{j.price ? " · " + j.price : ""}</div>
+            <div className="truncate text-sm font-semibold text-white">{jobLabel(j)}</div>
+            <div className="mt-0.5 text-xs text-neutral-400">{j.quoted_date ? "sent " + fmtDate(j.quoted_date) : "no send date"}{j.price ? " · " + j.price : ""}</div>
           </div>
           <div className="shrink-0">{j.proposal_status === "sent" ? pill(j) : null}</div>
         </div>
         {hubRow(j)}
-        <div className="flex gap-1.5 mt-2">
+        <div className="mt-2 flex gap-2 border-t border-border pt-2">
           {actions.map((a) => (
-            <button key={a.to} onClick={() => setProposal(j, a.to)} className="px-2.5 py-1 rounded-lg text-xs font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500">
+            <Button key={a.to} variant="ghost" size="sm" className="h-10" onClick={() => setProposal(j, a.to)}>
+              {a.to === "signed" ? <Check size={14} /> : a.to === "declined" ? <X size={14} /> : <RotateCcw size={14} />}
               {a.label}
-            </button>
+            </Button>
           ))}
         </div>
-      </div>
+      </Card>
     );
   }
 
-  if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
-
   return (
-    <div className="pt-2 space-y-4">
-      <div className="grid grid-cols-4 gap-2">
-        <Tile v={String(sent.length)} l="Out now" />
-        <Tile v={fmt$(outTotal)} l="Value out" />
-        <Tile v={String(viewedCount)} l="Opened" tone={viewedCount ? "blue" : undefined} />
-        <Tile v={String(expiring + expired)} l="Expiring" tone={expiring + expired ? "amber" : undefined} />
+    <div className="space-y-6">
+      <PageHeader
+        title="Proposals"
+        sub="Out for signature, signed and declined — with the client sign links"
+        actions={<Button asChild variant="outline"><Link href="/build"><Plus size={16} /> New proposal</Link></Button>}
+        className="mb-0"
+      />
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label="Out now" value={String(sent.length)} />
+        <Stat label="Value out" value={fmt$(outTotal)} />
+        <Stat label="Opened" value={String(viewedCount)} hint={sent.length ? `of ${sent.length} out` : undefined} />
+        <Stat label="Expiring" value={String(expiring + expired)} tone={expiring + expired ? "warn" : undefined} hint={expired ? `${expired} past 30 days` : undefined} />
       </div>
 
-      {sent.length === 0 ? <p className="text-sm text-neutral-400">Nothing out right now. Mark a job&apos;s proposal &quot;Sent&quot; on the Jobs tab and it shows up here with the 30-day clock running.</p> : (
-        <div>
-          <div className="text-sm font-semibold text-neutral-300 mb-1.5">Out for signature — 30-day validity</div>
-          <div className="space-y-1.5">{sent.map((j) => card(j, [{ label: "Signed", to: "signed" }, { label: "Declined", to: "declined" }]))}</div>
-        </div>
+      {sent.length === 0 ? (
+        <Empty icon={<FileText size={26} />} title="Nothing out right now"
+          body={<>Mark a job&apos;s proposal &quot;Sent&quot; on the Jobs tab and it shows up here with the 30-day clock running.</>} />
+      ) : (
+        <section>
+          <SectionTitle right={<span className="text-sm text-neutral-500">{sent.length}</span>}>Out for signature — 30-day validity</SectionTitle>
+          <div className="grid gap-3 md:grid-cols-2">{sent.map((j) => card(j, [{ label: "Signed", to: "signed" }, { label: "Declined", to: "declined" }]))}</div>
+        </section>
       )}
 
       {signed.length ? (
-        <div>
-          <div className="text-sm font-semibold text-emerald-300 mb-1.5">Signed</div>
-          <div className="space-y-1.5">{signed.map((j) => card(j, [{ label: "Back to sent", to: "sent" }]))}</div>
-        </div>
+        <section>
+          <SectionTitle right={<span className="text-sm text-neutral-500">{signed.length}</span>}><span className="text-emerald-300">Signed</span></SectionTitle>
+          <div className="grid gap-3 md:grid-cols-2">{signed.map((j) => card(j, [{ label: "Back to sent", to: "sent" }]))}</div>
+        </section>
       ) : null}
 
       {declined.length ? (
-        <div>
-          <div className="text-sm font-semibold text-neutral-300 mb-1.5">Declined</div>
-          <div className="space-y-1.5">{declined.map((j) => card(j, [{ label: "Back to sent", to: "sent" }]))}</div>
-        </div>
+        <section>
+          <SectionTitle right={<span className="text-sm text-neutral-500">{declined.length}</span>}>Declined</SectionTitle>
+          <div className="grid gap-3 md:grid-cols-2">{declined.map((j) => card(j, [{ label: "Back to sent", to: "sent" }]))}</div>
+        </section>
       ) : null}
 
       <p className="text-xs text-neutral-500">Proposals expire 30 days after sending per your standard terms. A client link lets them read the scope, approve it, and sign right on their phone — you see the moment they open it.</p>
 
-      {editing ? <LinkEditor supabase={supabase} job={editing.job} link={editing.link} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} newToken={newToken} /> : null}
-    </div>
-  );
-}
-
-const btn = "px-2.5 py-1 rounded-lg text-xs font-semibold border border-neutral-700 text-neutral-300 hover:border-neutral-500";
-
-function Tile({ v, l, tone }: { v: string; l: string; tone?: "amber" | "blue" }) {
-  const border = tone === "amber" ? "border-amber-500/50" : tone === "blue" ? "border-neutral-500/50" : "border-white/[0.08]";
-  const text = tone === "amber" ? "text-amber-300" : tone === "blue" ? "text-neutral-300" : "text-white";
-  return (
-    <div className={`rounded-xl border ${border} bg-neutral-900 p-2.5 text-center`}>
-      <div className={`text-base font-bold leading-none ${text}`}>{v}</div>
-      <div className="mt-1 text-sm text-neutral-400">{l}</div>
+      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+        {editing ? (
+          <LinkEditor key={editing.link?.id ?? editing.job.id} supabase={supabase} job={editing.job} link={editing.link}
+            onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} newToken={newToken} />
+        ) : null}
+      </Dialog>
     </div>
   );
 }
@@ -208,39 +229,36 @@ function LinkEditor({ supabase, job, link, onClose, onSaved, newToken }: any) {
     if (link) ({ error } = await supabase.from("proposal_links").update(row).eq("id", link.id));
     else ({ error } = await supabase.from("proposal_links").insert({ ...row, token: newToken() }));
     setBusy(false);
-    if (error) alert("Save failed: " + error.message); else onSaved();
+    if (error) showError("Save failed: " + error.message);
+    else { showToast(link ? "Client link saved" : "Client link created"); onSaved(); }
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-end sm:items-center justify-center p-3 overflow-y-auto anim-fade">
-      <div className="w-full max-w-lg rounded-2xl bg-white/[0.05] p-4 my-6">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-bold text-white">{link ? "Edit client link" : "Create client link"}</div>
-          <button onClick={onClose} className="text-neutral-400 text-lg leading-none">✕</button>
-        </div>
-        <div className="space-y-2.5">
-          <F l="Title"><input value={f.title} onChange={set("title")} className={inp} placeholder="e.g. 148 West River St — Concrete Replacement" /></F>
-          <F l="Opening note (optional)"><textarea value={f.intro} onChange={set("intro")} rows={2} className={inp} placeholder="Thanks for having us out. Here's what we'd do…" /></F>
-          <F l="Work included — one line per item"><textarea value={f.scope} onChange={set("scope")} rows={6} className={inp} placeholder={"Saw cut and remove existing slab\nBase prep and compaction\nPour 4in 3500psi concrete, broom finish"} /></F>
+    <DialogContent wide>
+      <form onSubmit={(e) => { e.preventDefault(); save(); }}>
+        <DialogHeader>
+          <DialogTitle>{link ? "Edit client link" : "Create client link"}</DialogTitle>
+          <DialogDescription>{jobLabel(job)}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Field label="Title"><Input value={f.title} onChange={set("title")} placeholder="e.g. 148 West River St — Concrete Replacement" /></Field>
+          <Field label="Opening note (optional)"><Textarea value={f.intro} onChange={set("intro")} rows={2} placeholder="Thanks for having us out. Here's what we'd do…" /></Field>
+          <Field label="Work included — one line per item"><Textarea value={f.scope} onChange={set("scope")} rows={6} placeholder={"Saw cut and remove existing slab\nBase prep and compaction\nPour 4in 3500psi concrete, broom finish"} /></Field>
           <div className="grid grid-cols-3 gap-2">
-            <F l="Price"><input value={f.price} onChange={set("price")} inputMode="decimal" className={inp} /></F>
-            <F l="Deposit %"><input value={f.deposit_pct} onChange={set("deposit_pct")} inputMode="numeric" className={inp} /></F>
-            <F l="Expires"><input type="date" value={f.expires_at} onChange={set("expires_at")} className={inp} /></F>
+            <Field label="Price"><Input value={f.price} onChange={set("price")} inputMode="decimal" /></Field>
+            <Field label="Deposit %"><Input value={f.deposit_pct} onChange={set("deposit_pct")} inputMode="numeric" /></Field>
+            <Field label="Expires"><Input type="date" value={f.expires_at} onChange={set("expires_at")} /></Field>
           </div>
-          <F l="Deposit payment link (optional — paste a QuickBooks payment link)">
-            <input value={f.pay_url} onChange={set("pay_url")} className={inp} placeholder="https://…" />
-          </F>
-          <button onClick={save} disabled={busy} className="w-full rounded-xl bg-white text-black py-2.5 text-sm font-bold disabled:opacity-50">
-            {busy ? "Saving…" : link ? "Save changes" : "Create link"}
-          </button>
+          <Field label="Deposit payment link (optional — paste a QuickBooks payment link)">
+            <Input value={f.pay_url} onChange={set("pay_url")} placeholder="https://…" />
+          </Field>
           <p className="text-xs text-neutral-500">Nothing here shows your costs — the client sees the scope, the total, and the deposit only.</p>
         </div>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={busy}>{busy ? "Saving…" : link ? "Save changes" : "Create link"}</Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
-}
-
-const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2.5 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-500";
-function F({ l, children }: { l: string; children: React.ReactNode }) {
-  return <label className="block"><span className="block text-sm font-semibold text-neutral-400 mb-1">{l}</span>{children}</label>;
 }

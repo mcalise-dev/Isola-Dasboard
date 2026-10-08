@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { showToast, undoable } from "@/components/Toaster";
+import { showToast, undoable, showError } from "@/components/Toaster";
 import { cn } from "@/lib/utils";
 import { shortDate, rel, jobPrice, norm, changed, validEmail } from "./lib";
 
@@ -70,7 +70,7 @@ export default function ReviewsScreen() {
     const v = urlDraft.trim();
     if (!/^https?:\/\//i.test(v)) { showToast("Paste the full link — it starts with https://"); return; }
     const { error } = await sb.from("app_settings").upsert({ key: "google_review_url", value: v, updated_at: new Date().toISOString() });
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     setReviewUrl(v); setUrlDraft(""); showToast("Review link saved");
   }
 
@@ -90,7 +90,7 @@ export default function ReviewsScreen() {
   async function unAsk(j: any) {
     setJobs((js) => js.map((x) => (x.id === j.id ? { ...x, review_requested_at: null } : x)));
     const { error } = await sb.from("jobs").update({ review_requested_at: null }).eq("id", j.id);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     changed(); showToast("Moved back to ask list");
   }
 
@@ -121,7 +121,7 @@ export default function ReviewsScreen() {
     if (kind === "customer") setCustomers((cs) => cs.map((c) => (c.id === id ? { ...c, referral_partner: on } : c)));
     else setContacts((cs) => cs.map((c) => (c.id === id ? { ...c, referral_partner: on } : c)));
     const { error } = await sb.from(table).update({ referral_partner: on }).eq("id", id);
-    if (error) { alert("Save failed: " + error.message); return; }
+    if (error) { showError("Save failed: " + error.message); return; }
     changed();
     showToast(on ? "Added as referral partner" : "Removed from partners");
   }
