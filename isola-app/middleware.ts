@@ -3,8 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_URL, SUPABASE_KEY } from "./lib/supabase/client";
 
 // Routes that must work with NO login: the client hub, the crew time clock, and the
-// private calendar feed (its token is checked in the database).
-const PUBLIC_PREFIXES = ["/p/", "/clock", "/cal/"];
+// private calendar feed (its token is checked in the database), and the vendor COI/W-9
+// upload page (it can only call the insert-only vendor_submit RPC).
+const PUBLIC_PREFIXES = ["/p/", "/clock", "/cal/", "/vendor-submit"];
 const isPublic = (path: string) =>
   PUBLIC_PREFIXES.some((p) => path === p.replace(/\/$/, "") || path.startsWith(p));
 
