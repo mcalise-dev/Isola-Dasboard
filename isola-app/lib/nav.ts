@@ -7,7 +7,7 @@ import {
   Search, Hammer, Send, MapPin, HardHat, Snowflake,
   Receipt, CreditCard, Handshake, BarChart3, ShieldCheck,
   Contact, Mail, Building2, LayoutGrid, Target, Workflow, Star, Sun, Gauge,
-  Sparkles, BadgeDollarSign, PhoneCall, CalendarRange, PlugZap, Truck,
+  Sparkles, BadgeDollarSign, PhoneCall, CalendarRange, PlugZap, Truck, ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -25,6 +25,7 @@ export const GROUPS: NavGroup[] = [
       { href: "/visits", label: "Site visits", icon: MapPin },
       { href: "/build", label: "Build & price", icon: Hammer },
       { href: "/proposals", label: "Proposals sent", icon: Send, badge: "proposals" },
+      { href: "/punchlist", label: "Punch list", icon: ClipboardCheck },
     ],
   },
   {
