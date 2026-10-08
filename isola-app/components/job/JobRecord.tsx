@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
 import {
   Phone, Navigation, Pencil, MoreHorizontal, Star, Trash2, XCircle, ChevronLeft, MapPin, Hammer, ThumbsUp,
-  CalendarPlus, Play, CheckCircle2, FileText, Banknote, ArrowRight, Briefcase, Building2,
+  CalendarPlus, Play, CheckCircle2, PauseCircle, FileText, Banknote, ArrowRight, Briefcase, Building2,
 } from "lucide-react";
 
 const STEPS = [
@@ -53,6 +53,7 @@ export function nextStep(j: any, ctx: { walked: boolean; drafting: boolean; sche
   const today = todayISO();
   if (j.status === "lead") return !ctx.walked ? { label: "Log the site visit", icon: MapPin, href: "/visits" }
     : ctx.drafting ? { label: "Finish the proposal", icon: Hammer, href: "/build" } : { label: "Price it, start a build", icon: Hammer, href: "/build" };
+  if (j.status === "future") return { label: "Ready to go, mark Booked", icon: ThumbsUp, patch: { status: "booked", won_date: j.won_date ?? today }, toast: "Moved to Booked" };
   if (j.status === "awaiting") return { label: "They said yes, mark Booked", icon: ThumbsUp, patch: { status: "booked", won_date: j.won_date ?? today }, toast: "Moved to Booked" };
   if (j.status === "booked") return !ctx.scheduled ? { label: "Put it on the schedule", icon: CalendarPlus, tab: "schedule" }
     : { label: "Crew started, mark In progress", icon: Play, patch: { status: "progress" }, toast: "Moved to In progress" };
@@ -130,7 +131,7 @@ export default function JobRecord({ id }: { id: string }) {
   const today = todayISO();
 
   // where the job sits on the stepper
-  const sIdx = ORDER.indexOf(job.status);
+  const sIdx = ORDER.indexOf(job.status === "future" ? "awaiting" : job.status);
   const doneFlags = [
     sIdx >= 0, ctx.walked || sIdx >= 1, sIdx >= 2 || !!job.quoted_date, sIdx >= 2, ctx.scheduled || sIdx >= 3,
     sIdx >= 4, sIdx >= 4, !!job.invoiced_date, !!job.paid_date,
@@ -209,6 +210,7 @@ export default function JobRecord({ id }: { id: string }) {
               <DropdownMenuTrigger asChild><Button variant="outline" size="icon-sm" aria-label="More"><MoreHorizontal size={16} /></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => setField("priority", !job.priority)}><Star size={15} /> {job.priority ? "Remove priority" : "Mark priority"}</DropdownMenuItem>
+                {job.status !== "lost" && job.status !== "future" && job.status !== "complete" ? <DropdownMenuItem onSelect={() => patch({ status: "future" }, "Moved to Future")}><PauseCircle size={15} /> Push to Future / follow up later</DropdownMenuItem> : null}
                 {job.status !== "lost" ? <DropdownMenuItem onSelect={() => setLostPick(true)}><XCircle size={15} /> Mark lost / declined</DropdownMenuItem>
                   : <DropdownMenuItem onSelect={() => patch({ status: "lead", lost_reason: null, lost_date: null }, "Reopened")}><ArrowRight size={15} /> Reopen</DropdownMenuItem>}
                 <DropdownMenuSeparator />
@@ -226,7 +228,15 @@ export default function JobRecord({ id }: { id: string }) {
           <span className="text-sm text-red-200">Lost{job.lost_reason ? `: ${job.lost_reason}` : ""}{job.lost_date ? ` · ${fmtDate(job.lost_date)}` : ""}</span>
           <Button size="sm" variant="outline" className="ml-auto" onClick={() => patch({ status: "lead", lost_reason: null, lost_date: null }, "Reopened")}>Reopen</Button>
         </div>
-      ) : <Stepper className="mb-4" steps={STEPS} current={current} done={(i) => doneFlags[i]} onPick={pickStep} />}
+      ) : null}
+      {job.status === "future" ? (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sky-500/25 bg-sky-500/[0.06] px-4 py-3">
+          <PauseCircle size={18} className="text-sky-300" />
+          <span className="text-sm text-sky-100">Future work: warm, pushed back or not ready yet. Follow up when the timing's right.</span>
+          <Button size="sm" variant="outline" className="ml-auto" onClick={() => patch({ status: job.quoted_date ? "awaiting" : "lead" }, "Back in the pipeline")}>Back to {job.quoted_date ? "Sent" : "To Quote"}</Button>
+        </div>
+      ) : null}
+      {job.status === "lost" ? null : <Stepper className="mb-4" steps={STEPS} current={current} done={(i) => doneFlags[i]} onPick={pickStep} />}
 
       {lostPick ? (
         <Card className="mb-4 p-4">

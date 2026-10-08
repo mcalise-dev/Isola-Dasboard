@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-table";
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { createClient } from "@/lib/supabase/client";
-import { STATUS_META, PIPELINE, stageTag, fmtDate, fmtPrice, parsePrice, daysSince, todayISO } from "@/lib/format";
+import { STATUS_META, PIPELINE, FUTURE_HINT, stageTag, fmtDate, fmtPrice, parsePrice, daysSince, todayISO } from "@/lib/format";
 import { undoable, showError } from "@/components/Toaster";
 import { editJob } from "@/components/job/JobForm";
 import { nextStep } from "@/components/job/JobRecord";
@@ -37,7 +37,7 @@ const VIEWS = [
   { key: "all", label: "All" },
 ] as const;
 type ViewKey = (typeof VIEWS)[number]["key"];
-const BAR: Record<string, string> = { lead: "bg-neutral-600", awaiting: "bg-neutral-400", booked: "bg-neutral-200", progress: "bg-white", complete: "bg-emerald-400", lost: "bg-red-400/60" };
+const BAR: Record<string, string> = { lead: "bg-neutral-600", awaiting: "bg-neutral-400", future: "bg-sky-400", booked: "bg-neutral-200", progress: "bg-white", complete: "bg-emerald-400", lost: "bg-red-400/60" };
 
 const price = (j: any) => Number(j.price_amount) || parsePrice(j.price);
 
@@ -114,7 +114,7 @@ export default function JobsScreen() {
   const inView = (j: any, v: ViewKey) => {
     switch (v) {
       case "active": return !["complete", "lost"].includes(j.status) || (j.status === "complete" && !j.paid_date);
-      case "selling": return j.status === "lead" || j.status === "awaiting";
+      case "selling": return j.status === "lead" || j.status === "awaiting" || j.status === "future";
       case "doing": return j.status === "booked" || j.status === "progress";
       case "attention": return isAttn(j);
       case "unscheduled": return j.status === "booked" && !j.start_date && !ctx.scheduled.has(j.id);
@@ -232,7 +232,7 @@ export default function JobsScreen() {
         </>} />
 
       {/* stage strip */}
-      <div className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 no-scrollbar md:mx-0 md:grid md:grid-cols-5 md:px-0">
+      <div className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 no-scrollbar md:mx-0 md:grid md:grid-cols-6 md:px-0">
         {PIPELINE.map((s) => {
           const sub = s === "lead" ? (jobs ?? []).filter((j) => j.status === "lead" && !ctx.walked.has(j.id)).length
             : s === "awaiting" ? (jobs ?? []).filter((j) => j.status === "awaiting" && j.quoted_date && daysSince(j.quoted_date) > 14).length
@@ -257,6 +257,7 @@ export default function JobsScreen() {
           <button onClick={() => setStage(null)} className="rounded-full border border-white/15 px-2.5 py-0.5 text-xs font-semibold text-neutral-300 hover:text-white">Show all</button>
         </div>
       ) : null}
+      {stage === "future" ? <p className="-mt-1 mb-3 rounded-lg border border-sky-500/25 bg-sky-500/[0.06] px-3 py-2 text-xs text-sky-200">{FUTURE_HINT}</p> : null}
       {/* saved views + search */}
       <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center">
         <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 no-scrollbar md:mx-0 md:flex-1 md:flex-wrap md:px-0">

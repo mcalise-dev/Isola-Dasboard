@@ -26,6 +26,7 @@ type Entry = {
 const DOT: Record<string, string> = {
   lead: "bg-neutral-400",
   awaiting: "bg-neutral-400",
+  future: "bg-sky-400",
   booked: "bg-neutral-400",
   progress: "bg-amber-400",
   complete: "bg-emerald-400",
@@ -35,6 +36,7 @@ const DOT: Record<string, string> = {
 const CHIP: Record<string, string> = {
   lead: "bg-neutral-500/25 text-neutral-200",
   awaiting: "bg-neutral-500/25 text-neutral-200",
+  future: "bg-sky-500/25 text-sky-200",
   booked: "bg-neutral-500/25 text-neutral-200",
   progress: "bg-amber-500/25 text-amber-200",
   complete: "bg-emerald-500/25 text-emerald-200",

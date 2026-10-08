@@ -13,7 +13,7 @@ import { showToast, showError } from "@/components/Toaster";
 //   window.dispatchEvent(new CustomEvent("isola:new-job", { detail: job })) → edit that job
 // Same rules as before: the customer is picked from the list (no new spellings) and the
 // address is tied to one of the customer's properties.
-const STATUSES = ["lead", "awaiting", "booked", "progress", "complete", "lost"] as const;
+const STATUSES = ["lead", "awaiting", "future", "booked", "progress", "complete", "lost"] as const;
 export const LEAD_SOURCES = ["Referral", "Repeat customer", "Property manager", "Cold outreach", "LinkedIn", "Website", "Google", "Drive-by / sign", "THM", "Other"];
 const empty = { job_name: "", customer: "", customer_id: "", location: "", property_id: "", job: "", status: "lead", price: "", contact_name: "", contact_phone: "", notes: "", scope_of_work: "", lead_source: "", referred_by: "" };
 

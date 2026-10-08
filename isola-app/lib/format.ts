@@ -19,7 +19,7 @@ export type Job = {
   customer: string;
   location: string | null;
   job: string | null;
-  status: "lead" | "booked" | "progress" | "complete" | "awaiting" | "lost";
+  status: "lead" | "booked" | "progress" | "complete" | "awaiting" | "future" | "lost";
   price: string | null;
   contact_name: string | null;
   contact_phone: string | null;
@@ -39,15 +39,18 @@ export const jobLabel = (j: Partial<Pick<Job, "job_name" | "customer" | "locatio
 // Pipeline v4 (9/22/26). DB keys stay the same so nothing else breaks; the labels are what Mike reads.
 //   Selling: lead = TO QUOTE (not sent yet) · awaiting = SENT (with the customer)
 //   Doing:   booked · progress · complete        Archive: lost (declined / dead)
+//   Future (10/8/26): warm work that got pushed back or isn't ready yet — still live, follow up later
 export const STATUS_META: Record<string, { label: string; cls: string }> = {
   lead: { label: "To Quote", cls: "bg-white/[0.06] text-neutral-300 border-white/10" },
   awaiting: { label: "Sent", cls: "bg-white/[0.06] text-neutral-200 border-white/15" },
+  future: { label: "Future", cls: "bg-sky-500/10 text-sky-200 border-sky-500/30" },
   booked: { label: "Booked", cls: "bg-white/10 text-white border-white/20" },
   progress: { label: "In Progress", cls: "bg-white text-neutral-900 border-white" },
   complete: { label: "Complete", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
   lost: { label: "Lost", cls: "bg-red-500/10 text-red-300/80 border-red-500/30" },
 };
-export const PIPELINE = ["lead", "awaiting", "booked", "progress", "complete"] as const;
+export const PIPELINE = ["lead", "awaiting", "future", "booked", "progress", "complete"] as const;
+export const FUTURE_HINT = "Warm work that got pushed back or isn't ready yet. Still live, follow up when the timing's right.";
 export const LOST_REASONS = ["Price", "Went with someone else", "No response", "Scope changed / cancelled", "Not our kind of work", "Other"];
 
 // A job still "live" for pickers: anything not lost, and complete jobs only until they're paid.
@@ -65,6 +68,10 @@ export function stageTag(j: any, ctx: { walked?: boolean; drafting?: boolean; sc
   if (j.status === "awaiting") {
     const d = daysSince(j.quoted_date);
     return { text: j.quoted_date ? `${d}d out` : "Sent", cls: d > 30 ? bad : d > 14 ? warn : mute };
+  }
+  if (j.status === "future") {
+    const d = daysSince(j.updated_at ?? j.quoted_date);
+    return { text: d > 45 ? `Follow up · ${d}d` : "Warm · follow up", cls: d > 45 ? warn : mute };
   }
   if (j.status === "booked") {
     if (j.start_date) return { text: "Starts " + fmtDate(j.start_date).replace(/^\w+, /, ""), cls: mute };
