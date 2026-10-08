@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtDate, jobLabel } from "@/lib/format";
+import { SwipeRow } from "@/components/ui/swipe-row";
 
 /* Every open punch item across all jobs, grouped by job, worst first.
    Open items are what stand between a finished job and final payment. */
@@ -96,7 +97,9 @@ export default function PunchBoard() {
               {list.map((t) => {
                 const late = !t.done && t.due_date && t.due_date < today;
                 return (
-                  <div key={t.id} className="flex items-start gap-2.5">
+                  <SwipeRow key={t.id} className="rounded-md"
+                    right={{ label: t.done ? "Reopen" : "Done", tone: "success", onCommit: () => toggle(t) }}>
+                  <div className="flex items-start gap-2.5 py-0.5">
                     <button onClick={() => toggle(t)}
                       className={`shrink-0 mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center text-xs ${t.done ? "bg-emerald-400 border-emerald-400 text-neutral-900" : "border-neutral-600 text-transparent"}`}>✓</button>
                     <div className="min-w-0 flex-1">
@@ -110,6 +113,7 @@ export default function PunchBoard() {
                       </div>
                     </div>
                   </div>
+                  </SwipeRow>
                 );
               })}
             </div>

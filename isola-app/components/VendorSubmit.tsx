@@ -63,6 +63,7 @@ export default function VendorSubmit() {
     setBusy(false);
     if (error) return setErr("Something went wrong sending that. Please try again.");
     if (!(data as any)?.ok) return setErr((data as any)?.error || "Something went wrong.");
+    fetch('/api/push/flush', { method: 'POST', keepalive: true }).catch(() => {});
     setDone(true);
   }
 

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import MoneyInput from "@/components/MoneyInput";
 import { todayISO } from "@/lib/format";
 import { withTimeout, firstError } from "@/lib/load";
+import { getProposalValidDays, getPaymentTerms, daysFromToday } from "@/lib/settings";
 import { showError, showToast, undoable } from "@/components/Toaster";
 import { copyText } from "@/components/Dialogs";
 import { Button } from "@/components/ui/button";
@@ -434,6 +435,9 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
       const c = customers.find((x: any) => x.id === e.customer_id);
       const prop = props.find((x: any) => x.id === e.property_id);
       const location = prop ? [prop.address, prop.city].filter(Boolean).join(", ") : e.location;
+      // Settings defaults: customer's own terms win; otherwise the default terms from Settings.
+      const [validDays, defaultTerms] = await Promise.all([getProposalValidDays(), getPaymentTerms()]);
+      const terms = c.payment_terms?.trim() || defaultTerms;
 
       // 1. the job — job_name is the build's title, verbatim
       const { data: job, error: je } = await supabase.from("jobs").insert({
@@ -450,7 +454,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
         quoted_date: todayISO(),
         scope_of_work: scopeText,
         proposal_status: "sent",
-        terms: c.payment_terms,
+        terms,
         notes: e.observed_conditions,
       }).select().single();
       if (je) throw je;
@@ -481,8 +485,6 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
 
       // 4. the client link
       const token = newToken();
-      const expires = new Date();
-      expires.setDate(expires.getDate() + 30);
       const { data: pl, error: pe } = await supabase.from("proposal_links").insert({
         token,
         job_id: job.id,
@@ -490,11 +492,11 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
         intro: e.price_notes || null,
         scope: scopeText,
         price: sell,
-        terms: c.payment_terms,
+        terms,
         deposit_pct: 33,
         deposit_amount: Math.round(sell * 0.33 * 100) / 100,
         status: "sent",
-        expires_at: expires.toISOString().slice(0, 10),
+        expires_at: daysFromToday(validDays),
       }).select().single();
       if (pe) throw pe;
 

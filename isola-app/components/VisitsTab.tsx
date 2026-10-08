@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Job, jobLabel, fmtDate, todayISO } from "@/lib/format";
 import JobPicker from "@/components/JobPicker";
+import Dictate from "@/components/Dictate";
 import { showError, showToast, undoable } from "@/components/Toaster";
 import { withTimeout, firstError } from "@/lib/load";
 import { Button } from "@/components/ui/button";
@@ -118,7 +119,7 @@ export default function VisitsTab() {
           </Field>
           <Field label="Purpose"><Input value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /></Field>
           <Field label="Dimensions"><Input value={form.dimensions} onChange={(e) => setForm({ ...form, dimensions: e.target.value })} /></Field>
-          <Field label="Observed Conditions"><Textarea rows={3} value={form.observed_conditions} onChange={(e) => setForm({ ...form, observed_conditions: e.target.value })} /></Field>
+          <Field label="Observed Conditions"><div className="flex items-start gap-2"><Textarea rows={3} className="flex-1" value={form.observed_conditions} onChange={(e) => setForm({ ...form, observed_conditions: e.target.value })} /><Dictate hasText={!!form.observed_conditions} onText={(t) => setForm((p) => ({ ...p, observed_conditions: (p.observed_conditions ?? "") + t }))} /></div></Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Photos Taken"><Input value={form.photos_taken} onChange={(e) => setForm({ ...form, photos_taken: e.target.value })} /></Field>
             <Field label="Follow-up Needed"><Input value={form.follow_up_needed} onChange={(e) => setForm({ ...form, follow_up_needed: e.target.value })} /></Field>

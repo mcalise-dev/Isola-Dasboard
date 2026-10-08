@@ -68,6 +68,7 @@ export default function PublicPunch({ token }: { token: string }) {
     const { data, error } = await supabase.rpc("public_punch_add", { p_token: token, p_item: item, p_name: name, p_photo: photo || null });
     setBusy(false);
     if (error || !(data as any)?.ok) return setErr((data as any)?.error || "Couldn't add that. Please try again.");
+    fetch('/api/push/flush', { method: 'POST', keepalive: true }).catch(() => {});
     rememberName();
     setItem(""); setPhoto(""); setMsg("Added — it’s on Isola’s list now.");
     load();
@@ -82,6 +83,7 @@ export default function PublicPunch({ token }: { token: string }) {
     const { data, error } = await supabase.rpc("public_punch_signoff", { p_token: token, p_name: name, p_note: note });
     setBusy(false);
     if (error || !(data as any)?.ok) return setErr((data as any)?.error || "Couldn't sign off. Please try again.");
+    fetch('/api/push/flush', { method: 'POST', keepalive: true }).catch(() => {});
     rememberName();
     load();
   }

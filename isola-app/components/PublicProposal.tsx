@@ -46,6 +46,7 @@ export default function PublicProposal({ token }: { token: string }) {
     setBusy(false);
     if (error) { setErr(error.message); return; }
     if (!r?.ok) { setErr(r?.error === "expired" ? "This proposal has expired. Please contact us for an updated price." : "Could not record approval. Please call us at 508-933-2661."); return; }
+    fetch('/api/push/flush', { method: 'POST', keepalive: true }).catch(() => {});
     load();
   }
 

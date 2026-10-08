@@ -4,8 +4,9 @@ import { SUPABASE_URL, SUPABASE_KEY } from "./lib/supabase/client";
 
 // Routes that must work with NO login: the client hub, the crew time clock, and the
 // private calendar feed (its token is checked in the database), and the vendor COI/W-9
-// upload page (it can only call the insert-only vendor_submit RPC), and client punch-list links.
-const PUBLIC_PREFIXES = ["/p/", "/clock", "/cal/", "/vendor-submit", "/punch/"];
+// upload page (it can only call the insert-only vendor_submit RPC), client punch-list links, and the push
+// delivery routes (they protect themselves with a server secret).
+const PUBLIC_PREFIXES = ["/p/", "/clock", "/cal/", "/vendor-submit", "/punch/", "/api/push/"];
 const isPublic = (path: string) =>
   PUBLIC_PREFIXES.some((p) => path === p.replace(/\/$/, "") || path.startsWith(p));
 

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { todayISO, fmtDate, jobLabel } from "@/lib/format";
 import JobPicker from "@/components/JobPicker";
+import Dictate from "@/components/Dictate";
 import { showError, showToast, undoable } from "@/components/Toaster";
 import { withTimeout, firstError } from "@/lib/load";
 import { Button } from "@/components/ui/button";
@@ -210,14 +211,20 @@ export default function DailyLogTab() {
           </Field>
 
           <Field label="Work performed">
-            <Textarea rows={3} value={editing.work_performed}
+            <div className="flex items-start gap-2">
+            <Textarea rows={3} value={editing.work_performed} className="flex-1"
               placeholder="Formed and poured the 24×16 pad, stripped forms on the curb…"
               onChange={(e) => setEditing({ ...editing, work_performed: e.target.value })} />
+            <Dictate hasText={!!editing.work_performed} onText={(t) => setEditing((p: any) => (p ? { ...p, work_performed: (p.work_performed ?? "") + t } : p))} />
+            </div>
           </Field>
 
           <Field label="Delays or problems">
-            <Input value={editing.delays} placeholder="Rain until 10, waiting on the gate code…"
+            <div className="flex items-center gap-2">
+            <Input value={editing.delays} placeholder="Rain until 10, waiting on the gate code…" className="flex-1"
               onChange={(e) => setEditing({ ...editing, delays: e.target.value })} />
+            <Dictate hasText={!!editing.delays} onText={(t) => setEditing((p: any) => (p ? { ...p, delays: (p.delays ?? "") + t } : p))} />
+            </div>
           </Field>
 
           <div className="grid gap-3 sm:grid-cols-2">

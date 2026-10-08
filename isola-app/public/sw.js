@@ -48,3 +48,35 @@ self.addEventListener("fetch", (e) => {
 
   if (req.mode === "navigate" || req.headers.get("RSC") === "1") e.respondWith(networkFirst(req, DATA));
 });
+
+// ── Push alerts (v4.9) ── payload: { title, body, url, tag }
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : "" }; }
+  const title = d.title || "Isola";
+  e.waitUntil(self.registration.showNotification(title, {
+    body: d.body || "",
+    tag: d.tag || undefined,
+    renotify: !!d.tag,
+    data: { url: d.url || "/" },
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+  }));
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const target = new URL((e.notification.data && e.notification.data.url) || "/", self.location.origin).href;
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of wins) {
+      if (new URL(c.url).origin !== self.location.origin) continue;
+      try {
+        const focused = await c.focus();
+        if ("navigate" in focused) await focused.navigate(target);
+        return;
+      } catch {}
+    }
+    await self.clients.openWindow(target);
+  })());
+});

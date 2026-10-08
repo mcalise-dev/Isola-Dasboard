@@ -4,8 +4,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { activeItem } from "@/lib/nav";
 
-// Phone: the other screens in the current group, as a scrollable strip.
-// Desktop: only for compact groups (Marketing), whose screens aren't listed in the sidebar.
+// v4.9: the screens under the current menu entry, as a tab strip at the top of the page —
+// a scrollable row on phone, a wrapping row on desktop (the sidebar lists entries only).
 export default function HubTabs() {
   const path = usePathname();
   const hit = activeItem(path);
@@ -13,10 +13,11 @@ export default function HubTabs() {
   useEffect(() => {
     strip.current?.querySelector<HTMLElement>("[data-on='1']")?.scrollIntoView({ block: "nearest", inline: "center" });
   }, [path]);
-  if (!hit?.hub || hit.hub.items.length < 2 || path.startsWith("/jobs/")) return null;
+  const tabs = hit?.entry.tabs;
+  if (!hit || !tabs || tabs.length < 2 || path.startsWith("/jobs/")) return null;
   return (
-    <div ref={strip} className={`-mx-4 mb-4 flex gap-1.5 overflow-x-auto px-4 no-scrollbar ${hit.hub.compact ? "md:mx-0 md:mb-6 md:flex-wrap md:px-0" : "md:hidden"}`}>
-      {hit.hub.items.map((it) => {
+    <div ref={strip} className="-mx-4 mb-4 flex gap-1.5 overflow-x-auto px-4 no-scrollbar md:mx-0 md:mb-6 md:flex-wrap md:px-0">
+      {tabs.map((it) => {
         const on = it.href === hit.item.href;
         const Icon = it.icon;
         return (

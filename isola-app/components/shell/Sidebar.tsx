@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronDown, Pin, PinOff } from "lucide-react";
-import { GROUPS, HOME, ALL_ITEMS, activeItem, type NavItem } from "@/lib/nav";
+import { GROUPS, HOME, ALL_ITEMS, activeItem, screensOf, type NavItem } from "@/lib/nav";
 import { useAttention } from "@/lib/attention";
 import { cn } from "@/lib/utils";
 
@@ -41,9 +41,11 @@ export function NavGroups({ onNavigate }: { onNavigate?: () => void }) {
   const [shut, setShut] = useState<Record<string, boolean>>({});
   const [pins, setPins] = useState<string[]>([]);
   useEffect(() => {
-    try { setShut(JSON.parse(localStorage.getItem("isola.nav.shut") || "{}")); } catch {}
+    const readShut = () => { try { setShut(JSON.parse(localStorage.getItem("isola.nav.shut") || "{}")); } catch { setShut({}); } };
+    readShut();
     setPins(readPins());
-    const sync = () => setPins(readPins());           // keep sidebar + phone menu in step
+    // keep sidebar, phone menu and Settings in step (pins + "reset collapsed sections")
+    const sync = () => { setPins(readPins()); readShut(); };
     window.addEventListener(PIN_EVT, sync);
     return () => window.removeEventListener(PIN_EVT, sync);
   }, []);
@@ -56,34 +58,35 @@ export function NavGroups({ onNavigate }: { onNavigate?: () => void }) {
     window.dispatchEvent(new Event(PIN_EVT));
   };
   const cnt = (i: NavItem) => (i.badge && a ? a.badges[i.badge] : 0) || 0;
+  // A menu entry's count is the sum of its screens; it turns red if any of them is urgent.
+  const entryLink = (e: NavItem) => {
+    const screens = screensOf(e);
+    const total = screens.reduce((s, i) => s + cnt(i), 0);
+    const urgent = screens.find((i) => (i.badge === "approvals" || i.badge === "money" || i.badge === "jobs") && cnt(i) > 0);
+    const shown: NavItem = { ...e, badge: urgent?.badge ?? e.badge };
+    return (
+      <NavLink key={e.href + e.label} item={shown} on={hit?.entry === e} count={total} onClick={onNavigate}
+        pinned={pins.includes(e.href)} onPin={() => togglePin(e.href)} />
+    );
+  };
   const pinnedItems = pins.map((h) => ALL_ITEMS.find((x) => x.item.href === h)?.item).filter(Boolean) as NavItem[];
-  const link = (i: NavItem) => (
-    <NavLink key={i.href} item={i} on={hit?.item.href === i.href} count={cnt(i)} onClick={onNavigate}
-      pinned={pins.includes(i.href)} onPin={i.href === HOME.href ? undefined : () => togglePin(i.href)} />
-  );
   return (
     <nav className="space-y-4">
-      {link(HOME)}
+      <NavLink item={HOME} on={hit?.entry === HOME} count={cnt(HOME)} onClick={onNavigate} />
       {pinnedItems.length ? (
         <div>
           <div className="mb-1 flex items-center gap-1.5 px-2.5 text-xs font-semibold text-neutral-500"><Pin size={11} /> Pinned</div>
-          <div className="space-y-0.5">{pinnedItems.map(link)}</div>
+          <div className="space-y-0.5">
+            {pinnedItems.map((i) => (
+              <NavLink key={"pin" + i.href} item={i} on={hit?.item.href === i.href} count={cnt(i)} onClick={onNavigate}
+                pinned onPin={() => togglePin(i.href)} />
+            ))}
+          </div>
         </div>
       ) : null}
       {GROUPS.map((g) => {
-        const total = g.items.reduce((s, i) => s + cnt(i), 0);
-        if (g.compact) {
-          // One link for the whole group; its screens are tabs on the page itself.
-          // red count when something in the group is urgent (e.g. marketing approvals waiting)
-          const urgent = g.items.find((i) => (i.badge === "approvals" || i.badge === "money" || i.badge === "jobs") && cnt(i) > 0);
-          const groupItem: NavItem = { href: g.home, label: g.label, icon: g.icon, badge: urgent?.badge };
-          return (
-            <div key={g.key}>
-              <NavLink item={groupItem} on={hit?.hub?.key === g.key} count={total} onClick={onNavigate} />
-            </div>
-          );
-        }
         const closed = shut[g.key] && hit?.hub?.key !== g.key;
+        const total = g.items.reduce((s, e) => s + screensOf(e).reduce((t, i) => t + cnt(i), 0), 0);
         return (
           <div key={g.key}>
             <button onClick={() => toggle(g.key)} className="mb-1 flex w-full items-center gap-1.5 px-2.5 text-xs font-semibold text-neutral-500 hover:text-neutral-300">
@@ -91,7 +94,7 @@ export function NavGroups({ onNavigate }: { onNavigate?: () => void }) {
               {closed && total ? <span className="rounded-full bg-white/10 px-1.5 text-[10px] text-neutral-300">{total}</span> : null}
               <ChevronDown size={13} className={cn("ml-auto transition-transform", closed && "-rotate-90")} />
             </button>
-            {!closed ? <div className="space-y-0.5">{g.items.map(link)}</div> : null}
+            {!closed ? <div className="space-y-0.5">{g.items.map(entryLink)}</div> : null}
           </div>
         );
       })}

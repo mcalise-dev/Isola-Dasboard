@@ -6,11 +6,12 @@ import { withTimeout, firstError } from "@/lib/load";
 import { showError, showToast, undoable } from "@/components/Toaster";
 import { PageHeader, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
 import { Card } from "@/components/ui/card";
+import { SwipeRow } from "@/components/ui/swipe-row";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { Plus, Check, X, ChevronDown, Megaphone } from "lucide-react";
+import { Plus, Check, X, ChevronDown, Megaphone, Trash2, Undo2 } from "lucide-react";
 
 type MktTask = {
   id: string;
@@ -139,7 +140,10 @@ export default function MktTasksTab() {
   function row(t: MktTask) {
     const c = t.contact_id ? contactById[t.contact_id] : null;
     return (
-      <Card key={t.id} className="flex items-center gap-2 py-1.5 pl-1.5 pr-1.5">
+      <SwipeRow key={t.id}
+        right={{ label: t.done ? "Reopen" : "Done", icon: t.done ? <Undo2 size={16} /> : <Check size={16} />, tone: "success", onCommit: () => toggle(t) }}
+        left={{ label: "Delete", icon: <Trash2 size={16} />, tone: "danger", onCommit: () => remove(t) }}>
+      <Card className="flex items-center gap-2 py-1.5 pl-1.5 pr-1.5">
         <button onClick={() => toggle(t)} aria-label={t.done ? "Mark not done" : "Mark done"}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-white/[0.05]">
           <span className={cn("flex h-5 w-5 items-center justify-center rounded-md border", t.done ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-300" : "border-neutral-500 text-transparent")}>
@@ -163,6 +167,7 @@ export default function MktTasksTab() {
         ) : null}
         <Button variant="ghost" size="icon" className="shrink-0 text-neutral-500 hover:text-red-400" onClick={() => remove(t)} aria-label="Delete"><X size={16} /></Button>
       </Card>
+      </SwipeRow>
     );
   }
 

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { fmtDate } from "@/lib/format";
 import { compressImage, openImage } from "@/lib/image";
 import { showError, undoable } from "@/components/Toaster";
+import Dictate from "@/components/Dictate";
 import { ask, copyText } from "@/components/Dialogs";
 
 /* Punch list for one job — what the PM (or Mike) wants fixed before
@@ -193,9 +194,12 @@ export default function PunchList({ jobId }: { jobId: string }) {
       ) : <p className="text-xs text-neutral-500 mb-2">Nothing outstanding on this job.</p>}
 
       <div className="space-y-2">
-        <input className={input} placeholder="What needs fixing before this closes out?" value={form.item}
+        <div className="flex items-center gap-2">
+        <input className={input + " min-w-0 flex-1"} placeholder="What needs fixing before this closes out?" value={form.item}
           onChange={(e) => setForm({ ...form, item: e.target.value })}
           onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+        <Dictate hasText={!!form.item} onText={(t) => setForm((p) => ({ ...p, item: p.item + t }))} />
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <input className={input} placeholder="Raised by (optional)" value={form.raised_by}
             onChange={(e) => setForm({ ...form, raised_by: e.target.value })} />

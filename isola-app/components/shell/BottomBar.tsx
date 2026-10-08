@@ -15,7 +15,7 @@ export default function BottomBar() {
   const [menu, setMenu] = useState(false);
   const a = useAttention();
   const hit = activeItem(path);
-  const key = hit ? (hit.hub ? hit.hub.key : "home") : "";
+  const key = hit?.entry.key ?? "";
   const onTab = TABS.some((t) => t.match.includes(key));
   const moreCount = a ? (a.badges.targets || 0) + (a.badges.tasks || 0) + (a.badges.reviews || 0) : 0;
   return (

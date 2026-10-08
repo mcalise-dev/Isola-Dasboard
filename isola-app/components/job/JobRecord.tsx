@@ -3,7 +3,7 @@
 // key facts in a right rail. Replaces the v4.5 job file sheet; all of its features are here.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { STATUS_META, LOST_REASONS, fmtDate, fmtPrice, parsePrice, todayISO, daysSince } from "@/lib/format";
 import { undoable, showToast, showError } from "@/components/Toaster";
@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import JobChecklist from "@/components/JobChecklist";
 import MyClock from "@/components/MyClock";
 import { CostsPanel, LaborPanel, TasksPanel, PhotosPanel, SchedulePanel, JobbookCard, ActivityPanel } from "@/components/job/panels";
+import { MoneyPanel, ProposalPanel, DocsPanel } from "@/components/job/hub";
 import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
 import {
@@ -31,6 +32,21 @@ const STEPS = [
   { key: "complete", label: "Complete" }, { key: "invoiced", label: "Invoiced" }, { key: "paid", label: "Paid" },
 ];
 const ORDER = ["lead", "awaiting", "booked", "progress", "complete"];
+
+// Tabs on the job record. Deep link with /jobs/<id>?tab=<key>; aliases map the
+// names other screens use (billing, build, punch…) onto the right tab.
+const TABS = ["overview", "money", "costs", "schedule", "tasks", "proposal", "docs", "photos", "activity"] as const;
+const TAB_ALIAS: Record<string, string> = {
+  billing: "money", payments: "money", "change-orders": "money",
+  build: "proposal", proposals: "proposal", estimate: "proposal",
+  documents: "docs", log: "docs", logs: "docs", "daily-log": "docs",
+  punch: "tasks", labor: "costs",
+};
+export const resolveTab = (t: string | null | undefined) => {
+  const k = String(t ?? "").toLowerCase();
+  const v = TAB_ALIAS[k] ?? k;
+  return (TABS as readonly string[]).includes(v) ? v : null;
+};
 
 export function nextStep(j: any, ctx: { walked: boolean; drafting: boolean; scheduled: boolean }) {
   const today = todayISO();
@@ -56,7 +72,20 @@ export default function JobRecord({ id }: { id: string }) {
   const [crew, setCrew] = useState<string[]>([]);
   const [customer, setCustomer] = useState<any | null>(null);
   const [property, setProperty] = useState<any | null>(null);
-  const [tab, setTab] = useState("overview");
+  const searchParams = useSearchParams();
+  const urlTab = resolveTab(searchParams?.get("tab"));
+  const [tab, setTabState] = useState<string>(urlTab ?? "overview");
+  // follow ?tab= when it changes (links into this same job from elsewhere)
+  useEffect(() => { if (urlTab) setTabState(urlTab); }, [urlTab]);
+  // keep ?tab= in the address bar so refresh / share lands on the same tab
+  const setTab = useCallback((t: string) => {
+    setTabState(t);
+    try {
+      const u = new URL(window.location.href);
+      if (t === "overview") u.searchParams.delete("tab"); else u.searchParams.set("tab", t);
+      window.history.replaceState(window.history.state, "", u.pathname + u.search + u.hash);
+    } catch { /* ignore */ }
+  }, []);
   const [lostPick, setLostPick] = useState(false);
 
   const load = useCallback(async () => {
@@ -218,11 +247,15 @@ export default function JobRecord({ id }: { id: string }) {
         {/* main */}
         <div className="min-w-0">
           <Tabs value={tab} onValueChange={setTab}>
-            <TabsList>
+            {/* 9 tabs: one scrolling row on a phone (no wrap), bleeds to the screen edge */}
+            <TabsList className="-mx-4 flex-nowrap gap-4 scroll-px-4 px-4 sm:mx-0 sm:gap-5 sm:px-0 [&>*]:min-h-[40px]">
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="money">Money</TabsTrigger>
               <TabsTrigger value="costs">Costs & labor</TabsTrigger>
               <TabsTrigger value="schedule">Schedule</TabsTrigger>
               <TabsTrigger value="tasks">Tasks</TabsTrigger>
+              <TabsTrigger value="proposal">Proposal</TabsTrigger>
+              <TabsTrigger value="docs">Docs</TabsTrigger>
               <TabsTrigger value="photos">Photos</TabsTrigger>
               <TabsTrigger value="activity">Activity</TabsTrigger>
             </TabsList>
@@ -262,6 +295,9 @@ export default function JobRecord({ id }: { id: string }) {
                 <div><JobChecklist jobId={job.id} jobType={job.job} /></div>
               </section>
             </TabsContent>
+            <TabsContent value="money"><MoneyPanel job={job} /></TabsContent>
+            <TabsContent value="proposal"><ProposalPanel jobId={job.id} /></TabsContent>
+            <TabsContent value="docs"><DocsPanel jobId={job.id} /></TabsContent>
             <TabsContent value="costs" className="space-y-8">
               <CostsPanel jobId={job.id} onChange={load} />
               <LaborPanel jobId={job.id} onChange={load} />
@@ -294,6 +330,7 @@ export default function JobRecord({ id }: { id: string }) {
               <Button size="sm" variant={job.invoiced_date ? "secondary" : "outline"} className="flex-1" onClick={() => pickStep("invoiced")}>{job.invoiced_date ? `Invoiced ${fmtDate(job.invoiced_date).replace(/^\w+, /, "")}` : "Mark invoiced"}</Button>
               <Button size="sm" variant={job.paid_date ? "success" : "outline"} className="flex-1" onClick={() => pickStep("paid")}>{job.paid_date ? `Paid ${fmtDate(job.paid_date).replace(/^\w+, /, "")}` : "Mark paid"}</Button>
             </div>
+            <Button size="sm" variant="ghost" className="mt-2 h-10 w-full" onClick={() => setTab("money")}>Payments & change orders <ArrowRight size={14} /></Button>
             {job.qbo_invoice_ref ? <KV k="QuickBooks invoice" className="mt-2">#{job.qbo_invoice_ref}</KV> : null}
             {job.partner ? <KV k={`${job.partner} share`}>{job.partner_share ? `${job.partner_share}%` : "50% of net"}</KV> : null}
           </Card>

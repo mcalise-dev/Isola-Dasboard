@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { undoable, showError, showToast } from "@/components/Toaster";
 import { ask } from "@/components/Dialogs";
+import Dictate from "@/components/Dictate";
 import { withTimeout, firstError } from "@/lib/load";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -527,7 +528,7 @@ export default function CostsTab() {
                 </Field>
                 <Field label="Paid yet?">{paidToggle("Still owe it")}</Field>
               </>) : null}
-              <Field label="Notes"><Textarea rows={2} className="min-h-0" placeholder="optional" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
+              <Field label="Notes"><div className="flex items-start gap-2"><Textarea rows={2} className="min-h-0 flex-1" placeholder="optional" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /><Dictate hasText={!!form.notes} onText={(t) => setForm((p: any) => ({ ...p, notes: (p.notes ?? "") + t }))} /></div></Field>
             </div>
             <DialogFooter>
               {sheet !== "new" ? (

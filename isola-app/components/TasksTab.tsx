@@ -5,13 +5,14 @@ import { createClient } from "@/lib/supabase/client";
 import { Job, jobLabel } from "@/lib/format";
 import { withTimeout, firstError } from "@/lib/load";
 import JobPicker from "@/components/JobPicker";
+import { SwipeRow } from "@/components/ui/swipe-row";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader, SectionTitle, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
 import { cn } from "@/lib/utils";
-import { Check, X, Plus, ListChecks, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, X, Plus, ListChecks, ChevronDown, ChevronUp, Trash2, Undo2 } from "lucide-react";
 
 type Task = {
   id: string;
@@ -133,7 +134,10 @@ export default function TasksTab() {
 
   function row(t: Task) {
     return (
-      <Card key={t.id} className="flex min-h-[56px] items-center gap-3 px-3 py-2.5">
+      <SwipeRow key={t.id}
+        right={{ label: t.done ? "Reopen" : "Done", icon: t.done ? <Undo2 size={16} /> : <Check size={16} />, tone: "success", onCommit: () => toggle(t) }}
+        left={{ label: "Delete", icon: <Trash2 size={16} />, tone: "danger", onCommit: () => remove(t) }}>
+      <Card className="flex min-h-[56px] items-center gap-3 px-3 py-2.5">
         <button onClick={() => toggle(t)} aria-label="Toggle done"
           className="-m-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-accent">
           <span className={cn("flex h-5 w-5 items-center justify-center rounded-md border", t.done ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-300" : "border-neutral-600 text-transparent hover:text-neutral-500")}>
@@ -157,6 +161,7 @@ export default function TasksTab() {
           <X size={16} />
         </Button>
       </Card>
+      </SwipeRow>
     );
   }
 

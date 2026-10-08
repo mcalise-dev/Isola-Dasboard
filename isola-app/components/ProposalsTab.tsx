@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { fmtDate, jobLabel, parsePrice } from "@/lib/format";
 import { withTimeout, firstError } from "@/lib/load";
+import { getProposalValidDays, getPaymentTerms, daysFromToday, DEFAULT_VALID_DAYS } from "@/lib/settings";
 import { showError, showToast } from "@/components/Toaster";
 import { copyText } from "@/components/Dialogs";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,7 @@ export default function ProposalsTab() {
       const [j, pl] = await withTimeout(Promise.all([
         supabase
           .from("jobs")
-          .select("id,job_name,customer,location,job,price,status,proposal_status,quoted_date,scope_of_work,contact_phone,updated_at")
+          .select("id,job_name,customer,location,job,price,status,proposal_status,quoted_date,scope_of_work,terms,contact_phone,updated_at")
           .neq("proposal_status", "none")
           .not("proposal_status", "is", null)
           .order("quoted_date", { ascending: true }),
@@ -184,7 +185,7 @@ export default function ProposalsTab() {
         </section>
       ) : null}
 
-      <p className="text-xs text-neutral-500">Proposals expire 30 days after sending per your standard terms. A client link lets them read the scope, approve it, and sign right on their phone — you see the moment they open it.</p>
+      <p className="text-xs text-neutral-500">New client links expire after the number of days set in Settings (30 unless you change it). A client link lets them read the scope, approve it, and sign right on their phone — you see the moment they open it.</p>
 
       <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
         {editing ? (
@@ -205,9 +206,15 @@ function LinkEditor({ supabase, job, link, onClose, onSaved, newToken }: any) {
     price: String(price || ""),
     deposit_pct: String(link?.deposit_pct ?? 33),
     pay_url: link?.pay_url ?? "",
-    expires_at: link?.expires_at ?? new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    expires_at: link?.expires_at ?? daysFromToday(DEFAULT_VALID_DAYS),
   });
   const [busy, setBusy] = useState(false);
+  // New link: expiry defaults to the validity set in Settings (unless already edited).
+  useEffect(() => {
+    if (link) return;
+    const first = daysFromToday(DEFAULT_VALID_DAYS);
+    getProposalValidDays().then((d) => setF((s) => (s.expires_at === first ? { ...s, expires_at: daysFromToday(d) } : s)));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k: string) => (e: any) => setF((s) => ({ ...s, [k]: e.target.value }));
 
   async function save() {
@@ -227,7 +234,7 @@ function LinkEditor({ supabase, job, link, onClose, onSaved, newToken }: any) {
     };
     let error;
     if (link) ({ error } = await supabase.from("proposal_links").update(row).eq("id", link.id));
-    else ({ error } = await supabase.from("proposal_links").insert({ ...row, token: newToken() }));
+    else ({ error } = await supabase.from("proposal_links").insert({ ...row, token: newToken(), terms: job.terms?.trim() || (await getPaymentTerms()) }));
     setBusy(false);
     if (error) showError("Save failed: " + error.message);
     else { showToast(link ? "Client link saved" : "Client link created"); onSaved(); }
