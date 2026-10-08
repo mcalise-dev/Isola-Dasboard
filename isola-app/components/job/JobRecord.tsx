@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NativeSelect, Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import JobChecklist from "@/components/JobChecklist";
+import CrewSetup from "@/components/job/CrewSetup";
 import MyClock from "@/components/MyClock";
 import { CostsPanel, LaborPanel, TasksPanel, PhotosPanel, SchedulePanel, JobbookCard, ActivityPanel } from "@/components/job/panels";
 import { MoneyPanel, ProposalPanel, DocsPanel } from "@/components/job/hub";
@@ -294,6 +295,7 @@ export default function JobRecord({ id }: { id: string }) {
                 <div><MyClock jobId={job.id} compact /></div>
                 <div><JobChecklist jobId={job.id} jobType={job.job} /></div>
               </section>
+              <CrewSetup jobId={job.id} crewNotes={job.crew_notes ?? null} onSaved={load} />
             </TabsContent>
             <TabsContent value="money"><MoneyPanel job={job} /></TabsContent>
             <TabsContent value="proposal"><ProposalPanel jobId={job.id} /></TabsContent>

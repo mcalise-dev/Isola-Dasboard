@@ -22,6 +22,7 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
   async function toggle(it: any) {
     setItems((s) => s.map((x) => (x.id === it.id ? { ...x, done: !x.done } : x)));
     await supabase.from("job_checklist").update({ done: !it.done }).eq("id", it.id);
+    load();
   }
 
   async function add(label: string) {
@@ -89,7 +90,12 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
               className={`shrink-0 w-4 h-4 rounded border flex items-center justify-center text-xs ${it.done ? "bg-emerald-500 border-emerald-500 text-black" : "border-neutral-600"}`}>
               {it.done ? "✓" : ""}
             </button>
-            <span className={`flex-1 text-xs ${it.done ? "text-neutral-500 line-through" : "text-neutral-200"}`}>{it.label}</span>
+            <span className="flex-1 min-w-0">
+              <span className={`block text-xs ${it.done ? "text-neutral-500 line-through" : "text-neutral-200"}`}>{it.label}</span>
+              {it.done && it.done_by ? (
+                <span className="block text-[11px] text-emerald-400/90">✓ {it.done_by}{it.done_at ? " · " + new Date(it.done_at).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}</span>
+              ) : it.added_by && it.added_by !== "Mike" ? <span className="block text-[11px] text-neutral-500">added by {it.added_by}</span> : null}
+            </span>
             <button onClick={() => remove(it)} className="shrink-0 text-neutral-700 hover:text-red-400 text-xs">✕</button>
           </div>
         ))}
