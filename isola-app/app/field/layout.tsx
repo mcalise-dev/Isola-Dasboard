@@ -3,6 +3,7 @@ import { logout } from "@/app/login/actions";
 import FieldTabBar from "@/components/field/FieldTabBar";
 import FieldName from "@/components/field/FieldName";
 import Toaster from "@/components/Toaster";
+import DialogHost from "@/components/Dialogs";
 
 // v4.4: the crew app. Crew logins land here and can't leave it (middleware).
 // Everything on these screens comes from the crew_* database functions — no prices,
@@ -25,6 +26,7 @@ export default function FieldLayout({ children }: { children: React.ReactNode })
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))]">{children}</main>
       <FieldTabBar />
       <Toaster />
+      <DialogHost />
     </div>
   );
 }

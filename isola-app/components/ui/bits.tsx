@@ -103,3 +103,26 @@ export function Stepper({ steps, current, done, onPick, className }: { steps: { 
     </ol>
   );
 }
+
+// v4.8: shown instead of endless skeletons when a screen's data didn't load
+// (expired login, no signal on site). Pair with withTimeout() from lib/load.
+export function LoadError({ onRetry, message, className }: { onRetry?: () => void; message?: string; className?: string }) {
+  return (
+    <div role="alert" className={cn("rounded-xl border border-red-500/30 bg-red-500/[0.06] px-6 py-8 text-center", className)}>
+      <p className="text-base font-semibold text-white">Couldn't load this</p>
+      <p className="mx-auto mt-1 max-w-sm text-sm text-neutral-400">{message || "Check your signal, then try again. If it keeps happening, sign out and back in."}</p>
+      {onRetry ? (
+        <button onClick={onRetry} className="mt-4 inline-flex h-10 items-center rounded-lg bg-white px-4 text-sm font-semibold text-neutral-900 hover:bg-neutral-200">Try again</button>
+      ) : null}
+    </div>
+  );
+}
+
+// Standard loading placeholder for a list screen.
+export function ListSkeleton({ rows = 4, className }: { rows?: number; className?: string }) {
+  return (
+    <div className={cn("space-y-2", className)} aria-busy="true">
+      {Array.from({ length: rows }).map((_, i) => <div key={i} className="skeleton h-16 rounded-xl" />)}
+    </div>
+  );
+}

@@ -1,5 +1,5 @@
 "use client";
-// v4.6 job record panels. Same data rules as the v4.5 job file (components/JobsTab.tsx),
+// v4.6 job record panels. Same data rules as the old v4.5 job file,
 // split into self-loading pieces so the record page can lay them out in tabs and a rail.
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";

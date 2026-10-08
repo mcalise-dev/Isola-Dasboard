@@ -6,6 +6,7 @@ import MainFrame from "@/components/MainFrame";
 import QuickAdd from "@/components/QuickAdd";
 import SearchPalette from "@/components/SearchPalette";
 import Toaster from "@/components/Toaster";
+import DialogHost from "@/components/Dialogs";
 import OfflineCache from "@/components/OfflineCache";
 import JobForm from "@/components/job/JobForm";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -29,6 +30,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <JobForm />
         <SearchPalette />
         <Toaster />
+        <DialogHost />
         <OfflineCache />
       </div>
     </TooltipProvider>
