@@ -12,7 +12,9 @@ import {
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: LucideIcon; badge?: string };
-export type NavGroup = { key: string; label: string; icon: LucideIcon; home: string; items: NavItem[] };
+// compact: the sidebar shows the group as ONE link to `home`; its screens appear as a tab
+// strip at the top of the page instead (HubTabs), on desktop as well as phone.
+export type NavGroup = { key: string; label: string; icon: LucideIcon; home: string; items: NavItem[]; compact?: boolean };
 
 export const HOME: NavItem = { href: "/home", label: "Home", icon: Home, badge: "home" };
 
@@ -45,7 +47,7 @@ export const GROUPS: NavGroup[] = [
     ],
   },
   {
-    key: "marketing", label: "Marketing", icon: Megaphone, home: "/marketing",
+    key: "marketing", label: "Marketing", icon: Megaphone, home: "/marketing", compact: true,
     items: [
       { href: "/marketing", label: "Overview", icon: Gauge },
       { href: "/marketing/approvals", label: "Approvals", icon: ShieldCheck, badge: "approvals" },

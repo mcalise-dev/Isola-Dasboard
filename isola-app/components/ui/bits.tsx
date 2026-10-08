@@ -107,6 +107,9 @@ export function Stepper({ steps, current, done, onPick, className }: { steps: { 
 // v4.8: shown instead of endless skeletons when a screen's data didn't load
 // (expired login, no signal on site). Pair with withTimeout() from lib/load.
 export function LoadError({ onRetry, message, className }: { onRetry?: () => void; message?: string; className?: string }) {
+  // Connection failures read as gibberish ("TypeError: Failed to fetch") — say it plainly.
+  const network = !message || /failed to fetch|networkerror|load failed|timeout|no response/i.test(message);
+  message = network ? undefined : message;
   return (
     <div role="alert" className={cn("rounded-xl border border-red-500/30 bg-red-500/[0.06] px-6 py-8 text-center", className)}>
       <p className="text-base font-semibold text-white">Couldn't load this</p>
