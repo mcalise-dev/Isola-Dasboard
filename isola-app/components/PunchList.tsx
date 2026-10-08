@@ -168,7 +168,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
                       <img src={t.photo_b64} alt="Issue" onClick={() => openImage(t.photo_b64!)} className="h-12 w-12 cursor-pointer rounded-md object-cover border border-neutral-700" />
                     ) : (
                       <label className={photoBtn}>+ Issue photo
-                        <input type="file" accept="image/*" capture="environment" className="hidden"
+                        <input type="file" accept="image/*" className="hidden"
                           onChange={(e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) setPhoto(t, "photo_b64", f); }} />
                       </label>
                     )}
@@ -180,7 +180,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
                       </div>
                     ) : (
                       <label className={photoBtn}>+ Fixed photo
-                        <input type="file" accept="image/*" capture="environment" className="hidden"
+                        <input type="file" accept="image/*" className="hidden"
                           onChange={(e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) setPhoto(t, "fixed_photo_b64", f); }} />
                       </label>
                     )}
@@ -215,7 +215,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
           ))}
           <label className={`shrink-0 cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold ${form.photo ? "border-emerald-600 text-emerald-300" : "border-neutral-700 text-neutral-300"}`}>
             {form.photo ? "Photo ✓" : "Photo"}
-            <input type="file" accept="image/*" capture="environment" className="hidden"
+            <input type="file" accept="image/*" className="hidden"
               onChange={async (e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) { const b = await compressImage(f); setForm((x) => ({ ...x, photo: b })); } }} />
           </label>
           <button onClick={add} disabled={busy}
