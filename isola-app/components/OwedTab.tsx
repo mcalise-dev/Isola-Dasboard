@@ -31,7 +31,7 @@ export default function OwedTab() {
   async function load() {
     const since = new Date(Date.now() - 14 * 86400000).toISOString();
     const [o, r, j, w] = await Promise.all([
-      sb.from("job_costs").select(cols).eq("paid", false).order("entry_date"),
+      sb.from("job_costs").select(cols).eq("paid", false).gt("amount", 0).order("entry_date"),
       sb.from("job_costs").select(cols).eq("paid", true).eq("category", "Labor").gte("updated_at", since).order("updated_at", { ascending: false }).limit(40),
       sb.from("jobs").select("id,job_name,customer,location,job,status").order("job_name"),
       sb.from("workers").select("name").eq("active", true).eq("is_owner", false).order("name"),
