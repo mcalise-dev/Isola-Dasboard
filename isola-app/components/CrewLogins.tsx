@@ -81,7 +81,7 @@ export default function CrewLogins({ workers }: { workers: any[] }) {
         <div className="text-sm font-semibold text-neutral-300">Crew app logins</div>
         <a href="/field" className="inline-flex items-center gap-1 text-sm text-neutral-300 hover:text-white"><Eye size={15} /> See what crew see</a>
       </div>
-      <p className="mt-1 text-sm text-neutral-400">Crew see the schedule, job addresses, scope, photos, the punch list, tasks you mark for crew, and their own hours. They never see prices, money, customers or pay rates.</p>
+      <p className="mt-1 text-sm text-neutral-400">Crew see the schedule, job addresses, scope, photos, the punch list, tasks you mark for crew, their own hours, and their own balance owed (job, date, amount). They never see prices, job costs, customers or pay rates.</p>
       <div className="mt-2.5 divide-y divide-neutral-800">
         {crew.map((w) => {
           const l = logins.find((x) => x.worker_id === w.id);

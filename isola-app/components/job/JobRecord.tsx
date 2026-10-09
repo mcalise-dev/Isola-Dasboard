@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import JobChecklist from "@/components/JobChecklist";
 import CrewSetup from "@/components/job/CrewSetup";
 import MyClock from "@/components/MyClock";
+import { TmJobBill } from "@/components/TmBilling";
 import { CostsPanel, LaborPanel, TasksPanel, PhotosPanel, SchedulePanel, JobbookCard, ActivityPanel } from "@/components/job/panels";
 import { MoneyPanel, ProposalPanel, DocsPanel } from "@/components/job/hub";
 import { cn } from "@/lib/utils";
@@ -307,7 +308,7 @@ export default function JobRecord({ id }: { id: string }) {
               </section>
               <CrewSetup jobId={job.id} crewNotes={job.crew_notes ?? null} onSaved={load} />
             </TabsContent>
-            <TabsContent value="money"><MoneyPanel job={job} /></TabsContent>
+            <TabsContent value="money" className="space-y-6"><MoneyPanel job={job} /><TmJobBill jobId={job.id} onChanged={load} /></TabsContent>
             <TabsContent value="proposal"><ProposalPanel jobId={job.id} /></TabsContent>
             <TabsContent value="docs"><DocsPanel jobId={job.id} /></TabsContent>
             <TabsContent value="costs" className="space-y-8">

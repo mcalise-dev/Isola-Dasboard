@@ -9,7 +9,7 @@ import {
   Receipt, CreditCard, Handshake, BarChart3, ShieldCheck,
   Contact, Mail, Building2, LayoutGrid, Target, Workflow, Star, Sun, Gauge,
   Sparkles, BadgeDollarSign, PhoneCall, CalendarRange, PlugZap, Truck, ClipboardCheck,
-  Settings, FolderCheck, HandCoins,
+  Settings, FolderCheck, HandCoins, Clock,
   type LucideIcon,
 } from "lucide-react";
 
@@ -77,6 +77,7 @@ export const GROUPS: NavGroup[] = [
       { key: "money", href: "/money", label: "Money", icon: Wallet, tabs: [
         { href: "/money", label: "Owed to me", icon: Wallet, badge: "money" },
         { href: "/payroll", label: "Subs payroll", icon: HandCoins },
+        { href: "/tm", label: "T&M billing", icon: Clock },
         { href: "/billing", label: "Billing", icon: CreditCard },
         { href: "/reports", label: "Reports", icon: BarChart3 },
         { href: "/thm", label: "THM tab", icon: Handshake },

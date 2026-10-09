@@ -5,19 +5,22 @@ import { createClient } from "@/lib/supabase/client";
 import { Timer } from "lucide-react";
 import { Empty, iso, addDays } from "@/components/field/shared";
 
-// A crew member's own clock punches — hours only (no rates or pay).
+// A crew member's own clock punches, plus their balance owed (job, date, amount — no rates).
 type Punch = { id: string; job_name: string | null; clock_in: string; clock_out: string | null; hours: number };
 
+const usd = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function weekStart(d: Date) { const x = new Date(d); const dow = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dow); return x; } // Monday
 
 export default function FieldHours() {
   const supabase = useMemo(() => createClient(), []);
   const [rows, setRows] = useState<Punch[] | null>(null);
+  const [owed, setOwed] = useState<{ items: { job: string; date: string; amount: number }[]; total: number } | null>(null);
   const thisMon = weekStart(new Date());
   const lastMon = addDays(thisMon, -7);
 
   useEffect(() => {
     supabase.rpc("crew_hours", { p_from: iso(lastMon), p_to: iso(new Date()) }).then(({ data }) => setRows((data as Punch[]) ?? []));
+    supabase.rpc("crew_balance_owed").then(({ data }) => setOwed((data as any) ?? null));
   }, []);
 
   const t = (s: string) => new Date(s).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -29,6 +32,27 @@ export default function FieldHours() {
     <div>
       <h1 className="text-2xl font-bold text-white">My hours</h1>
       <Link href="/clock" className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-white text-neutral-900 min-h-[52px] font-bold"><Timer size={20} /> Clock in / out</Link>
+      {owed ? (
+        <section className="mt-6">
+          <div className="flex items-baseline justify-between mb-2">
+            <h2 className="text-sm font-bold text-white">Balance owed</h2>
+            <span className="text-lg font-bold tabular-nums text-white">{usd(owed.total)}</span>
+          </div>
+          {owed.items.length ? (
+            <div className="divide-y divide-neutral-800 rounded-xl bg-white/[0.05]">
+              {owed.items.map((it, i) => (
+                <div key={i} className="flex items-center gap-3 px-3.5 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-white truncate">{it.job}</div>
+                    <div className="text-xs text-neutral-400">{it.date}</div>
+                  </div>
+                  <div className="shrink-0 text-sm font-bold tabular-nums text-white">{usd(Number(it.amount))}</div>
+                </div>
+              ))}
+            </div>
+          ) : <Empty title="You're paid up" />}
+        </section>
+      ) : null}
       {rows === null ? <div className="mt-4 h-24 rounded-xl bg-neutral-900 animate-pulse" /> : null}
       {rows && weeks.map((w) => {
         const list = rows.filter((p) => inWeek(p, w.mon));

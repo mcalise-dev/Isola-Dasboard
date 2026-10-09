@@ -18,6 +18,8 @@ export default function ClockApp() {
   const [err, setErr] = useState("");
   const [tick, setTick] = useState(0);
   const [flash, setFlash] = useState("");
+  const [owed, setOwed] = useState<any>(null);
+  const [showOwed, setShowOwed] = useState(false);
 
   useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 30000); return () => clearInterval(t); }, []);
 
@@ -25,7 +27,10 @@ export default function ClockApp() {
     const supabase = createClient();
     const { data } = await supabase.rpc("crew_state", { p_pin: p });
     if (!data?.ok) { setErr("That PIN didn't work."); setState(null); return false; }
-    setErr(""); setState(data); return true;
+    setErr(""); setState(data);
+    const { data: o } = await supabase.rpc("crew_owed", { p_pin: p });
+    setOwed(o?.ok ? o : null);
+    return true;
   }
 
   async function signIn() {
@@ -82,7 +87,7 @@ export default function ClockApp() {
           <div className="text-lg font-bold text-white">{state.worker.name}</div>
           <div className="text-xs text-neutral-400">{Number(state.today_hours).toFixed(2)} hrs today</div>
         </div>
-        <button onClick={() => { setState(null); setPin(""); }} className="text-xs text-neutral-400 underline">Switch</button>
+        <button onClick={() => { setState(null); setPin(""); setOwed(null); setShowOwed(false); }} className="text-xs text-neutral-400 underline">Switch</button>
       </div>
 
       {flash ? <div className="mt-4 rounded-xl border border-emerald-600/50 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300 text-center">{flash}</div> : null}
@@ -124,6 +129,32 @@ export default function ClockApp() {
           </button>
         </div>
       )}
+      {owed ? (
+        <div className="mt-6 rounded-2xl border border-white/[0.08] bg-neutral-950">
+          <button onClick={() => setShowOwed((v) => !v)} className="flex w-full items-center justify-between px-4 py-3 text-left">
+            <span className="text-sm font-semibold tracking-[0.2em] text-neutral-400">Balance owed</span>
+            <span className="text-lg font-bold tabular-nums text-white">
+              ${Number(owed.total).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <span className="ml-1.5 text-xs font-normal text-neutral-500">{showOwed ? "hide" : "details"}</span>
+            </span>
+          </button>
+          {showOwed ? (
+            <div className="border-t border-white/[0.08] px-4 py-2.5">
+              {owed.items.length === 0 ? <p className="text-sm text-neutral-400">You&apos;re paid up.</p> : (
+                <div className="space-y-1.5">
+                  {owed.items.map((it: any, i: number) => (
+                    <div key={i} className="flex items-baseline gap-2 text-sm">
+                      <span className="min-w-0 flex-1 truncate text-white">{it.job}</span>
+                      <span className="shrink-0 text-xs text-neutral-400">{it.date}</span>
+                      <span className="w-20 shrink-0 text-right tabular-nums text-neutral-200">${Number(it.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <p className="mt-6 text-center text-xs text-neutral-500">Hours post straight to the job when you clock out.</p>
     </Shell>
   );
