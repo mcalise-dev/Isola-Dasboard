@@ -12,8 +12,24 @@ const elapsed = (from: string) => {
   const ms = Date.now() - new Date(from).getTime();
   return `${Math.floor(ms / 3600000)}h ${String(Math.floor((ms % 3600000) / 60000)).padStart(2, "0")}m`;
 };
-const amountFor = (w: any, hrs: number) =>
-  w.rate == null ? 0 : w.rate_type === "daily" ? Number(w.rate) : Math.round(hrs * Number(w.rate) * 100) / 100;
+// a job-specific pay rate (job_pay_rates) beats the worker's default rate
+const payFor = (w: any, jobId: string | null | undefined, rates: any[]) => {
+  const o = jobId && w ? rates.find((r) => r.job_id === jobId && r.worker_id === w.id) : null;
+  return o
+    ? { rate: Number(o.rate) as number | null, rate_type: o.rate_type as string, custom: true }
+    : { rate: (w?.rate == null ? null : Number(w.rate)) as number | null, rate_type: (w?.rate_type ?? "hourly") as string, custom: false };
+};
+const amountFor = (p: { rate: number | null; rate_type?: string }, hrs: number) =>
+  p.rate == null ? 0 : p.rate_type === "daily" ? p.rate : Math.round(hrs * p.rate * 100) / 100;
+const fmtRate = (p: { rate: number | null; rate_type?: string }) =>
+  p.rate == null ? "no rate set" : `$${p.rate}/${p.rate_type === "daily" ? "day" : "hr"}`;
+async function saveJobRate(supabase: any, w: any, jobId: string, raw: string) {
+  const v = Number(String(raw).replace(/[^0-9.]/g, ""));
+  if (!jobId || !w || !(v > 0)) return;
+  await supabase.from("job_pay_rates").upsert(
+    { job_id: jobId, worker_id: w.id, rate: v, rate_type: w.rate_type ?? "hourly", updated_at: new Date().toISOString() },
+    { onConflict: "job_id,worker_id" });
+}
 
 export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
   const supabase = useMemo(() => createClient(), []);
@@ -21,6 +37,8 @@ export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
   const [jobs, setJobs] = useState<any[]>([]);
   const [open, setOpen] = useState<any[]>([]);
   const [picks, setPicks] = useState<Record<string, string>>({});
+  const [rates, setRates] = useState<any[]>([]);
+  const [rateIn, setRateIn] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState("");
   const [loading, setLoading] = useState(true);
   const [manual, setManual] = useState(false);
@@ -29,13 +47,14 @@ export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30000); return () => clearInterval(t); }, []);
 
   async function load() {
-    const [{ data: w }, { data: j }, { data: o }] = await Promise.all([
+    const [{ data: w }, { data: j }, { data: o }, { data: r }] = await Promise.all([
       supabase.from("workers").select("*").eq("active", true).eq("is_owner", false).order("name"),
       // only work that is actually underway can be clocked against
       supabase.from("jobs").select("id,job_name,customer,location,job").eq("status", "progress").order("job_name"),
       supabase.from("time_clock").select("*").is("clock_out", null),
+      supabase.from("job_pay_rates").select("*"),
     ]);
-    setCrew(w ?? []); setJobs(j ?? []); setOpen(o ?? []); setLoading(false);
+    setCrew(w ?? []); setJobs(j ?? []); setOpen(o ?? []); setRates(r ?? []); setLoading(false);
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
@@ -46,6 +65,8 @@ export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
     const jid = picks[w.id];
     if (!jid) return;
     setBusy(w.id);
+    const typed = rateIn[`${w.id}:${jid}`];
+    if (typed != null && typed !== "" && Number(typed) !== payFor(w, jid, rates).rate) await saveJobRate(supabase, w, jid, typed);
     await supabase.from("time_clock").insert({ worker_id: w.id, job_id: jid });
     setBusy(""); setPicks((s) => ({ ...s, [w.id]: "" }));
     load(); onChanged?.();
@@ -56,11 +77,12 @@ export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
     if (!p) return;
     setBusy(w.id);
     const hrs = Math.round(hrsBetween(p.clock_in) * 100) / 100;
+    const pay = payFor(w, p.job_id, rates);
     let costId: string | null = null;
     if (p.job_id && hrs > 0) {
       const { data: cost } = await supabase.from("job_costs").insert({
         job_id: p.job_id, entry_date: p.clock_in.slice(0, 10), category: "Labor",
-        worker: w.name, hours: hrs, rate: w.rate, amount: amountFor(w, hrs), paid: false,
+        worker: w.name, hours: hrs, rate: pay.rate, amount: amountFor(pay, hrs), paid: false,
         notes: `Clocked ${t12(p.clock_in)}–${t12(new Date().toISOString())} (by Mike)`, status: "ok",
       }).select("id").single();
       costId = cost?.id ?? null;
@@ -94,7 +116,7 @@ export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
                 <div className="min-w-0">
                   <div className="text-sm font-bold text-white">{w.name}</div>
                   <div className="text-xs text-neutral-400">
-                    {w.rate ? `$${w.rate}/${w.rate_type === "daily" ? "day" : "hr"}` : "no rate set"}
+                    {(() => { const pp = payFor(w, p?.job_id ?? picks[w.id], rates); return fmtRate(pp) + (pp.custom ? " · this job" : ""); })()}
                   </div>
                 </div>
                 {p ? (
@@ -120,6 +142,12 @@ export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
                     <option value="">Job…</option>
                     {jobs.map((j) => <option key={j.id} value={j.id}>{jobLabel(j)}</option>)}
                   </select>
+                  {picks[w.id] ? (
+                    <input inputMode="decimal" title="Pay rate on this job" placeholder="$/hr"
+                      value={rateIn[`${w.id}:${picks[w.id]}`] ?? String(payFor(w, picks[w.id], rates).rate ?? "")}
+                      onChange={(e) => setRateIn((s) => ({ ...s, [`${w.id}:${picks[w.id]}`]: e.target.value }))}
+                      className="w-16 shrink-0 rounded-lg bg-neutral-900 border border-neutral-700 px-2 py-1.5 text-xs text-white" />
+                  ) : null}
                   <button onClick={() => clockIn(w)} disabled={busy === w.id || !picks[w.id]}
                     className="shrink-0 rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-xs font-bold disabled:opacity-40">
                     Clock in
@@ -132,16 +160,16 @@ export default function CrewClock({ onChanged }: { onChanged?: () => void }) {
         {crew.length === 0 ? <p className="text-xs text-neutral-500">No active crew. Add someone below.</p> : null}
       </div>
 
-      {manual ? <ManualTime supabase={supabase} crew={crew} onClose={() => setManual(false)} onSaved={() => { setManual(false); load(); onChanged?.(); }} /> : null}
+      {manual ? <ManualTime supabase={supabase} crew={crew} rates={rates} onClose={() => setManual(false)} onSaved={() => { setManual(false); load(); onChanged?.(); }} /> : null}
     </div>
   );
 }
 
-function ManualTime({ supabase, crew, onClose, onSaved }: any) {
+function ManualTime({ supabase, crew, rates, onClose, onSaved }: any) {
   const [jobs, setJobs] = useState<any[]>([]);
-  const [f, setF] = useState({ worker_id: "", job_id: "", date: todayISO(), start: "", end: "", hours: "", note: "" });
+  const [f, setF] = useState({ worker_id: "", job_id: "", date: todayISO(), start: "", end: "", hours: "", note: "", rate: "" });
   const [busy, setBusy] = useState(false);
-  const set = (k: string) => (e: any) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const set = (k: string) => (e: any) => setF((s) => ({ ...s, [k]: e.target.value, ...(k === "worker_id" || k === "job_id" ? { rate: "" } : {}) }));
 
   useEffect(() => {
     supabase.from("jobs").select("id,job_name,customer,location,job").eq("status", "progress").order("job_name")
@@ -159,17 +187,19 @@ function ManualTime({ supabase, crew, onClose, onSaved }: any) {
   })();
 
   const worker = crew.find((w: any) => w.id === f.worker_id);
-  const amount = !worker || worker.rate == null ? 0
-    : worker.rate_type === "daily" ? Number(worker.rate)
-    : Math.round(derived * Number(worker.rate) * 100) / 100;
+  const eff = payFor(worker, f.job_id, rates);
+  const typed = Number(String(f.rate).replace(/[^0-9.]/g, ""));
+  const pay = { rate: f.rate !== "" && typed > 0 ? typed : eff.rate, rate_type: eff.rate_type };
+  const amount = !worker ? 0 : amountFor(pay, derived);
 
   async function save() {
     if (!f.worker_id || !f.job_id) { showError("Pick who it was and which job."); return; }
     if (derived <= 0) { showError("Enter hours, or a start and end time."); return; }
     setBusy(true);
+    if (f.rate !== "" && typed > 0 && typed !== eff.rate) await saveJobRate(supabase, worker, f.job_id, f.rate);
     const { data: cost, error } = await supabase.from("job_costs").insert({
       job_id: f.job_id, entry_date: f.date, category: "Labor", worker: worker.name,
-      hours: derived, rate: worker.rate, amount, paid: false,
+      hours: derived, rate: pay.rate, amount, paid: false,
       notes: [f.start && f.end ? `${f.start}–${f.end}` : null, f.note.trim() || null, "entered by hand"].filter(Boolean).join(" · "),
       status: "ok",
     }).select("id").single();
@@ -217,13 +247,19 @@ function ManualTime({ supabase, crew, onClose, onSaved }: any) {
             <input value={f.hours} onChange={set("hours")} inputMode="decimal" placeholder="e.g. 6.5"
               className={inp} disabled={!!(f.start && f.end)} />
           </div>
+          {f.worker_id && f.job_id ? (
+            <div><label className={lab}>Pay rate on this job {eff.custom ? "(set for this job)" : "(their default)"}</label>
+              <input value={f.rate === "" ? String(eff.rate ?? "") : f.rate} onChange={set("rate")} inputMode="decimal" placeholder="$/hr" className={inp} />
+              <p className="mt-1 text-[10px] text-neutral-600">Change it and it sticks for {worker?.name} on this job only.</p>
+            </div>
+          ) : null}
           <div><label className={lab}>Note</label><input value={f.note} onChange={set("note")} className={inp} placeholder="What they did" /></div>
 
           {derived > 0 ? (
             <div className="rounded-lg border border-white/[0.07] bg-neutral-900 px-3 py-2 text-xs text-neutral-300">
               {derived.toFixed(2)} hrs{worker ? ` · ${worker.name}` : ""}
-              {worker?.rate ? ` @ $${worker.rate}/${worker.rate_type === "daily" ? "day" : "hr"} = ` : " · "}
-              <span className="font-bold text-white">{worker?.rate ? money(amount) : "no rate set — logs at $0"}</span>
+              {pay.rate ? ` @ ${fmtRate(pay)} = ` : " · "}
+              <span className="font-bold text-white">{pay.rate ? money(amount) : "no rate set — logs at $0"}</span>
             </div>
           ) : null}
 
