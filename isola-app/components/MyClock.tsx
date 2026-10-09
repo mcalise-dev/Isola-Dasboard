@@ -22,6 +22,7 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
   const [me, setMe] = useState<any>(null);
   const [openPunch, setOpenPunch] = useState<any>(null);
   const [jobs, setJobs] = useState<any[]>([]);
+  const [punchJob, setPunchJob] = useState<any>(null); // the job the open punch is on (may not be this page's job)
   const [today, setToday] = useState<any[]>([]);
   const [pick, setPick] = useState(jobId ?? "");
   const [note, setNote] = useState("");
@@ -51,8 +52,17 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
         : supabase.from("jobs").select("id,job_name,customer,location,job,status").eq("status", "progress").order("job_name"),
       supabase.from("time_clock").select("id,job_id,clock_in,clock_out").eq("worker_id", w.id).gte("clock_in", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()).order("clock_in", { ascending: false }),
     ]);
-    setOpenPunch(op?.[0] ?? null);
+    const punch = op?.[0] ?? null;
+    setOpenPunch(punch);
     setJobs(js ?? []);
+    if (punch?.job_id) {
+      const known = (js ?? []).find((j: any) => j.id === punch.job_id);
+      if (known) setPunchJob(known);
+      else {
+        const { data: pj } = await supabase.from("jobs").select("id,job_name,customer,location,job,status").eq("id", punch.job_id).maybeSingle();
+        setPunchJob(pj ?? null);
+      }
+    } else setPunchJob(null);
     setToday(td ?? []);
     setLoading(false);
   }
@@ -114,9 +124,14 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
   if (loading) return <div className="space-y-2" aria-busy="true"><div className="skeleton h-16" /><div className="skeleton h-16" /><div className="skeleton h-16" /></div>;
   if (!me) return <p className="text-sm text-neutral-400">No owner record set up.</p>;
 
-  const jobById = (id: string) => jobs.find((j) => j.id === id);
-  const running = !!openPunch;
-  const todayHrs = today.reduce((a, p) => a + hrsBetween(p.clock_in, p.clock_out), 0);
+  const jobById = (id: string) => jobs.find((j) => j.id === id) ?? (punchJob?.id === id ? punchJob : undefined);
+  // On a job page, only a punch on THIS job counts as running here. A punch on another
+  // job is shown as a notice — never as this job's clock, and never with a Clock out button.
+  const elsewhere = !!openPunch && !!jobId && openPunch.job_id !== jobId;
+  const running = !!openPunch && !elsewhere;
+  const todayHrs = today
+    .filter((p) => !jobId || p.job_id === jobId)
+    .reduce((a, p) => a + hrsBetween(p.clock_in, p.clock_out), 0);
 
   return (
     <div className={`rounded-2xl border ${running ? "border-emerald-500/50 bg-emerald-500/[0.07]" : "border-white/[0.08] bg-neutral-900/60"} p-3.5`}>
@@ -129,7 +144,15 @@ export default function MyClock({ jobId, compact }: { jobId?: string; compact?: 
 
       {flash ? <div className="mb-2 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-200">{flash}</div> : null}
 
-      {running ? (
+      {elsewhere ? (
+        <div className="rounded-lg border border-white/[0.08] bg-neutral-900 px-3 py-2.5 text-sm text-neutral-300">
+          You&apos;re clocked in on{" "}
+          <a href={`/jobs/${openPunch.job_id}`} className="font-semibold text-white underline underline-offset-2">
+            {punchJob ? jobLabel(punchJob) : "another job"}
+          </a>{" "}
+          since {t12(openPunch.clock_in)}. Clock out there before clocking in here.
+        </div>
+      ) : running ? (
         <>
           <div className="text-center py-3">
             <div className="text-4xl font-extrabold text-white tabular-nums tracking-tight">{bigElapsed(openPunch.clock_in)}</div>
