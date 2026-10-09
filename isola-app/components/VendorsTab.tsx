@@ -60,6 +60,23 @@ async function readFile(file: File): Promise<string> {
   });
 }
 
+// Quick upload: phone photos of a W-9/COI are often 3–6 MB. Shrink big images to a
+// readable JPEG (data URL, same format as the rest of vendor_documents); PDFs go as-is.
+async function prepQuickFile(f: File): Promise<{ file_b64: string; file_name: string; mime_type: string }> {
+  if (f.type.startsWith("image/") && f.size > 900_000) {
+    try {
+      const bmp = await createImageBitmap(f);
+      const scale = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(bmp.width * scale);
+      c.height = Math.round(bmp.height * scale);
+      c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
+      return { file_b64: c.toDataURL("image/jpeg", 0.8), file_name: f.name.replace(/\.[^.]+$/, "") + ".jpg", mime_type: "image/jpeg" };
+    } catch { /* fall through */ }
+  }
+  return { file_b64: await readFile(f), file_name: f.name, mime_type: f.type || "application/octet-stream" };
+}
+
 export default function VendorsTab() {
   const supabase = useMemo(() => createClient(), []);
   const [rows, setRows] = useState<any[]>([]);
@@ -72,6 +89,46 @@ export default function VendorsTab() {
   const [docs, setDocs] = useState<any[]>([]);
   const [upload, setUpload] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [quick, setQuick] = useState<{ company: string; doc_type: "w9" | "coi" | "other"; expires_at: string; files: File[] }>({ company: "", doc_type: "w9", expires_at: "", files: [] });
+  const [quickBusy, setQuickBusy] = useState(false);
+  const [quickKey, setQuickKey] = useState(0);
+
+  // One step: type the company, pick W-9 / COI, attach. Reuses the vendor if the
+  // name already exists (case-insensitive), otherwise creates it.
+  async function quickUpload() {
+    const name = quick.company.trim();
+    if (!name) return showError("Type the company name.");
+    if (!quick.files.length) return showError("Attach the file.");
+    const big = quick.files.find((f) => !f.type.startsWith("image/") && f.size > 8_000_000);
+    if (big) return showError(`${big.name} is over 8 MB — take a photo of it instead.`);
+    setQuickBusy(true);
+    try {
+      let vendorId = rows.find((v) => v.company?.trim().toLowerCase() === name.toLowerCase())?.id as string | undefined;
+      if (!vendorId) {
+        const { data, error } = await supabase.from("vendors").insert({ company: name, status: "approved" }).select("id").single();
+        if (error) throw new Error(error.message);
+        vendorId = data.id;
+      }
+      for (const f of quick.files) {
+        const p = await prepQuickFile(f);
+        const { error } = await supabase.from("vendor_documents").insert({
+          vendor_id: vendorId, doc_type: quick.doc_type, ...p,
+          expires_at: quick.doc_type === "coi" ? quick.expires_at || null : null,
+        });
+        if (error) throw new Error(error.message);
+      }
+      const label = quick.doc_type === "w9" ? "W-9" : quick.doc_type === "coi" ? "COI" : "File";
+      showToast(`${label} saved to ${name}`);
+      setQuick({ company: "", doc_type: quick.doc_type, expires_at: "", files: [] });
+      setQuickKey((k) => k + 1);
+      await load();
+      if (openId === vendorId) loadDocs(vendorId);
+    } catch (e: any) {
+      showError("Upload failed: " + (e?.message ?? String(e)));
+    } finally {
+      setQuickBusy(false);
+    }
+  }
 
   async function load() {
     setErr(null);
@@ -229,6 +286,42 @@ export default function VendorsTab() {
   return (
     <div className="pb-28 space-y-5">
       {header}
+
+      <Card className="space-y-3 p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white"><Paperclip size={16} className="text-neutral-400" /> Quick upload — W-9 or COI</div>
+        <Input list="vendor-company-names" placeholder="Company name" value={quick.company}
+          onChange={(e) => setQuick({ ...quick, company: e.target.value })} autoComplete="off" />
+        <datalist id="vendor-company-names">
+          {rows.map((v) => <option key={v.id} value={v.company} />)}
+        </datalist>
+        <div className="flex flex-wrap gap-1.5">
+          {(["w9", "coi", "other"] as const).map((t) => (
+            <button key={t} type="button" onClick={() => setQuick({ ...quick, doc_type: t })} className={chip(quick.doc_type === t)}>
+              {t === "w9" ? "W-9" : t === "coi" ? "COI" : "Other"}
+            </button>
+          ))}
+        </div>
+        {quick.doc_type === "coi" ? (
+          <Field label="COI expires (optional)">
+            <Input type="date" value={quick.expires_at} onChange={(e) => setQuick({ ...quick, expires_at: e.target.value })} />
+          </Field>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-input px-4 text-sm font-semibold text-foreground hover:border-white/25 hover:bg-accent">
+            <Paperclip size={16} /> Attach file or photo
+            <input key={quickKey} type="file" multiple accept="image/*,application/pdf" className="hidden"
+              onChange={(e) => setQuick({ ...quick, files: Array.from(e.target.files ?? []) })} />
+          </label>
+          {quick.files.length ? (
+            <span className="inline-flex min-w-0 items-center gap-1 text-xs font-semibold text-emerald-400">
+              <Check size={14} className="shrink-0" /><span className="truncate">{quick.files.map((f) => f.name).join(", ")}</span>
+            </span>
+          ) : null}
+        </div>
+        <Button className="w-full sm:w-auto" onClick={quickUpload} disabled={quickBusy || !quick.company.trim() || !quick.files.length}>
+          {quickBusy ? "Uploading…" : "Upload"}
+        </Button>
+      </Card>
 
       {rows.length ? (
         <div className="grid grid-cols-3 gap-2">
