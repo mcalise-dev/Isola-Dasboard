@@ -6,7 +6,7 @@ import { Navigation, Timer, MapPin, ChevronRight } from "lucide-react";
 import { StopCard, CheckRow, Empty, H, iso, dayLabel, type Stop } from "@/components/field/shared";
 import { showError } from "@/components/Toaster";
 
-// Crew Today: your assigned jobs, where we're going, the checklist for jobs they're assigned to (next 7 days), and the punch list / tasks on the jobs they can see.
+// Crew Today: your assigned jobs, where we're going, the checklist for the job(s) you're on the board for TODAY, and the punch list / tasks on live (not completed) jobs you can see.
 export default function FieldToday() {
   const supabase = useMemo(() => createClient(), []);
   const [stops, setStops] = useState<Stop[] | null>(null);
@@ -88,7 +88,7 @@ export default function FieldToday() {
 
       {todo.checklist.length ? (
         <>
-          <H>Checklist — your jobs</H>
+          <H>Checklist — today</H>
           <div className="space-y-2">{todo.checklist.map((k) => (
             <CheckRow key={k.id} done={!!k.done} title={k.label} sub={k.job_name} href={`/field/job/${k.job_id}`} onToggle={() => setCheck(k.id, !k.done)} />
           ))}</div>
