@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAttention, type AttnItem, type Level } from "@/lib/attention";
 import { STATUS_META, PIPELINE, fmtDate, todayISO } from "@/lib/format";
 import { openNew } from "@/components/SearchPalette";
+import PayHeadline from "@/components/home/PayHeadline";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Stat, Empty, SectionTitle } from "@/components/ui/bits";
@@ -93,6 +94,8 @@ export default function HomeScreen() {
           {a ? <p className="text-[15px] leading-snug text-neutral-200">{brief}</p> : <div className="skeleton h-5 w-full max-w-xl" />}
         </div>
       </div>
+
+      <PayHeadline />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {a ? <>

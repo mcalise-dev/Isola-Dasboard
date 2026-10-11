@@ -76,6 +76,7 @@ export const GROUPS: NavGroup[] = [
     items: [
       { key: "money", href: "/money", label: "Money", icon: Wallet, tabs: [
         { href: "/money", label: "Owed to me", icon: Wallet, badge: "money" },
+        { href: "/money/pay", label: "My pay", icon: Gauge },
         { href: "/payroll", label: "Subs payroll", icon: HandCoins },
         { href: "/tm", label: "T&M billing", icon: Clock },
         { href: "/billing", label: "Billing", icon: CreditCard },
