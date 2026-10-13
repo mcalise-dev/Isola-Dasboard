@@ -4,7 +4,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { showError, showToast } from "@/components/Toaster";
-import { HardHat, X, Plus, Eye, Package, Wrench, Pencil, Check } from "lucide-react";
+import { ask } from "@/components/Dialogs";
+import { HardHat, X, Plus, Eye, Package, Wrench, Pencil, Check, Trash2 } from "lucide-react";
 import { LoadOut, DayPicker, dayChipLabel, type DayKey, type Need as KitNeed } from "@/components/field/jobkit";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +57,18 @@ export default function CrewSetup({ jobId, crewNotes, onSaved }: { jobId: string
     setNeeds((s) => s.map((x) => (x.id === id ? { ...x, got, got_by: got ? "Mike" : null, got_at: got ? new Date().toISOString() : null } : x)));
     const { error } = await supabase.from("job_needs").update({ got }).eq("id", id);
     if (error) showError("Couldn't save: " + error.message);
+    load();
+  }
+
+  async function clearList() {
+    // only items set to the day you're on (or everything on "Whole job"); whole-job items stay unless you're on Whole job
+    const ids = needs.filter((n) => n.kind === kind && (day === "all" || n.work_date === day)).map((n) => n.id);
+    if (!ids.length) { showToast("Nothing set to this day"); return; }
+    const what = kind === "material" ? "material" : "tool";
+    if (!(await ask({ title: `Clear ${ids.length} ${what}${ids.length > 1 ? "s" : ""}?`, body: day === "all" ? `Removes the whole ${what} list.` : "Only items set to this day. Whole-job items and other days stay.", confirm: "Clear", danger: true }))) return;
+    setNeeds((s) => s.filter((x) => !ids.includes(x.id)));
+    const { error } = await supabase.from("job_needs").delete().in("id", ids);
+    if (error) showError("Couldn't clear: " + error.message); else showToast(`Cleared ${ids.length}`);
     load();
   }
 
@@ -120,6 +133,14 @@ export default function CrewSetup({ jobId, crewNotes, onSaved }: { jobId: string
       </div>
 
       {dates.length && !editing ? <div className="mt-3"><DayPicker value={day} onChange={setDay} dates={dates} hasBefore={false} /></div> : null}
+
+      {!editing && rows.length ? (
+        <div className="mt-2 flex justify-end">
+          <button onClick={clearList} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 min-h-[34px] text-[13px] font-semibold text-neutral-400 hover:bg-red-500/10 hover:text-red-300">
+            <Trash2 size={14} /> Clear {day === "all" ? (kind === "material" ? "material list" : "tool list") : "this day"}
+          </button>
+        </div>
+      ) : null}
 
       <div className="mt-3">
         {editing

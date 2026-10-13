@@ -189,7 +189,7 @@ export default function FieldJob() {
             </div>
           ) : null}
 
-          {list.length ? <PlanView list={list} onToggle={setCheck} /> : <Empty title={allSteps.length ? "Nothing on the list for this day" : "No to-do list yet"} sub={allSteps.length ? "Pick another day above." : "Mike hasn't added steps to this job."} />}
+          {list.length ? <PlanView list={list} onToggle={setCheck} me={d.me} /> : <Empty title={allSteps.length ? "Nothing on the list for this day" : "No to-do list yet"} sub={allSteps.length ? "Pick another day above." : "Mike hasn't added steps to this job."} />}
 
           <div className="mt-3 flex gap-2">
             <input value={adding} onChange={(e) => setAdding(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addCheck(); }}

@@ -32,7 +32,7 @@ export const phaseTitle = (p: string) => (p ? PHASE_NAMES[p] ?? titleCase(p) : "
 const HEADS_UP = /\b(FIRST|STOP|WATCH|ONLY IF|ONLY|DO NOT|NO FALL|BEFORE CONCRETE)\b/;
 export const isHeadsUp = (t: string) => HEADS_UP.test(t);
 
-export type Step = { id: string; label: string; done: boolean; done_by?: string | null; done_at?: string | null; added_by?: string | null };
+export type Step = { id: string; label: string; done: boolean; done_by?: string | null; done_at?: string | null; added_by?: string | null; assignee?: string | null; work_date?: string | null };
 export type Phase = { key: string; title: string; steps: (Step & { text: string })[]; done: number };
 
 export function groupPlan(list: Step[]): Phase[] {
@@ -109,8 +109,8 @@ export function Pill({ children, tone = "plain", icon }: { children: React.React
 
 // ---------- Plan of action ----------
 // v5.5: phase strip to jump around, timeline steps, finished steps fold away inside each phase.
-export function PlanView({ list, onToggle, onRemove, readOnly, jump = true }:
-  { list: Step[]; onToggle?: (id: string, done: boolean) => void; onRemove?: (id: string) => void; readOnly?: boolean; jump?: boolean }) {
+export function PlanView({ list, onToggle, onRemove, onEdit, readOnly, jump = true, me }:
+  { list: Step[]; onToggle?: (id: string, done: boolean) => void; onRemove?: (id: string) => void; onEdit?: (s: Step) => void; readOnly?: boolean; jump?: boolean; me?: string | null }) {
   const phases = groupPlan(list);
   const firstOpen = phases.find((p) => p.done < p.steps.length)?.key;
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -185,9 +185,14 @@ export function PlanView({ list, onToggle, onRemove, readOnly, jump = true }:
                           <Box done={s.done} label={s.done ? "Mark not done" : "Mark done"} disabled={readOnly}
                             onClick={readOnly ? undefined : () => onToggle?.(s.id, !s.done)} />
                           <div className="min-w-0 flex-1 pt-1">
-                            <div className={cn("text-[15px] leading-snug", s.done ? "text-neutral-500 line-through decoration-neutral-600" : "text-white")}>{s.text}</div>
-                            {(warn || (s.done && s.done_by) || (!s.done && s.added_by && s.added_by !== "Mike")) ? (
+                            {onEdit ? (
+                              <button type="button" onClick={() => onEdit(s)} className={cn("block w-full text-left text-[15px] leading-snug hover:underline decoration-neutral-600 underline-offset-2", s.done ? "text-neutral-500 line-through decoration-neutral-600" : "text-white")}>{s.text}</button>
+                            ) : (
+                              <div className={cn("text-[15px] leading-snug", s.done ? "text-neutral-500 line-through decoration-neutral-600" : "text-white")}>{s.text}</div>
+                            )}
+                            {(warn || s.assignee || (s.done && s.done_by) || (!s.done && s.added_by && s.added_by !== "Mike")) ? (
                               <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                {s.assignee ? <Pill tone={me && s.assignee.toLowerCase() === me.toLowerCase() ? "info" : "plain"} icon={<User2 size={12} />}>{me && s.assignee.toLowerCase() === me.toLowerCase() ? "You" : s.assignee}</Pill> : null}
                                 {warn ? <Pill tone="warn" icon={<AlertTriangle size={12} />}>Heads up</Pill> : null}
                                 {s.done && s.done_by ? <span className="text-[12px] text-emerald-300/90">✓ {s.done_by}{s.done_at ? ` · ${stamp(s.done_at)}` : ""}</span> : null}
                                 {!s.done && s.added_by && s.added_by !== "Mike" ? <span className="text-[12px] text-neutral-500">added by {s.added_by}</span> : null}
