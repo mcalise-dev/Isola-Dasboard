@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
 import {
   Phone, Navigation, Pencil, MoreHorizontal, Star, Trash2, XCircle, ChevronLeft, MapPin, Hammer, ThumbsUp,
-  CalendarPlus, Play, CheckCircle2, PauseCircle, FileText, Banknote, ArrowRight, Briefcase, Building2,
+  CalendarPlus, Play, CheckCircle2, PauseCircle, FileText, Banknote, ArrowRight, ListChecks, Briefcase, Building2,
 } from "lucide-react";
 
 const STEPS = [
@@ -37,12 +37,13 @@ const ORDER = ["lead", "awaiting", "booked", "progress", "complete"];
 
 // Tabs on the job record. Deep link with /jobs/<id>?tab=<key>; aliases map the
 // names other screens use (billing, build, punch…) onto the right tab.
-const TABS = ["overview", "money", "costs", "schedule", "tasks", "proposal", "docs", "photos", "activity"] as const;
+const TABS = ["overview", "crew", "money", "costs", "schedule", "tasks", "proposal", "docs", "photos", "activity"] as const;
 const TAB_ALIAS: Record<string, string> = {
   billing: "money", payments: "money", "change-orders": "money",
   build: "proposal", proposals: "proposal", estimate: "proposal",
   documents: "docs", log: "docs", logs: "docs", "daily-log": "docs",
   punch: "tasks", labor: "costs",
+  plan: "crew", checklist: "crew", materials: "crew", tools: "crew", field: "crew",
 };
 export const resolveTab = (t: string | null | undefined) => {
   const k = String(t ?? "").toLowerCase();
@@ -262,6 +263,7 @@ export default function JobRecord({ id }: { id: string }) {
             {/* 9 tabs: one scrolling row on a phone (no wrap), bleeds to the screen edge */}
             <TabsList className="-mx-4 flex-nowrap gap-4 scroll-px-4 px-4 sm:mx-0 sm:gap-5 sm:px-0 [&>*]:min-h-[40px]">
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="crew">Crew plan</TabsTrigger>
               <TabsTrigger value="money">Money</TabsTrigger>
               <TabsTrigger value="costs">Costs & labor</TabsTrigger>
               <TabsTrigger value="schedule">Schedule</TabsTrigger>
@@ -304,8 +306,18 @@ export default function JobRecord({ id }: { id: string }) {
               </section>
               <section className="grid gap-4 md:grid-cols-2">
                 <div><MyClock jobId={job.id} compact /></div>
-                <div><JobChecklist jobId={job.id} jobType={job.job} /></div>
+                <button onClick={() => setTab("crew")} className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 text-left hover:border-white/20">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-white"><ListChecks size={18} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-semibold text-white">Crew plan</span>
+                    <span className="block text-sm text-neutral-400">Plan of action, materials, tools, crew notes</span>
+                  </span>
+                  <ArrowRight size={16} className="shrink-0 text-neutral-500" />
+                </button>
               </section>
+            </TabsContent>
+            <TabsContent value="crew" className="space-y-6">
+              <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5"><JobChecklist jobId={job.id} jobType={job.job} /></section>
               <CrewSetup jobId={job.id} crewNotes={job.crew_notes ?? null} onSaved={load} />
             </TabsContent>
             <TabsContent value="money" className="space-y-6"><MoneyPanel job={job} /><TmJobBill jobId={job.id} onChanged={load} /></TabsContent>
