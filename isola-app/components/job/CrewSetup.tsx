@@ -5,10 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { showError, showToast } from "@/components/Toaster";
 import { HardHat, X, Plus, Eye, Package, Wrench, Pencil, Check } from "lucide-react";
-import { LoadOut, type Need as KitNeed } from "@/components/field/jobkit";
+import { LoadOut, DayPicker, dayChipLabel, type DayKey, type Need as KitNeed } from "@/components/field/jobkit";
 import { cn } from "@/lib/utils";
 
-type Need = KitNeed & { kind: "material" | "tool"; sort: number | null };
+type Need = KitNeed & { kind: "material" | "tool"; sort: number | null; work_date?: string | null };
 
 export default function CrewSetup({ jobId, crewNotes, onSaved }: { jobId: string; crewNotes: string | null; onSaved?: () => void }) {
   const supabase = useMemo(() => createClient(), []);
@@ -19,13 +19,17 @@ export default function CrewSetup({ jobId, crewNotes, onSaved }: { jobId: string
   const [notesDirty, setNotesDirty] = useState(false);
   const [kind, setKind] = useState<"material" | "tool">("material");
   const [editing, setEditing] = useState(false);
+  const [dates, setDates] = useState<string[]>([]);
+  const [day, setDay] = useState<DayKey>("all");
 
   async function load() {
-    const [{ data: w }, { data: jc }, { data: n }] = await Promise.all([
+    const [{ data: w }, { data: jc }, { data: n }, { data: sc }] = await Promise.all([
       supabase.from("workers").select("id,name").eq("active", true).eq("is_owner", false).order("name"),
       supabase.from("job_crew").select("worker_id").eq("job_id", jobId),
       supabase.from("job_needs").select("*").eq("job_id", jobId).order("sort", { nullsFirst: false }).order("created_at"),
+      supabase.from("schedule_entries").select("entry_date").eq("job_id", jobId),
     ]);
+    setDates([...new Set<string>([...(sc ?? []).map((r: any) => r.entry_date), ...((n as any[]) ?? []).map((r: any) => r.work_date)].filter(Boolean))].sort());
     setWorkers(w ?? []);
     setOnJob((jc ?? []).map((r: any) => r.worker_id));
     setNeeds((n as Need[]) ?? []);
@@ -56,7 +60,8 @@ export default function CrewSetup({ jobId, crewNotes, onSaved }: { jobId: string
   }
 
   const hasMoney = /\$|\bprice\b|\bcost\b|\btotal\b/i.test(notes);
-  const rows = needs.filter((n) => n.kind === kind);
+  const inDay = (n: Need) => day === "all" || !n.work_date || n.work_date === day;
+  const rows = needs.filter((n) => n.kind === kind && (editing || inDay(n)));
   const mats = needs.filter((n) => n.kind === "material"), tools = needs.filter((n) => n.kind === "tool");
   const people = ["Mike", ...workers.map((w) => w.name)];
 
@@ -100,7 +105,7 @@ export default function CrewSetup({ jobId, crewNotes, onSaved }: { jobId: string
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-xl border border-white/[0.1] bg-neutral-950 p-1">
-          {([["material", "Materials", Package, mats], ["tool", "Tools", Wrench, tools]] as const).map(([v, l, Icon, list]) => (
+          {([["material", "Material list", Package, mats.filter(inDay)], ["tool", "Tool list", Wrench, tools.filter(inDay)]] as const).map(([v, l, Icon, list]) => (
             <button key={v} onClick={() => setKind(v)}
               className={cn("inline-flex items-center gap-1.5 rounded-lg px-3.5 min-h-[38px] text-sm font-semibold", kind === v ? "bg-white text-neutral-900" : "text-neutral-400 hover:text-white")}>
               <Icon size={15} />{l}<span className="tabular-nums opacity-60">{list.filter((x) => x.got).length}/{list.length}</span>
@@ -114,9 +119,11 @@ export default function CrewSetup({ jobId, crewNotes, onSaved }: { jobId: string
         </button>
       </div>
 
+      {dates.length && !editing ? <div className="mt-3"><DayPicker value={day} onChange={setDay} dates={dates} hasBefore={false} /></div> : null}
+
       <div className="mt-3">
         {editing
-          ? <NeedEditor kind={kind} jobId={jobId} rows={rows} people={people} onChange={load} />
+          ? <NeedEditor kind={kind} jobId={jobId} rows={rows} people={people} dates={dates} onChange={load} />
           : rows.length ? <LoadOut rows={rows} me="Mike" kind={kind} onToggle={setGot} />
           : <div className="rounded-2xl border border-dashed border-white/10 px-5 py-8 text-center text-sm text-neutral-400">Nothing listed yet. Tap Edit list to add.</div>}
       </div>
@@ -124,18 +131,23 @@ export default function CrewSetup({ jobId, crewNotes, onSaved }: { jobId: string
   );
 }
 
-function NeedEditor({ kind, jobId, rows, people, onChange }:
-  { kind: "material" | "tool"; jobId: string; rows: Need[]; people: string[]; onChange: () => void }) {
+function NeedEditor({ kind, jobId, rows, people, dates, onChange }:
+  { kind: "material" | "tool"; jobId: string; rows: Need[]; people: string[]; dates: string[]; onChange: () => void }) {
   const supabase = useMemo(() => createClient(), []);
   const [item, setItem] = useState("");
   const [qty, setQty] = useState("");
   const [who, setWho] = useState("");
   const [where, setWhere] = useState("");
+  const [onDay, setOnDay] = useState("");
+  const dayOpts = (<>
+    <option value="">Whole job</option>
+    {dates.map((d) => <option key={d} value={d}>{dayChipLabel(d, dates).top} · {dayChipLabel(d, dates).sub}</option>)}
+  </>);
 
   async function add() {
     if (!item.trim()) return;
     const { error } = await supabase.from("job_needs").insert({
-      job_id: jobId, kind, item: item.trim(), qty: qty.trim() || null, bring_by: who || null, source: where.trim() || null,
+      job_id: jobId, kind, item: item.trim(), qty: qty.trim() || null, bring_by: who || null, source: where.trim() || null, work_date: onDay || null,
       sort: Math.max(-1, ...rows.map((r) => r.sort ?? 0)) + 1,
     });
     if (error) { showError("Couldn't add: " + error.message); return; }
@@ -166,19 +178,23 @@ function NeedEditor({ kind, jobId, rows, people, onChange }:
             {people.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
           <input defaultValue={r.source ?? ""} placeholder="Where from" onBlur={(e) => e.target.value !== (r.source ?? "") && patch(r.id, { source: e.target.value.trim() || null })} className={cn(field, "col-span-2 sm:col-span-1")} aria-label="Where from" />
-          <input defaultValue={r.notes ?? ""} placeholder="Notes for the crew" onBlur={(e) => e.target.value !== (r.notes ?? "") && patch(r.id, { notes: e.target.value.trim() || null })} className={cn(field, "col-span-2 sm:col-span-5")} aria-label="Notes" />
+          {dates.length ? (
+            <select defaultValue={r.work_date ?? ""} onChange={(e) => patch(r.id, { work_date: e.target.value || null } as any)} className={cn(field, "col-span-2 sm:col-span-2")} aria-label="Which day">{dayOpts}</select>
+          ) : null}
+          <input defaultValue={r.notes ?? ""} placeholder="Notes for the crew" onBlur={(e) => e.target.value !== (r.notes ?? "") && patch(r.id, { notes: e.target.value.trim() || null })} className={cn(field, "col-span-2", dates.length ? "sm:col-span-3" : "sm:col-span-5")} aria-label="Notes" />
         </div>
       ))}
 
       <div className="grid grid-cols-2 gap-2 rounded-xl border border-dashed border-white/[0.15] p-2.5 sm:grid-cols-[2fr_90px_130px_1.3fr_auto]">
         <input value={item} onChange={(e) => setItem(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }}
-          placeholder={kind === "material" ? "Add a material…" : "Add a tool…"} className={cn(field, "col-span-2 sm:col-span-1")} />
+          placeholder={kind === "material" ? "Add to the material list…" : "Add to the tool list…"} className={cn(field, "col-span-2 sm:col-span-1")} />
         <input value={qty} onChange={(e) => setQty(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} placeholder="Qty" className={field} />
         <select value={who} onChange={(e) => setWho(e.target.value)} className={field} aria-label="Who brings">
           <option value="">Who brings?</option>
           {people.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
         <input value={where} onChange={(e) => setWhere(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} placeholder="Where from" className={field} />
+        {dates.length ? <select value={onDay} onChange={(e) => setOnDay(e.target.value)} className={cn(field, "col-span-2 sm:col-span-4 sm:order-last")} aria-label="Which day">{dayOpts}</select> : null}
         <button onClick={add} disabled={!item.trim()} className="inline-flex items-center justify-center gap-1 rounded-lg bg-white px-3 min-h-[38px] text-sm font-bold text-neutral-900 disabled:opacity-40"><Plus size={15} strokeWidth={2.6} />Add</button>
       </div>
     </div>

@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Navigation, ChevronLeft, Plus, MapPin, ListChecks, Package, Wrench, Info, Check, AlertTriangle, CalendarDays } from "lucide-react";
 import { CheckRow, Empty, H, dayLabel } from "@/components/field/shared";
 import { showError, undoable } from "@/components/Toaster";
-import { PlanView, LoadOut, Ring, splitPhase, phaseTitle, isHeadsUp, Pill } from "@/components/field/jobkit";
+import { PlanView, LoadOut, Ring, splitPhase, phaseTitle, isHeadsUp, Pill, DayPicker, pickDefaultDay, dayTitle, type DayKey } from "@/components/field/jobkit";
 import { cn } from "@/lib/utils";
 
 // v5.4 crew job screen: Plan / Materials / Tools / Info tabs.
@@ -20,13 +20,20 @@ export default function FieldJob() {
   const [d, setD] = useState<any | null>(null);
   const [err, setErr] = useState("");
   const [big, setBig] = useState("");
-  const [tab, setTab] = useState<Tab>("plan");
+  const [tab, setTab] = useState<Tab>("materials");
+  const [day, setDay] = useState<DayKey | null>(null);
+  const dkRef = useRef<DayKey>("all");
 
   async function load() {
     const { data, error } = await supabase.rpc("crew_job", { p_job: id });
     if (error) setErr("This job isn't open to the crew right now.");
     else setD(data);
   }
+  // opened from a visit card: /field/job/<id>?day=YYYY-MM-DD
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("day");
+    if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) setDay(q);
+  }, []);
   useEffect(() => {
     load();
     const t = setInterval(load, 30000); // pick up the other guys' checks
@@ -39,7 +46,8 @@ export default function FieldJob() {
     const label = adding.trim();
     if (!label) return;
     setAdding("");
-    const { error } = await supabase.rpc("crew_add_checklist", { p_job: id, p_label: label });
+    const onDay = /^\d{4}-/.test(dkRef.current) ? dkRef.current : null;
+    const { error } = await supabase.rpc("crew_add_step", { p_job: id, p_label: label, p_date: onDay });
     if (error) { showError("Couldn't add: " + error.message); setAdding(label); }
     load();
   }
@@ -89,16 +97,31 @@ export default function FieldJob() {
   const j = d.job;
   const today = new Date().toISOString().slice(0, 10);
   const days = (d.days as any[]).filter((x) => x.date >= today);
-  const list: any[] = d.checklist ?? [];
+  // v5.6: everything is shown one day at a time (work_date on steps and materials/tools)
+  const allSteps: any[] = d.checklist ?? [];
+  const allMats: any[] = d.materials ?? [], allTools: any[] = d.tools ?? [];
+  const dates: string[] = [...new Set<string>([
+    ...(d.days as any[]).map((x) => x.date),
+    ...allSteps.map((k) => k.work_date), ...allMats.map((k) => k.work_date), ...allTools.map((k) => k.work_date),
+  ].filter(Boolean))].sort();
+  const hasBefore = allSteps.some((k) => !k.work_date);
+  const useDays = dates.length > 0 && [...allSteps, ...allMats, ...allTools].some((k) => k.work_date);
+  const dk: DayKey = !useDays ? "all" : day ?? pickDefaultDay(dates, hasBefore);
+  dkRef.current = dk;
+  const stepIn = (k: any, key: DayKey) => key === "all" || (key === "before" ? !k.work_date : k.work_date === key);
+  const needIn = (n: any, key: DayKey) => key === "all" || (key === "before" ? !n.work_date : !n.work_date || n.work_date === key);
+  const list = allSteps.filter((k) => stepIn(k, dk));
+  const mats = allMats.filter((n) => needIn(n, dk)), tools = allTools.filter((n) => needIn(n, dk));
   const done = list.filter((k) => k.done).length;
   const next = list.find((k) => !k.done);
-  const mats: any[] = d.materials ?? [], tools: any[] = d.tools ?? [];
   const matsGot = mats.filter((m) => m.got).length, toolsGot = tools.filter((m) => m.got).length;
+  const allDone = allSteps.filter((k) => k.done).length;
+  const dayProgress = (key: DayKey) => { const l = allSteps.filter((k) => stepIn(k, key)); return { done: l.filter((k) => k.done).length, total: l.length }; };
 
   const tabs: { v: Tab; label: string; icon: any; badge?: string }[] = [
-    { v: "plan", label: "Plan", icon: ListChecks, badge: list.length ? `${done}/${list.length}` : undefined },
-    { v: "materials", label: "Materials", icon: Package, badge: mats.length ? `${matsGot}/${mats.length}` : undefined },
-    { v: "tools", label: "Tools", icon: Wrench, badge: tools.length ? `${toolsGot}/${tools.length}` : undefined },
+    { v: "materials", label: "Material list", icon: Package, badge: mats.length ? `${matsGot}/${mats.length}` : undefined },
+    { v: "tools", label: "Tool list", icon: Wrench, badge: tools.length ? `${toolsGot}/${tools.length}` : undefined },
+    { v: "plan", label: "To do", icon: ListChecks, badge: list.length ? `${done}/${list.length}` : undefined },
     { v: "info", label: "Info", icon: Info },
   ];
 
@@ -113,7 +136,7 @@ export default function FieldJob() {
             <h1 className="text-[22px] font-bold leading-tight text-white">{j.job_name}</h1>
             <p className="mt-0.5 text-sm text-neutral-400">{[j.customer, j.work_type].filter(Boolean).join(" · ")}</p>
           </div>
-          {list.length ? <Ring value={done / list.length} size={52} stroke={5} /> : null}
+          {allSteps.length ? <Ring value={allDone / allSteps.length} size={52} stroke={5} /> : null}
         </div>
         {j.location ? <p className="mt-2.5 flex items-start gap-1.5 text-[15px] text-white"><MapPin size={16} className="mt-0.5 shrink-0 text-neutral-400" />{j.location}</p> : null}
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
@@ -132,6 +155,7 @@ export default function FieldJob() {
 
       {/* Tabs */}
       <div className="sticky top-[calc(60px+env(safe-area-inset-top))] z-20 -mx-4 mt-3 bg-black/90 px-4 py-2 backdrop-blur-md">
+        {useDays && tab !== "info" ? <div className="mb-2"><DayPicker value={dk} onChange={(k) => setDay(k)} dates={dates} hasBefore={hasBefore} progress={dayProgress} /></div> : null}
         <div className="grid grid-cols-4 gap-1 rounded-xl border border-white/[0.08] bg-neutral-950 p-1">
           {tabs.map((t) => {
             const Icon = t.icon, on = tab === t.v;
@@ -140,29 +164,36 @@ export default function FieldJob() {
                 className={cn("flex flex-col items-center justify-center gap-0.5 rounded-lg min-h-[52px] text-[12px] font-semibold transition-colors",
                   on ? "bg-white text-neutral-900" : "text-neutral-400 hover:text-white")}>
                 <Icon size={18} strokeWidth={on ? 2.4 : 2} />
-                <span>{t.label}{t.badge ? <span className={cn("ml-1 tabular-nums", on ? "text-neutral-500" : "text-neutral-500")}>{t.badge}</span> : null}</span>
+                <span className="leading-tight">{t.label}</span>{t.badge ? <span className="text-[11px] tabular-nums text-neutral-500 leading-none">{t.badge}</span> : null}
               </button>
             );
           })}
         </div>
       </div>
 
+      {useDays && tab !== "info" ? (
+        <div className="mt-2 mb-3 px-1">
+          <h2 className="text-[19px] font-bold text-white">{dayTitle(dk, dates)}</h2>
+          <p className="text-[13px] text-neutral-400">{list.length} to do · {mats.length} materials · {tools.length} tools</p>
+        </div>
+      ) : null}
+
       {tab === "plan" ? (
         <div className="mt-2">
-          {j.crew_notes ? <MikeNote text={j.crew_notes} /> : null}
+          {j.crew_notes && dk !== "before" ? <MikeNote text={j.crew_notes} /> : null}
 
           {!next && list.length ? (
             <div className="mb-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.06] p-4 text-center">
-              <p className="text-[17px] font-semibold text-emerald-200">Plan complete</p>
+              <p className="text-[17px] font-semibold text-emerald-200">{dk === "all" ? "Everything's done" : "Done for this day"}</p>
               <p className="text-sm text-emerald-100/70">Every step is checked off.</p>
             </div>
           ) : null}
 
-          {list.length ? <PlanView list={list} onToggle={setCheck} /> : <Empty title="No plan yet" sub="Mike hasn't added steps to this job." />}
+          {list.length ? <PlanView list={list} onToggle={setCheck} /> : <Empty title={allSteps.length ? "Nothing on the list for this day" : "No to-do list yet"} sub={allSteps.length ? "Pick another day above." : "Mike hasn't added steps to this job."} />}
 
           <div className="mt-3 flex gap-2">
             <input value={adding} onChange={(e) => setAdding(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addCheck(); }}
-              placeholder="Add a step…"
+              placeholder="Add to the to-do…"
               className="min-w-0 flex-1 rounded-xl border border-white/[0.1] bg-neutral-950 px-3.5 min-h-[48px] text-base text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-400" />
             <button onClick={addCheck} disabled={!adding.trim()} aria-label="Add"
               className="shrink-0 inline-flex items-center justify-center rounded-xl bg-white text-neutral-900 w-12 min-h-[48px] disabled:opacity-40"><Plus size={20} strokeWidth={2.6} /></button>
@@ -173,11 +204,11 @@ export default function FieldJob() {
       ) : null}
 
       {tab === "materials" ? (
-        <div className="mt-2">{mats.length ? <LoadOut rows={mats} me={d.me} kind="material" onToggle={(nid, g) => setNeed("materials", nid, g)} /> : <Empty title="No materials listed" />}</div>
+        <div className="mt-2">{mats.length ? <LoadOut rows={mats} me={d.me} kind="material" onToggle={(nid, g) => setNeed("materials", nid, g)} /> : <Empty title={allMats.length ? "No materials needed this day" : "No materials listed"} />}</div>
       ) : null}
 
       {tab === "tools" ? (
-        <div className="mt-2">{tools.length ? <LoadOut rows={tools} me={d.me} kind="tool" onToggle={(nid, g) => setNeed("tools", nid, g)} /> : <Empty title="No tools listed" />}</div>
+        <div className="mt-2">{tools.length ? <LoadOut rows={tools} me={d.me} kind="tool" onToggle={(nid, g) => setNeed("tools", nid, g)} /> : <Empty title={allTools.length ? "No tools needed this day" : "No tools listed"} />}</div>
       ) : null}
 
       {tab === "info" ? (

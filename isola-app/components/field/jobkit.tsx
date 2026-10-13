@@ -314,3 +314,59 @@ export function LoadOut({ rows, me, kind, onToggle, readOnly }:
     </div>
   );
 }
+
+// ---------- Day picker (v5.6) ----------
+// Steps and materials/tools carry work_date. "before" = steps with no day (prep before the job), "all" = everything.
+export type DayKey = string; // "YYYY-MM-DD" | "before" | "all"
+
+export function dayChipLabel(k: DayKey, dates: string[]) {
+  if (k === "all") return { top: "Whole job", sub: "" };
+  if (k === "before") return { top: "Before", sub: "prep" };
+  const [y, m, d] = k.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const t = new Date(); const iso = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  const tm = new Date(); tm.setDate(tm.getDate() + 1);
+  const name = k === iso(t) ? "Today" : k === iso(tm) ? "Tomorrow" : dt.toLocaleDateString("en-US", { weekday: "short" });
+  return { top: `${name} ${dt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, sub: `Day ${dates.indexOf(k) + 1}` };
+}
+
+export function dayTitle(k: DayKey, dates: string[]) {
+  if (k === "all") return "Whole job";
+  if (k === "before") return "Before the job";
+  const [y, m, d] = k.split("-").map(Number);
+  return `${new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })} · Day ${dates.indexOf(k) + 1}`;
+}
+
+export function pickDefaultDay(dates: string[], hasBefore: boolean): DayKey {
+  const t = new Date();
+  const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+  if (dates.includes(today)) return today;
+  const up = dates.find((x) => x > today);
+  if (up && hasBefore && dates[0] > today) return up;
+  return up ?? (dates.length ? dates[dates.length - 1] : "all");
+}
+
+export function DayPicker({ value, onChange, dates, hasBefore, progress }:
+  { value: DayKey; onChange: (k: DayKey) => void; dates: string[]; hasBefore: boolean; progress?: (k: DayKey) => { done: number; total: number } }) {
+  const keys: DayKey[] = [...(hasBefore ? ["before"] : []), ...dates, "all"];
+  return (
+    <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 no-scrollbar">
+      {keys.map((k) => {
+        const on = value === k, l = dayChipLabel(k, dates), p = progress?.(k);
+        const complete = p && p.total > 0 && p.done === p.total;
+        return (
+          <button key={k} type="button" onClick={() => onChange(k)}
+            className={cn("shrink-0 rounded-xl border px-3 py-1.5 text-left min-h-[48px]",
+              on ? "border-white bg-white text-neutral-900" : "border-white/[0.1] bg-neutral-950 text-neutral-200")}>
+            <div className="flex items-center gap-1 text-[13px] font-bold leading-tight whitespace-nowrap">
+              {complete ? <Check size={12} strokeWidth={3} className={on ? "text-emerald-600" : "text-emerald-400"} /> : null}{l.top}
+            </div>
+            <div className={cn("text-[11px] font-semibold tabular-nums whitespace-nowrap", on ? "text-neutral-500" : "text-neutral-500")}>
+              {[l.sub, p && p.total ? `${p.done}/${p.total}` : ""].filter(Boolean).join(" · ") || " "}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
