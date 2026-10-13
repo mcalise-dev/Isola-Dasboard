@@ -2,9 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Phone, Navigation, ChevronLeft, Plus, MapPin, ListChecks, Package, Wrench, Info, Check, AlertTriangle, CalendarDays } from "lucide-react";
+import { Navigation, ChevronLeft, Plus, MapPin, ListChecks, Package, Wrench, Info, Check, AlertTriangle, CalendarDays } from "lucide-react";
 import { CheckRow, Empty, H, dayLabel } from "@/components/field/shared";
-import { showError } from "@/components/Toaster";
+import { showError, undoable } from "@/components/Toaster";
 import { PlanView, LoadOut, Ring, splitPhase, phaseTitle, isHeadsUp, Pill } from "@/components/field/jobkit";
 import { cn } from "@/lib/utils";
 
@@ -55,6 +55,21 @@ export default function FieldJob() {
     if (error) showError("Couldn't save: " + error.message);
     load();
   }
+  // the pinned Next up bar: check it off right away, give 5 seconds to undo a mis-tap
+  function doneWithUndo(k: any) {
+    const prev = d.checklist;
+    undoable({
+      text: "Step done",
+      hide: () => setD((x: any) => ({ ...x, checklist: x.checklist.map((c: any) => (c.id === k.id ? { ...c, done: true, done_by: "You", done_at: new Date().toISOString() } : c)) })),
+      restore: () => setD((x: any) => ({ ...x, checklist: prev })),
+      commit: async () => {
+        const { error } = await supabase.rpc("crew_set_checklist", { p_id: k.id, p_done: true });
+        if (error) showError("Couldn't save: " + error.message);
+        load();
+      },
+      ms: 5000,
+    });
+  }
   async function setNeed(kind: "materials" | "tools", nid: string, got: boolean) {
     setD((x: any) => ({ ...x, [kind]: x[kind].map((n: any) => (n.id === nid ? { ...n, got, got_by: got ? "You" : null, got_at: got ? new Date().toISOString() : null } : n)) }));
     const { error } = await supabase.rpc("crew_set_need", { p_id: nid, p_got: got });
@@ -72,7 +87,6 @@ export default function FieldJob() {
   if (!d) return <div>{back}<div className="h-40 rounded-2xl skeleton" /><div className="mt-3 h-12 rounded-xl skeleton" /><div className="mt-3 h-64 rounded-2xl skeleton" /></div>;
 
   const j = d.job;
-  const tel = String(j.contact_phone ?? "").replace(/[^0-9+]/g, "");
   const today = new Date().toISOString().slice(0, 10);
   const days = (d.days as any[]).filter((x) => x.date >= today);
   const list: any[] = d.checklist ?? [];
@@ -110,12 +124,10 @@ export default function FieldJob() {
           ))}
           {days[0] ? <Pill icon={<CalendarDays size={12} />}>{dayLabel(days[0].date)}</Pill> : null}
         </div>
-        <div className="mt-3.5 grid grid-cols-2 gap-2">
-          {j.location ? <a href={`https://maps.google.com/?q=${encodeURIComponent(j.location)}`} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-neutral-900 min-h-[50px] font-bold"><Navigation size={18} /> Directions</a>
-            : <span className="inline-flex items-center justify-center rounded-xl border border-white/[0.08] text-neutral-500 min-h-[50px]">No address</span>}
-          {tel.length >= 7 ? <a href={`tel:${tel.slice(0, 11)}`} className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-600 text-white min-h-[50px] font-semibold"><Phone size={18} /> {j.contact_name ? `Call ${String(j.contact_name).split(" ")[0]}` : "Call site"}</a>
-            : <span className="inline-flex items-center justify-center rounded-xl border border-white/[0.08] text-neutral-500 min-h-[50px]">No site contact</span>}
-        </div>
+        {j.location ? (
+          <a href={`https://maps.google.com/?q=${encodeURIComponent(j.location)}`} target="_blank" rel="noreferrer"
+            className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl bg-white text-neutral-900 min-h-[50px] font-bold"><Navigation size={18} /> Directions</a>
+        ) : null}
       </div>
 
       {/* Tabs */}
@@ -139,21 +151,7 @@ export default function FieldJob() {
         <div className="mt-2">
           {j.crew_notes ? <MikeNote text={j.crew_notes} /> : null}
 
-          {next ? (() => {
-            const { phase, text } = splitPhase(next.label);
-            return (
-              <div className="mb-4 rounded-2xl border border-white/30 bg-neutral-900 p-4">
-                <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-wide text-neutral-400">
-                  Next up{phase ? <span className="normal-case tracking-normal font-semibold text-neutral-500">· {phaseTitle(phase)}</span> : null}
-                </div>
-                <p className="mt-1.5 text-[17px] font-semibold leading-snug text-white">{text}</p>
-                {isHeadsUp(text) ? <div className="mt-2"><Pill tone="warn" icon={<AlertTriangle size={12} />}>Heads up</Pill></div> : null}
-                <button onClick={() => setCheck(next.id, true)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white min-h-[50px] font-bold text-neutral-900">
-                  <Check size={18} strokeWidth={3} /> Mark done
-                </button>
-              </div>
-            );
-          })() : list.length ? (
+          {!next && list.length ? (
             <div className="mb-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.06] p-4 text-center">
               <p className="text-[17px] font-semibold text-emerald-200">Plan complete</p>
               <p className="text-sm text-emerald-100/70">Every step is checked off.</p>
@@ -169,6 +167,8 @@ export default function FieldJob() {
             <button onClick={addCheck} disabled={!adding.trim()} aria-label="Add"
               className="shrink-0 inline-flex items-center justify-center rounded-xl bg-white text-neutral-900 w-12 min-h-[48px] disabled:opacity-40"><Plus size={20} strokeWidth={2.6} /></button>
           </div>
+          {next ? <div className="h-24" aria-hidden /> : null}
+          {next ? <NextUpBar step={next} onDone={() => doneWithUndo(next)} /> : null}
         </div>
       ) : null}
 
@@ -245,6 +245,29 @@ function MikeNote({ text }: { text: string }) {
           {open ? "Show less" : `Show all ${lines.length} notes`}
         </button>
       ) : null}
+    </div>
+  );
+}
+
+// Pinned above the bottom tabs on the Plan tab: the one thing to do next, one thumb to finish it.
+function NextUpBar({ step, onDone }: { step: any; onDone: () => void }) {
+  const { phase, text } = splitPhase(step.label);
+  const warn = isHeadsUp(text);
+  return (
+    <div className="fixed inset-x-0 bottom-[calc(60px+env(safe-area-inset-bottom))] z-40 px-3 pb-2 anim-sheet">
+      <div className={cn("mx-auto flex max-w-2xl items-center gap-3 rounded-2xl border p-3 shadow-2xl shadow-black/60 backdrop-blur-md",
+        warn ? "border-amber-300/40 bg-neutral-900/95" : "border-white/20 bg-neutral-900/95")}>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
+            {warn ? <AlertTriangle size={12} className="text-amber-300" /> : null}
+            Next up{phase ? <span className="normal-case tracking-normal font-semibold text-neutral-500">· {phaseTitle(phase)}</span> : null}
+          </div>
+          <p className="mt-0.5 line-clamp-2 text-[15px] font-semibold leading-snug text-white">{text}</p>
+        </div>
+        <button onClick={onDone} className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 min-h-[48px] font-bold text-neutral-900">
+          <Check size={18} strokeWidth={3} /> Done
+        </button>
+      </div>
     </div>
   );
 }

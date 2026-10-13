@@ -108,70 +108,113 @@ export function Pill({ children, tone = "plain", icon }: { children: React.React
 }
 
 // ---------- Plan of action ----------
-export function PlanView({ list, onToggle, onRemove, readOnly }: { list: Step[]; onToggle?: (id: string, done: boolean) => void; onRemove?: (id: string) => void; readOnly?: boolean }) {
+// v5.5: phase strip to jump around, timeline steps, finished steps fold away inside each phase.
+export function PlanView({ list, onToggle, onRemove, readOnly, jump = true }:
+  { list: Step[]; onToggle?: (id: string, done: boolean) => void; onRemove?: (id: string) => void; readOnly?: boolean; jump?: boolean }) {
   const phases = groupPlan(list);
   const firstOpen = phases.find((p) => p.done < p.steps.length)?.key;
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [showDone, setShowDone] = useState<Record<string, boolean>>({});
   const isOpen = (k: string, complete: boolean) => (k in open ? open[k] : !complete);
-  let n = 0;
+  const anchor = (k: string) => "phase-" + (k || "todo").replace(/\s+/g, "-").toLowerCase();
+
+  function go(k: string) {
+    setOpen((s) => ({ ...s, [k]: true }));
+    requestAnimationFrame(() => document.getElementById(anchor(k))?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
 
   return (
-    <div className="space-y-3">
-      {phases.map((p) => {
-        const complete = p.done === p.steps.length;
-        const current = p.key === firstOpen;
-        const o = isOpen(p.key, complete);
-        return (
-          <section key={p.key || "_"} className={cn("overflow-hidden rounded-2xl border bg-neutral-950",
-            current ? "border-white/30" : "border-white/[0.08]")}>
-            <button type="button" onClick={() => setOpen((s) => ({ ...s, [p.key]: !o }))}
-              className="flex w-full items-center gap-3 px-4 py-3.5 text-left min-h-[60px]">
-              <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-bold",
-                complete ? "bg-emerald-400 text-neutral-900" : current ? "bg-white text-neutral-900" : "bg-white/[0.08] text-neutral-300")}>
-                {complete ? <Check size={15} strokeWidth={3.2} /> : phases.indexOf(p) + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-[16px] font-semibold text-white">{p.title}</span>
-                  {current && !complete ? <Pill tone="info">Now</Pill> : null}
+    <div className="w-full min-w-0">
+      {jump && phases.length > 1 ? (
+        <div className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar">
+          {phases.map((p) => {
+            const complete = p.done === p.steps.length, current = p.key === firstOpen;
+            return (
+              <button key={p.key || "_"} type="button" onClick={() => go(p.key)}
+                className={cn("shrink-0 rounded-xl border px-3 py-2 text-left min-w-[112px]",
+                  current ? "border-white bg-white text-neutral-900" : complete ? "border-emerald-400/30 bg-emerald-400/[0.06] text-emerald-100" : "border-white/[0.1] bg-neutral-950 text-neutral-200")}>
+                <div className="flex items-center gap-1.5 text-[13px] font-semibold leading-tight">
+                  {complete ? <Check size={13} strokeWidth={3} className="text-emerald-300" /> : null}
+                  <span className="truncate">{p.title}</span>
                 </div>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <Bar value={p.done / p.steps.length} className="flex-1" />
-                  <span className="shrink-0 text-[12px] font-semibold tabular-nums text-neutral-400">{p.done}/{p.steps.length}</span>
+                <div className={cn("mt-1 text-[12px] tabular-nums", current ? "text-neutral-600" : "text-neutral-500")}>{p.done}/{p.steps.length} done</div>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <div className="space-y-3">
+        {phases.map((p, pi) => {
+          const complete = p.done === p.steps.length;
+          const current = p.key === firstOpen;
+          const o = isOpen(p.key, complete);
+          const todo = p.steps.filter((s) => !s.done), done = p.steps.filter((s) => s.done);
+          const sd = showDone[p.key] ?? complete;
+          const steps = sd ? [...todo, ...done] : todo;
+          return (
+            <section key={p.key || "_"} id={anchor(p.key)} className={cn("scroll-mt-[150px] overflow-hidden rounded-2xl border bg-neutral-950",
+              current ? "border-white/30" : "border-white/[0.08]")}>
+              <button type="button" onClick={() => setOpen((s) => ({ ...s, [p.key]: !o }))}
+                className="flex w-full items-center gap-3 px-4 py-3.5 text-left min-h-[60px]">
+                <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-bold",
+                  complete ? "bg-emerald-400 text-neutral-900" : current ? "bg-white text-neutral-900" : "bg-white/[0.08] text-neutral-300")}>
+                  {complete ? <Check size={16} strokeWidth={3.2} /> : pi + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-[16px] font-semibold text-white">{p.title}</span>
+                    {current && !complete ? <Pill tone="info">Now</Pill> : null}
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <Bar value={p.done / p.steps.length} className="flex-1" />
+                    <span className="shrink-0 text-[12px] font-semibold tabular-nums text-neutral-400">{p.done}/{p.steps.length}</span>
+                  </div>
                 </div>
-              </div>
-              <ChevronDown size={18} className={cn("shrink-0 text-neutral-500 transition-transform", o && "rotate-180")} />
-            </button>
-            {o ? (
-              <ol className="border-t border-white/[0.06]">
-                {p.steps.map((s) => {
-                  n++;
-                  const warn = !s.done && isHeadsUp(s.text);
-                  return (
-                    <li key={s.id} className={cn("flex items-start gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0", warn && "bg-amber-400/[0.05]")}>
-                      <Box done={s.done} label={s.done ? "Mark not done" : "Mark done"} disabled={readOnly}
-                        onClick={readOnly ? undefined : () => onToggle?.(s.id, !s.done)} />
-                      <div className="min-w-0 flex-1 pt-1">
-                        <div className={cn("text-[15px] leading-snug", s.done ? "text-neutral-500 line-through decoration-neutral-600" : "text-white")}>{s.text}</div>
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          {warn ? <Pill tone="warn" icon={<AlertTriangle size={12} />}>Heads up</Pill> : null}
-                          {s.done && s.done_by ? <span className="text-[12px] text-emerald-300/90">✓ {s.done_by}{s.done_at ? ` · ${stamp(s.done_at)}` : ""}</span> : null}
-                          {!s.done && s.added_by && s.added_by !== "Mike" ? <span className="text-[12px] text-neutral-500">added by {s.added_by}</span> : null}
-                        </div>
-                      </div>
-                      <span className="shrink-0 pt-1.5 text-[12px] tabular-nums text-neutral-600">{n}</span>
-                      {onRemove ? (
-                        <button type="button" onClick={() => onRemove(s.id)} aria-label="Remove step"
-                          className="shrink-0 -mr-1 mt-0.5 rounded-lg p-1.5 text-neutral-600 hover:bg-white/[0.06] hover:text-red-400"><X size={15} /></button>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ol>
-            ) : null}
-          </section>
-        );
-      })}
+                <ChevronDown size={18} className={cn("shrink-0 text-neutral-500 transition-transform", o && "rotate-180")} />
+              </button>
+              {o ? (
+                <div className="border-t border-white/[0.06]">
+                  <ol className="relative py-1">
+                    {steps.map((s, i) => {
+                      const warn = !s.done && isHeadsUp(s.text);
+                      const last = i === steps.length - 1;
+                      return (
+                        <li key={s.id} className={cn("relative flex items-start gap-3 px-4 py-2.5", warn && "bg-amber-400/[0.05]")}>
+                          {!last ? <span aria-hidden className="absolute left-[33px] top-[46px] bottom-[-6px] w-px bg-white/[0.08]" /> : null}
+                          <Box done={s.done} label={s.done ? "Mark not done" : "Mark done"} disabled={readOnly}
+                            onClick={readOnly ? undefined : () => onToggle?.(s.id, !s.done)} />
+                          <div className="min-w-0 flex-1 pt-1">
+                            <div className={cn("text-[15px] leading-snug", s.done ? "text-neutral-500 line-through decoration-neutral-600" : "text-white")}>{s.text}</div>
+                            {(warn || (s.done && s.done_by) || (!s.done && s.added_by && s.added_by !== "Mike")) ? (
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                {warn ? <Pill tone="warn" icon={<AlertTriangle size={12} />}>Heads up</Pill> : null}
+                                {s.done && s.done_by ? <span className="text-[12px] text-emerald-300/90">✓ {s.done_by}{s.done_at ? ` · ${stamp(s.done_at)}` : ""}</span> : null}
+                                {!s.done && s.added_by && s.added_by !== "Mike" ? <span className="text-[12px] text-neutral-500">added by {s.added_by}</span> : null}
+                              </div>
+                            ) : null}
+                          </div>
+                          {onRemove ? (
+                            <button type="button" onClick={() => onRemove(s.id)} aria-label="Remove step"
+                              className="shrink-0 -mr-1 mt-0.5 rounded-lg p-1.5 text-neutral-600 hover:bg-white/[0.06] hover:text-red-400"><X size={15} /></button>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                  {done.length && todo.length ? (
+                    <button type="button" onClick={() => setShowDone((s) => ({ ...s, [p.key]: !sd }))}
+                      className="flex w-full items-center gap-2 border-t border-white/[0.05] px-4 min-h-[44px] text-[13px] font-semibold text-neutral-400 hover:text-white">
+                      <Check size={14} className="text-emerald-400" />
+                      {sd ? "Hide finished steps" : `${done.length} finished — show`}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }
