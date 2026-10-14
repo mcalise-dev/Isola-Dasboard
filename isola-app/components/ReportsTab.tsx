@@ -42,15 +42,24 @@ export default function ReportsTab() {
   async function load() {
     setErr(null);
     try {
-      const [f, e, c, m] = await withTimeout(Promise.all([
+      const [f, hj, e, c, m] = await withTimeout(Promise.all([
         supabase.from("job_financials").select("*"),
+        supabase.from("jobs").select("id,contract_holder,isola_cut"),
         supabase.from("estimates").select("id,status,sell_price,cost_total,customer_id,job_type"),
         supabase.from("customers").select("id,name,client_type"),
         supabase.from("money_snapshot").select("data,updated_at").eq("id", 1).maybeSingle(),
       ]));
-      const bad = firstError(f, e, c, m);
+      const bad = firstError(f, hj, e, c, m);
       if (bad) throw new Error(bad);
-      setFin(f.data ?? []); setEsts(e.data ?? []); setCusts(c.data ?? []);
+      // THM holds the contract -> the price is THM's money. Isola's revenue on it is
+      // only Mike's cut (isola_cut, set at closeout); costs are inside that cut.
+      const thm = new Map((hj.data ?? []).filter((j: any) => j.contract_holder === "thm").map((j: any) => [j.id, Number(j.isola_cut) || 0]));
+      setFin((f.data ?? []).map((r: any) => {
+        if (!thm.has(r.job_id)) return r;
+        const cut = thm.get(r.job_id)!;
+        return { ...r, contract_base: cut, change_orders: 0, contract_total: cut, actual_cost: 0, paid_to_date: cut,
+          balance_due: 0, net_profit: cut, margin_pct: null, partner_share: 0, net_to_isola: cut, qbo_invoice_ref: r.qbo_invoice_ref };
+      })); setEsts(e.data ?? []); setCusts(c.data ?? []);
       setQbo(m.data ?? null);
       setLoading(false);
     } catch (e: any) {

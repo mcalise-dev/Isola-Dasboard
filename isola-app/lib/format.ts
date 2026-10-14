@@ -107,6 +107,13 @@ export const parsePrice = (p: string | number | null | undefined): number => {
   return isFinite(n) ? n : 0;
 };
 
+// v5.9: when THM holds the contract, the job's price is THM's money, not Isola's.
+// Isola's revenue on that job is only Mike's cut (jobs.isola_cut), set at closeout —
+// $0 until then. Every revenue / pipeline / collected total goes through revenueOf.
+export const isThmContract = (j: any) => j?.contract_holder === "thm";
+export const revenueOf = (j: any): number =>
+  isThmContract(j) ? Number(j?.isola_cut) || 0 : Number(j?.price_amount) || parsePrice(j?.price);
+
 // v4.5: every price shows the same way — "$14,000" / "$1,577.70"; words like "T&M" stay words.
 export const fmtPrice = (p: string | number | null | undefined): string => {
   if (p == null || p === "") return "";

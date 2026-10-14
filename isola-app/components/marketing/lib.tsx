@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { Contact } from "@/lib/crm";
 import { firstName, coShort } from "@/lib/crm";
-import { todayISO, parsePrice } from "@/lib/format";
+import { todayISO, parsePrice, revenueOf } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type MContact = Contact & {
@@ -100,7 +100,8 @@ export const linkedinOf = (c: Pick<Contact, "linkedin" | "email">) =>
   c.linkedin || (c.email && /linkedin\.com/i.test(c.email) ? c.email : null);
 export const telOf = (p: string | null | undefined) => (p && /\d{3}/.test(p) ? `tel:${p.replace(/[^0-9+]/g, "").slice(0, 12)}` : null);
 
-export const jobPrice = (j: any) => Number(j?.price_amount) || parsePrice(j?.price);
+// THM-held jobs count only Mike's cut
+export const jobPrice = (j: any) => revenueOf(j);
 export const changed = () => { try { window.dispatchEvent(new Event("isola:changed")); } catch {} };
 export const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
 

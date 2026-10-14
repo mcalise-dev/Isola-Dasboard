@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { parsePrice, daysSince } from "@/lib/format";
+import { revenueOf, daysSince } from "@/lib/format";
 
 // Pipeline numbers (v4.1, 9/22/26) — is pricing holding, and where is the money sitting.
 // Everything is computed from the jobs rows you pass in, so it's always in step with the list.
 const fmt$ = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
-const val = (j: any) => Number(j.price_amount) || parsePrice(j.price);
+const val = (j: any) => revenueOf(j); // THM-held jobs: only Mike's cut
 const dayDiff = (a: string, b: string) => Math.round((new Date(b + "T12:00:00").getTime() - new Date(a + "T12:00:00").getTime()) / 86400000);
 
 export function pipelineStats(jobs: any[]) {

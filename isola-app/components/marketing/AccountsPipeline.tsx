@@ -71,7 +71,7 @@ export default function AccountsPipeline() {
         sb.from("contacts").select("*"),
         sb.from("customers").select("id,name,kind,client_type,qbo_names,account_stage,contact_name,phone,email,archived"),
         sb.from("properties").select("id,customer_id,label,address,city"),
-        sb.from("jobs").select("id,job_name,customer,customer_id,status,price,price_amount,completed_date,paid_date,created_at"),
+        sb.from("jobs").select("id,job_name,customer,customer_id,status,price,price_amount,contract_holder,isola_cut,completed_date,paid_date,created_at"),
       ]);
       setContacts((c.data as MContact[]) ?? []);
       setCustomers(cu.data ?? []);

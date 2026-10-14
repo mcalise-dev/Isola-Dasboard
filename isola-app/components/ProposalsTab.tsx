@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { fmtDate, jobLabel, parsePrice } from "@/lib/format";
+import { fmtDate, jobLabel, parsePrice, revenueOf } from "@/lib/format";
 import { withTimeout, firstError } from "@/lib/load";
 import { getProposalValidDays, getPaymentTerms, daysFromToday, DEFAULT_VALID_DAYS } from "@/lib/settings";
 import { showError, showToast } from "@/components/Toaster";
@@ -37,7 +37,7 @@ export default function ProposalsTab() {
       const [j, pl] = await withTimeout(Promise.all([
         supabase
           .from("jobs")
-          .select("id,job_name,customer,location,job,price,status,proposal_status,quoted_date,scope_of_work,terms,contact_phone,updated_at")
+          .select("id,job_name,customer,location,job,price,contract_holder,isola_cut,status,proposal_status,quoted_date,scope_of_work,terms,contact_phone,updated_at")
           .neq("proposal_status", "none")
           .not("proposal_status", "is", null)
           .order("quoted_date", { ascending: true }),
@@ -79,7 +79,7 @@ export default function ProposalsTab() {
   const sent = jobs.filter((j) => j.proposal_status === "sent").sort((a, b) => (daysOut(b) ?? -1) - (daysOut(a) ?? -1));
   const signed = jobs.filter((j) => j.proposal_status === "signed" || j.proposal_status === "accepted");
   const declined = jobs.filter((j) => j.proposal_status === "declined");
-  const outTotal = sent.reduce((a, j) => a + parsePrice(j.price), 0);
+  const outTotal = sent.reduce((a, j) => a + revenueOf(j), 0);
   const expiring = sent.filter((j) => (daysOut(j) ?? 0) > 21 && (daysOut(j) ?? 0) <= 30).length;
   const expired = sent.filter((j) => (daysOut(j) ?? 0) > 30).length;
   const viewedCount = sent.filter((j) => links[j.id] && links[j.id].view_count > 0).length;

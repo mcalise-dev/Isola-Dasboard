@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { STATUS_META, parsePrice, fmtDate } from "@/lib/format";
+import { STATUS_META, parsePrice, revenueOf, fmtDate } from "@/lib/format";
 import { showError } from "@/components/Toaster";
 import { ask } from "@/components/Dialogs";
 
@@ -70,7 +70,7 @@ export default function CustomerProfile({ id }: { id: string }) {
   const myInvoices = (ar?.invoices ?? []).filter((i: any) => names.includes(String(i.customer ?? "").toLowerCase()));
   const balance = myInvoices.reduce((a: number, i: any) => a + Number(i.amount ?? 0), 0);
   const overdue = myInvoices.filter((i: any) => (i.days_overdue ?? 0) > 0);
-  const lifetime = jobs.reduce((a, j) => a + parsePrice(j.price), 0);
+  const lifetime = jobs.reduce((a, j) => a + revenueOf(j), 0);
   const openJobs = jobs.filter((j) => j.status !== "complete");
   const jobsAt = (pid: string) => jobs.filter((j) => j.property_id === pid).length;
 

@@ -41,7 +41,7 @@ export default function CustomersList() {
   async function load() {
     const [c, j, p, m] = await Promise.all([
       supabase.from("customers").select("*").order("name"),
-      supabase.from("jobs").select("id,job_name,customer,customer_id,property_id,location,job,status,price,price_amount,quoted_date,start_date,completed_date,created_at"),
+      supabase.from("jobs").select("id,job_name,customer,customer_id,property_id,location,job,status,price,price_amount,contract_holder,isola_cut,quoted_date,start_date,completed_date,created_at"),
       supabase.from("properties").select("id,customer_id,label,address,city,state,zip,access_notes"),
       supabase.from("money_snapshot").select("data").eq("id", 1).maybeSingle(),
     ]);

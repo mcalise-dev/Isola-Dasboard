@@ -35,7 +35,7 @@ export default function ReviewsScreen() {
   useEffect(() => {
     (async () => {
       const [j, cu, c2, ct, rs] = await Promise.all([
-        sb.from("jobs").select("id,job_name,customer,customer_id,status,price,price_amount,completed_date,invoiced_date,paid_date,review_requested_at,contact_name,referred_by,lead_source,created_at"),
+        sb.from("jobs").select("id,job_name,customer,customer_id,status,price,price_amount,contract_holder,isola_cut,completed_date,invoiced_date,paid_date,review_requested_at,contact_name,referred_by,lead_source,created_at"),
         sb.from("customers").select("id,name,contact_name,email,qbo_names,referral_partner,client_type,archived"),
         sb.from("customer_contacts").select("customer_id,name,email,is_billing,sort"),
         sb.from("contacts").select("id,name,company,email,referral_partner,tier"),

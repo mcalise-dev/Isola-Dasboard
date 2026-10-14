@@ -158,6 +158,8 @@ export default function ThmPanel({ job, onChange }: { job: any; onChange?: () =>
         ) : null}
       </Card>
 
+      {thmHolds ? <CutCard job={job} onChange={onChange} /> : null}
+
       <section>
         <SectionTitle>Add a line</SectionTitle>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -229,6 +231,34 @@ function Line({ it, onSave, onRemove, onApprove }: { it: Item; onSave: (p: Parti
       <Input className="mt-2 h-9 text-[13px]" placeholder="Note (optional)" value={notes}
         onChange={(e) => setNotes(e.target.value)} onBlur={() => { if (notes !== (it.notes ?? "")) onSave({ notes: notes.trim() || null }); }} />
       {it.unit !== "flat" ? <p className="mt-1 text-xs text-neutral-500">{num(qty) || 0} {it.unit} × {money(num(rate))}{per} = {money(amount)}</p> : null}
+    </Card>
+  );
+}
+
+/* THM holds the contract: the job's price is THM's money. What Isola earns is Mike's cut,
+   worked out at the end of the job — that number (jobs.isola_cut) is the only revenue counted. */
+function CutCard({ job, onChange }: { job: any; onChange?: () => void }) {
+  const sb = useMemo(() => createClient(), []);
+  const [v, setV] = useState(job.isola_cut == null ? "" : String(job.isola_cut));
+  async function save() {
+    const n = v.trim() === "" ? null : num(v);
+    if ((n ?? null) === (job.isola_cut == null ? null : Number(job.isola_cut))) return;
+    const { error } = await sb.from("jobs").update({ isola_cut: n, updated_at: new Date().toISOString() }).eq("id", job.id);
+    if (error) return showError("Couldn't save your cut: " + error.message);
+    showToast(n == null ? "Cut cleared" : "Your cut saved — that's what counts as your revenue");
+    onChange?.();
+  }
+  return (
+    <Card className="p-4">
+      <div className="text-sm font-semibold text-white">Your cut on this job</div>
+      <p className="mt-0.5 text-xs text-neutral-400">
+        THM holds this contract, so the job price is not your revenue. Enter what you keep once the job closes — only that counts in your numbers.
+      </p>
+      <div className="mt-2 flex items-center gap-2">
+        <Input className="h-10 max-w-[180px]" inputMode="decimal" placeholder="Set at closeout" value={v}
+          onChange={(e) => setV(e.target.value)} onBlur={save} />
+        <span className="text-xs text-neutral-500">{job.isola_cut == null ? "Not set yet — counts as $0" : `Counting ${money(Number(job.isola_cut))}`}</span>
+      </div>
     </Card>
   );
 }

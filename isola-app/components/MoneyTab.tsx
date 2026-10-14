@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { money, fmtDate, jobLabel, parsePrice, todayISO, fmtPrice } from "@/lib/format";
+import { money, fmtDate, jobLabel, parsePrice, revenueOf, isThmContract, todayISO, fmtPrice } from "@/lib/format";
 import { showError, showToast } from "@/components/Toaster";
 import { withTimeout, firstError } from "@/lib/load";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,7 @@ export default function MoneyTab() {
       const [m, t, j, c] = await withTimeout(Promise.all([
         supabase.from("money_snapshot").select("data,updated_at").eq("id", 1),
         supabase.from("thm_ledger").select("side,amount,bucket,is_open"),
-        supabase.from("jobs").select("id,job_name,customer,customer_id,location,job,price,status,completed_date,invoiced_date,paid_date,paid_amount,paid_method,qbo_invoice_ref,due_date,terms"),
+        supabase.from("jobs").select("id,job_name,customer,customer_id,location,job,price,status,completed_date,invoiced_date,paid_date,paid_amount,paid_method,qbo_invoice_ref,due_date,terms,contract_holder,isola_cut"),
         supabase.from("customers").select("id,name,qbo_names,payment_terms"),
       ]));
       const e = firstError(m, t, j, c);
@@ -154,7 +154,7 @@ export default function MoneyTab() {
   const done = jobs.filter((j) => j.status === "complete");
   const unbilled = done.filter((x) => !x.invoiced_date && !x.paid_date);
   const collected = jobs.filter((j) => j.paid_date).sort((a, b) => (a.paid_date < b.paid_date ? 1 : -1));
-  const collectedTotal = collected.reduce((a, j) => a + (Number(j.paid_amount) || parsePrice(j.price)), 0);
+  const collectedTotal = collected.reduce((a, j) => a + (isThmContract(j) ? revenueOf(j) : Number(j.paid_amount) || parsePrice(j.price)), 0);
 
   function invoiceRow(i: Inv, idx: number) {
     const j = jobFor(i);

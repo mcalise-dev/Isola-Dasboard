@@ -3,7 +3,7 @@
 // sidebar badges, so the three never disagree and the database is read once a minute.
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { daysSince, fmtDate, parsePrice, todayISO } from "@/lib/format";
+import { daysSince, fmtDate, parsePrice, revenueOf, todayISO } from "@/lib/format";
 
 export type Level = "high" | "mid" | "low";
 export type AttnItem = { id: string; level: Level; kind: string; title: string; sub: string; href: string; amount?: number };
@@ -35,7 +35,7 @@ async function compute(): Promise<Attention> {
   const today = todayISO();
   const in7 = addDays(today, 7);
   const [j, t, se, sv, ms, ct, mt, jc, ap] = await Promise.all([
-    sb.from("jobs").select("id,job_name,customer,location,job,status,price,price_amount,quoted_date,start_date,completed_date,invoiced_date,paid_date,created_at,review_requested_at,priority,due_date"),
+    sb.from("jobs").select("id,job_name,customer,location,job,status,price,price_amount,contract_holder,isola_cut,quoted_date,start_date,completed_date,invoiced_date,paid_date,created_at,review_requested_at,priority,due_date"),
     sb.from("tasks").select("id,title,job_id,due_date,priority").eq("done", false),
     sb.from("schedule_entries").select("id,entry_date,job_id,label,assignee").gte("entry_date", addDays(today, -60)),
     sb.from("site_visits").select("id,job_id,visit_date,property_address,client_company"),
@@ -144,7 +144,7 @@ async function compute(): Promise<Attention> {
     jobs: jobs.filter((x) => x.status === "complete" && !x.invoiced_date && !x.paid_date).length,
   };
 
-  const sum = (f: (x: any) => boolean) => jobs.filter(f).reduce((a, x) => a + price(x), 0);
+  const sum = (f: (x: any) => boolean) => jobs.filter(f).reduce((a, x) => a + revenueOf(x), 0);
   return {
     items, horizon, badges, counts, jobs,
     money: {

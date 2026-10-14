@@ -2,7 +2,7 @@
 // Shared pieces for the v4.6 customer list and customer record.
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { STATUS_META, parsePrice } from "@/lib/format";
+import { STATUS_META, parsePrice, revenueOf } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -25,7 +25,8 @@ export const tel = (p: any) => String(p ?? "").replace(/[^0-9+]/g, "");
 export const digits = (s: any) => String(s ?? "").replace(/\D/g, "").slice(-10);
 export const norm = (s: any) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 export const lower = (s: any) => String(s ?? "").trim().toLowerCase();
-export const jobPrice = (j: any) => Number(j?.price_amount) || parsePrice(j?.price);
+// THM-held jobs count only Mike's cut
+export const jobPrice = (j: any) => revenueOf(j);
 export const jobName = (j: any) => j?.job_name || j?.location || j?.customer || "Job";
 export const OPEN = ["lead", "awaiting", "booked", "progress"] as const;
 export const changed = () => window.dispatchEvent(new Event("isola:changed"));

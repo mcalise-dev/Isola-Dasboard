@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-table";
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { createClient } from "@/lib/supabase/client";
-import { STATUS_META, PIPELINE, FUTURE_HINT, stageTag, fmtDate, fmtPrice, parsePrice, daysSince, todayISO } from "@/lib/format";
+import { STATUS_META, PIPELINE, FUTURE_HINT, stageTag, fmtDate, fmtPrice, parsePrice, revenueOf, daysSince, todayISO } from "@/lib/format";
 import { undoable, showError } from "@/components/Toaster";
 import { editJob } from "@/components/job/JobForm";
 import { nextStep } from "@/components/job/JobRecord";
@@ -132,7 +132,7 @@ export default function JobsScreen() {
     // eslint-disable-next-line
   }, [jobs, view, stage, q, ctx]);
   const viewCount = (v: ViewKey) => (jobs ?? []).filter((j) => inView(j, v)).length;
-  const totalShown = shown.reduce((a, j) => a + price(j), 0);
+  const totalShown = shown.reduce((a, j) => a + revenueOf(j), 0);
 
   function open(j: any) { if (isPhone) router.push(`/jobs/${j.id}`); else setPeek(j); }
 
@@ -239,7 +239,7 @@ export default function JobsScreen() {
             : s === "booked" ? (jobs ?? []).filter((j) => j.status === "booked" && !j.start_date && !ctx.scheduled.has(j.id)).length
             : s === "complete" ? (jobs ?? []).filter((j) => j.status === "complete" && !j.paid_date).length : 0;
           const subLabel = s === "lead" ? "to walk" : s === "awaiting" ? "stale" : s === "booked" ? "no date" : s === "complete" ? "unpaid" : "";
-          const sum = (jobs ?? []).filter((j) => j.status === s).reduce((a, j) => a + price(j), 0);
+          const sum = (jobs ?? []).filter((j) => j.status === s).reduce((a, j) => a + revenueOf(j), 0);
           return (
             <button key={s} onClick={() => setStage(stage === s ? null : s)} aria-pressed={stage === s}
               className={cn("min-w-[118px] shrink-0 rounded-xl border px-3 py-2.5 text-left transition-colors md:min-w-0", stage === s ? "border-white bg-white/[0.08]" : "border-border bg-card hover:border-white/25")}>
@@ -419,7 +419,7 @@ function Board({ jobs, ctx, onOpen, onMove, showDone }: { jobs: any[]; ctx: Ctx;
 
 function Column({ s, jobs, ctx, onOpen }: { s: string; jobs: any[]; ctx: Ctx; onOpen: (j: any) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: s });
-  const sum = jobs.reduce((a, j) => a + price(j), 0);
+  const sum = jobs.reduce((a, j) => a + revenueOf(j), 0);
   return (
     <div ref={setNodeRef} className={cn("flex min-h-[200px] flex-col rounded-xl border bg-white/[0.02] p-2", isOver ? "border-white/40" : "border-border")}>
       <div className="flex items-baseline gap-2 px-1.5 pb-2 pt-1">

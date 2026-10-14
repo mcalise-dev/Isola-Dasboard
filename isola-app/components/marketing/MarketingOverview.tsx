@@ -29,7 +29,7 @@ export default function MarketingOverview() {
     (async () => {
       const [c, j] = await Promise.all([
         sb.from("contacts").select("id,name,company,tier,stage,last_touch,next_action,next_date,campaign_id"),
-        sb.from("jobs").select("id,job_name,customer,status,price,price_amount,quoted_date,won_date,start_date,completed_date,created_at,lead_source"),
+        sb.from("jobs").select("id,job_name,customer,status,price,price_amount,contract_holder,isola_cut,quoted_date,won_date,start_date,completed_date,created_at,lead_source"),
       ]);
       setContacts((c.data as any) ?? []);
       setJobs(j.data ?? []);
