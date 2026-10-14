@@ -1,0 +1,9 @@
+-- v62 (applied 2026-10-14): the owner_only policies on most tables are RESTRICTIVE, so v60's additive
+-- thm_partner policies alone did nothing there (Tyler's job file showed "deleted").
+-- Widened each restrictive owner_only to: is_owner() OR Tyler on a THM job.
+--   job tables (job_id): change_orders, communications, daily_logs, documents, estimates, job_checklist,
+--     job_costs, job_photos, jobbooks, payments, proposal_links, punch_list, schedule_entries, site_visits, tasks
+--   jobs (id), customers (thm_partner_customer), properties (thm_partner_property)
+--   workers, scope_templates: Tyler can read, only the owner can write
+-- owner_only_delete() trigger: non-owners can never delete jobs, workers, customers, properties, scope_templates.
+-- Verified: Tyler sees 9 THM jobs + their customers/costs/payments; Adam sees 0 of everything.
