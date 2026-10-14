@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronRight } from "lucide-react";
+import ThmBrand from "@/components/field/ThmBrand";
 
 type J = { id: string; name: string; location: string | null; status: string; holder: string; start: string | null };
 const STAGE: Record<string, string> = { progress: "In progress", booked: "Booked", future: "Future", awaiting: "Quoted", lead: "Lead", complete: "Complete" };
@@ -14,6 +15,7 @@ export default function ThmJobList() {
 
   return (
     <div>
+      <ThmBrand className="mb-5" />
       <h1 className="text-2xl font-bold text-white">THM jobs</h1>
       <p className="text-sm text-neutral-400">Every job THM is on — open one to see the money and log crew, materials, tools and to-dos.</p>
       <div className="mt-4 space-y-2">

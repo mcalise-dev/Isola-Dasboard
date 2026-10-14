@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import ThmBrand from "@/components/field/ThmBrand";
 
 /* Public page (no login) for Tyler / THM. He picks one of the Isola-held jobs
    THM is on and enters materials he paid for, with a receipt photo.
@@ -103,6 +104,7 @@ export default function ThmSubmit({ token, crew = false }: { token?: string; cre
     <div className={crew ? "text-neutral-900" : "min-h-screen bg-neutral-100 text-neutral-900"}>
       {crew ? (
         <div className="mb-3">
+          <ThmBrand className="mb-5" />
           <h1 className="text-2xl font-bold text-white">Receipts</h1>
           <p className="text-sm text-neutral-400">Materials you paid for on Isola jobs — Mike approves, then it comes off the THM tab.</p>
         </div>
