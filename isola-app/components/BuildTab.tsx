@@ -343,7 +343,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
       estimate_id: e.id,
       sort: ls.length,
       category,
-      description: "",
+      description: category === "Labor" ? "Labor" : "",
       qty: category === "Labor" ? 8 : category === "Equipment" ? 4 : 1,
       unit: category === "Labor" || category === "Equipment" ? "hr" : "ea",
       unit_cost: 0,
@@ -438,9 +438,10 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
   // T&M builds get the rate schedule added under the scope — bill rates only, never costs
   const rateSheet = useMemo(() => {
     if (e.pricing_mode !== "tm") return [] as string[];
-    const rates = ls
-      .filter((l: Line) => Number(l.bill_rate) > 0 && (l.description || "").trim())
-      .map((l: Line) => `${l.description.trim()} — ${fmt2(Number(l.bill_rate))}/${l.unit || "ea"}${Number(l.qty) > 0 ? ` (est. ${Number(l.qty)} ${l.unit || "ea"})` : ""}`);
+    // labor always reads as "Labor" to the client — never a crew member's name
+    const rates = Array.from(new Set(ls
+      .filter((l: Line) => Number(l.bill_rate) > 0 && (l.category === "Labor" || (l.description || "").trim()))
+      .map((l: Line) => `${l.category === "Labor" ? "Labor" : l.description.trim()} — ${fmt2(Number(l.bill_rate))}/${l.unit || "ea"}${Number(l.qty) > 0 ? ` (est. ${Number(l.qty)} ${l.unit || "ea"})` : ""}`)));
     return [
       "Time & material — billed on actual labor hours, equipment time and materials used, at the rates below. The total shown is an estimate; the final invoice reflects actual quantities.",
       ...rates,
@@ -1055,10 +1056,11 @@ function LineRow({ l, book, workers, tm, onSave, onLearn, onDelete }: any) {
         <div className="col-span-6 md:col-span-1">
           {d.category === "Labor" ? (
             <>
-              <Input aria-label="Who" list={`crew-${d.id}`} value={d.description ?? ""} placeholder="Who — or type it (Laborer, Operator, Mason…)"
+              <Input aria-label="Who" list={`crew-${d.id}`} value={d.description ?? ""} placeholder="Labor"
                 onChange={(ev) => setD({ ...d, description: ev.target.value })}
                 onBlur={(ev) => pickWorker(ev.target.value)} />
               <datalist id={`crew-${d.id}`}>
+                <option value="Labor">type your own rate</option>
                 {workers.map((w: any) => (
                   <option key={w.id} value={w.name}>{`$${w.rate ?? "?"}/${w.rate_type === "daily" ? "day" : "hr"}`}</option>
                 ))}
