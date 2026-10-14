@@ -22,6 +22,7 @@ import { TmJobBill } from "@/components/TmBilling";
 import { CostsPanel, LaborPanel, TasksPanel, PhotosPanel, SchedulePanel, JobbookCard, ActivityPanel } from "@/components/job/panels";
 import { MoneyPanel, ProposalPanel, DocsPanel } from "@/components/job/hub";
 import ThmPanel from "@/components/job/ThmPanel";
+import SiteLinePanel from "@/components/job/SiteLinePanel";
 import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
 import {
@@ -38,7 +39,7 @@ const ORDER = ["lead", "awaiting", "booked", "progress", "complete"];
 
 // Tabs on the job record. Deep link with /jobs/<id>?tab=<key>; aliases map the
 // names other screens use (billing, build, punch…) onto the right tab.
-const TABS = ["overview", "crew", "money", "costs", "schedule", "tasks", "proposal", "docs", "photos", "activity", "thm"] as const;
+const TABS = ["overview", "crew", "money", "costs", "schedule", "tasks", "siteline", "proposal", "docs", "photos", "activity", "thm"] as const;
 const TAB_ALIAS: Record<string, string> = {
   partner: "thm", tyler: "thm",
   billing: "money", payments: "money", "change-orders": "money",
@@ -46,6 +47,7 @@ const TAB_ALIAS: Record<string, string> = {
   documents: "docs", log: "docs", logs: "docs", "daily-log": "docs",
   punch: "tasks", labor: "costs",
   plan: "crew", checklist: "crew", materials: "crew", tools: "crew", field: "crew",
+  site: "siteline", "site-line": "siteline", client: "siteline", updates: "siteline",
 };
 export const resolveTab = (t: string | null | undefined) => {
   const k = String(t ?? "").toLowerCase();
@@ -263,7 +265,7 @@ export default function JobRecord({ id }: { id: string }) {
         {/* main */}
         <div className="min-w-0">
           <Tabs value={tab} onValueChange={setTab}>
-            {/* 9 tabs: one scrolling row on a phone (no wrap), bleeds to the screen edge */}
+            {/* 10 tabs: one scrolling row on a phone (no wrap), bleeds to the screen edge */}
             <TabsList className="-mx-4 flex-nowrap gap-4 scroll-px-4 px-4 sm:mx-0 sm:gap-5 sm:px-0 [&>*]:min-h-[40px]">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="crew">Crew plan</TabsTrigger>
@@ -271,6 +273,7 @@ export default function JobRecord({ id }: { id: string }) {
               <TabsTrigger value="costs">Costs & labor</TabsTrigger>
               <TabsTrigger value="schedule">Schedule</TabsTrigger>
               <TabsTrigger value="tasks">Tasks</TabsTrigger>
+              <TabsTrigger value="siteline">SiteLine</TabsTrigger>
               <TabsTrigger value="proposal">Proposal</TabsTrigger>
               <TabsTrigger value="docs">Docs</TabsTrigger>
               <TabsTrigger value="photos">Photos</TabsTrigger>
@@ -333,6 +336,7 @@ export default function JobRecord({ id }: { id: string }) {
             </TabsContent>
             <TabsContent value="schedule"><SchedulePanel job={job} entries={sched} crew={crew} onChange={load} /></TabsContent>
             <TabsContent value="tasks"><TasksPanel jobId={job.id} /></TabsContent>
+            <TabsContent value="siteline"><SiteLinePanel jobId={job.id} /></TabsContent>
             <TabsContent value="photos"><PhotosPanel jobId={job.id} /></TabsContent>
             {withThm ? <TabsContent value="thm"><ThmPanel job={job} onChange={load} /></TabsContent> : null}
             <TabsContent value="activity"><ActivityPanel job={job} extra={{ costs, visits }} /></TabsContent>
