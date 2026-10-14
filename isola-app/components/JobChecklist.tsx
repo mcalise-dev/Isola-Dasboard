@@ -54,6 +54,9 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
   const shown = items.filter((k) => stepIn(k, day));
   const dayProgress = (key: DayKey) => { const l = items.filter((k) => stepIn(k, key)); return { done: l.filter((k) => k.done).length, total: l.length }; };
   const done = items.filter((i) => i.done).length;
+  const beforeCount = items.filter((x) => !x.work_date).length;
+  const _t = new Date();
+  const todayIso = `${_t.getFullYear()}-${String(_t.getMonth() + 1).padStart(2, "0")}-${String(_t.getDate()).padStart(2, "0")}`;
 
   async function pickPhase(v: string, set: (p: string) => void) {
     if (v !== NEW_PHASE) { set(v); return; }
@@ -101,6 +104,16 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
     setItems((s) => s.filter((x) => !ids.includes(x.id)));
     const { error } = await supabase.from("job_checklist").delete().in("id", ids);
     if (error) showError("Couldn't clear: " + error.message); else showToast(`Cleared ${ids.length} step${ids.length > 1 ? "s" : ""}`);
+    load();
+  }
+
+  async function clearBefore() {
+    const ids = items.filter((x) => !x.work_date).map((x) => x.id);
+    if (!ids.length) return;
+    if (!(await ask({ title: `Clear ${ids.length} step${ids.length > 1 ? "s" : ""} with no day?`, body: "Removes everything under Before. Steps set to a day aren't touched.", confirm: "Clear", danger: true }))) return;
+    setItems((s) => s.filter((x) => !ids.includes(x.id)));
+    const { error } = await supabase.from("job_checklist").delete().in("id", ids);
+    if (error) showError("Couldn't clear: " + error.message); else showToast(`Cleared ${ids.length}`);
     load();
   }
 
@@ -189,6 +202,13 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
           </button>
         </div>
       </div>
+
+      {useDays && beforeCount > 0 && dates.some((d) => d < todayIso) ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-300/30 bg-amber-300/[0.06] px-4 py-3">
+          <p className="min-w-0 flex-1 text-sm text-amber-100"><span className="font-semibold">{beforeCount} step{beforeCount > 1 ? "s" : ""} not on a day</span> (under “Before”). Clear them, or tap Before below to look first.</p>
+          <button onClick={clearBefore} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 min-h-[40px] text-sm font-bold text-neutral-900"><Trash2 size={14} /> Clear them</button>
+        </div>
+      ) : null}
 
       {pickOpen ? (
         <div className="mb-3 rounded-2xl border border-white/[0.08] bg-neutral-950 p-3">
