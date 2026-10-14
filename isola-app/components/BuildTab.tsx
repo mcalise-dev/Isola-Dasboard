@@ -313,6 +313,15 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
   const profit = sell - totalCost;
   const marginPct = sell > 0 ? (profit / sell) * 100 : 0;
 
+  // ---- time & material: every line carries Mike's cost AND the rate he bills ----
+  const isTM = e.pricing_mode === "tm";
+  const billOf = (l: Line) => Number(l.qty || 0) * Number(l.bill_rate ?? 0);
+  const billTotal = ls.reduce((s, l) => s + billOf(l), 0);
+  const unbilled = ls.filter((l) => Number(l.qty || 0) > 0 && !(Number(l.bill_rate) > 0)).length;
+  const billByCat = CATS.map((c) => ({ cat: c, total: ls.filter((l) => l.category === c).reduce((s, l) => s + billOf(l), 0) })).filter((x) => x.total > 0);
+  const laborRates = Array.from(new Set(ls.filter((l) => l.category === "Labor" && l.unit === "hr" && Number(l.bill_rate) > 0).map((l) => Number(l.bill_rate))));
+  const tmLaborRate = isTM && laborRates.length === 1 ? laborRates[0] : null;
+
   // keep the stored cost basis in step with the lines so the list view,
   // and anything that reads an estimate later, never shows a stale number
   useEffect(() => {
@@ -335,8 +344,8 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
       sort: ls.length,
       category,
       description: "",
-      qty: category === "Labor" ? 8 : 1,
-      unit: category === "Labor" ? "hr" : "ea",
+      qty: category === "Labor" ? 8 : category === "Equipment" ? 4 : 1,
+      unit: category === "Labor" || category === "Equipment" ? "hr" : "ea",
       unit_cost: 0,
     };
     const { data, error } = await supabase.from("estimate_lines").insert(row).select().single();
@@ -369,7 +378,8 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
   // The learn-as-you-go hook. Every cost typed against a named item
   // either creates that item in the book or rolls its cost forward.
   async function learn(l: Line) {
-    if (l.category === "Labor") return; // rates live in workers
+    // labor rates live in workers; machine rates are priced per job, never locked in
+    if (l.category === "Labor" || l.category === "Equipment") return;
     const name = (l.description || "").trim();
     const cost = Number(l.unit_cost || 0);
     if (!name || !cost) return;
@@ -417,13 +427,27 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
     showToast("Photo added");
   }
 
-  const scopeText = useMemo(() => {
+  // the scope Mike writes (or what the lines / walk notes build until he does)
+  const baseScope = useMemo(() => {
     if (e.scope_override?.trim()) return e.scope_override;
     const custom = ls.map((l: Line) => l.scope_line).filter(Boolean);
     if (custom.length) return custom.join("\n");
     return e.observed_conditions || "";
     /* eslint-disable-next-line */
   }, [lines, e.observed_conditions, e.scope_override]);
+  // T&M builds get the rate schedule added under the scope — bill rates only, never costs
+  const rateSheet = useMemo(() => {
+    if (e.pricing_mode !== "tm") return [] as string[];
+    const rates = ls
+      .filter((l: Line) => Number(l.bill_rate) > 0 && (l.description || "").trim())
+      .map((l: Line) => `${l.description.trim()} — ${fmt2(Number(l.bill_rate))}/${l.unit || "ea"}${Number(l.qty) > 0 ? ` (est. ${Number(l.qty)} ${l.unit || "ea"})` : ""}`);
+    return [
+      "Time & material — billed on actual labor hours, equipment time and materials used, at the rates below. The total shown is an estimate; the final invoice reflects actual quantities.",
+      ...rates,
+    ];
+    /* eslint-disable-next-line */
+  }, [lines, e.pricing_mode]);
+  const scopeText = [baseScope, ...rateSheet].filter(Boolean).join("\n");
 
   /* ---------- send ---------- */
   async function sendIt() {
@@ -448,6 +472,8 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
         location,
         job: e.job_type,
         status: "awaiting",             // walked and quoted, waiting on the customer
+        billing_type: isTM ? "tm" : "fixed",
+        tm_bill_rate: tmLaborRate,
         price: fmt2(sell),
         contact_name: c.contact_name,
         contact_phone: c.phone,
@@ -687,6 +713,33 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
       {/* ---------------- PRICE ---------------- */}
       {step === "price" ? (
         <div className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle>How this job bills</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { k: "fixed", label: "Fixed price", sub: "One number, scope defined" },
+                  { k: "tm", label: "Time & material", sub: "Hours, equipment time, materials" },
+                ].map((m) => {
+                  const on = (e.pricing_mode || "fixed") === m.k;
+                  return (
+                    <button key={m.k} type="button" onClick={() => patch({ pricing_mode: m.k })}
+                      className={cn("rounded-lg border px-3 py-2.5 text-left", on ? "border-white/60 bg-neutral-800" : "border-border bg-neutral-950")}>
+                      <div className={cn("text-sm font-semibold", on ? "text-white" : "text-neutral-400")}>{m.label}</div>
+                      <div className="text-xs text-neutral-500">{m.sub}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              {isTM ? (
+                <p className="text-xs leading-relaxed text-neutral-400">
+                  Type every line yourself — labor, equipment time, materials, dump, anything. Each line gets your cost and the
+                  rate you bill the client. The bill rates become the rate schedule on the proposal.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+
           {templates.length ? (
             <Card>
               <CardHeader><CardTitle>Start from a scope</CardTitle></CardHeader>
@@ -708,7 +761,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
                 </div>
                 <div className="space-y-2 md:space-y-0">
                   {ls.map((l) => (
-                    <LineRow key={l.id} l={l} book={book} workers={workers}
+                    <LineRow key={l.id} l={l} book={book} workers={workers} tm={isTM}
                       onSave={(p: any) => saveLine(l.id, p)} onLearn={() => learn(l)} onDelete={() => delLine(l.id)} />
                   ))}
                 </div>
@@ -719,15 +772,60 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
           </section>
 
           <div className="flex flex-wrap gap-2">
-            {CATS.filter((c) => c !== "Other").map((c) => {
+            {CATS.map((c) => {
               const Icon = CAT_META[c].icon;
               return (
                 <Button key={c} variant="outline" size="sm" className="h-10" onClick={() => addLine(c)}>
-                  <Plus size={14} /><Icon size={14} /> {c}
+                  <Plus size={14} /><Icon size={14} /> {c === "Equipment" ? "Equipment time" : c === "Other" ? "Other / custom" : c}
                 </Button>
               );
             })}
           </div>
+
+          {/* ---- scope of work, written right here while pricing ---- */}
+          <Card>
+            <CardHeader><CardTitle>Scope of work — what the client reads</CardTitle></CardHeader>
+            <CardContent>
+              <Textarea rows={6} value={e.scope_override ?? baseScope}
+                placeholder="One line per division — e.g. Remove and dispose of existing slab. Form and pour new 4in slab with wire mesh…"
+                onChange={(ev) => setE({ ...e, scope_override: ev.target.value })}
+                onBlur={(ev) => patch({ scope_override: ev.target.value })} />
+              <p className="mt-1 text-xs text-neutral-500">
+                One line per division. Same scope shows on the Send step{isTM ? " — the rate schedule is added under it automatically" : ""}.
+              </p>
+            </CardContent>
+          </Card>
+
+          {isTM ? (
+            <Card>
+              <CardHeader><CardTitle>Rate schedule — what you bill</CardTitle></CardHeader>
+              <CardContent>
+                {billByCat.map((b) => {
+                  const Icon = CAT_META[b.cat].icon;
+                  return (
+                    <KV key={b.cat} k={<span className="inline-flex items-center gap-1.5"><Icon size={14} /> {b.cat === "Equipment" ? "Equipment time" : b.cat}</span>}>
+                      <span className="tabular-nums">{fmt2(b.total)}</span>
+                    </KV>
+                  );
+                })}
+                <div className="flex items-baseline justify-between border-t border-border pt-2">
+                  <span className="text-sm font-semibold text-white">Estimated billing</span>
+                  <span className="text-lg font-semibold tabular-nums text-emerald-300">{fmt2(billTotal)}</span>
+                </div>
+                {billTotal > 0 && totalCost > 0 ? (
+                  <div className="mt-1 text-xs text-neutral-400">
+                    Over cost: {fmt2(billTotal - totalCost)} ({(((billTotal - totalCost) / billTotal) * 100).toFixed(1)}% margin)
+                  </div>
+                ) : null}
+                {unbilled ? (
+                  <div className="mt-2 flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200">
+                    <TriangleAlert size={14} className="mt-px shrink-0" />
+                    {unbilled} line{unbilled === 1 ? "" : "s"} with no bill rate — set what the client pays or it won't be billed.
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <div className="grid gap-4 md:grid-cols-2 md:items-start">
             <Card>
@@ -774,10 +872,15 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
                 </div>
 
                 <div>
-                  <Label>Contract price</Label>
+                  <Label>{isTM ? "Estimated T&M total — what the client sees" : "Contract price"}</Label>
                   <MoneyInput className={cn(moneyCls, "h-12 text-lg font-semibold")} value={e.sell_price ?? ""}
                     onChange={(v) => setE({ ...e, sell_price: v })}
                     onBlur={(v) => patch({ sell_price: v === "" ? null : Number(v) })} />
+                  {isTM && billTotal > 0 && Math.abs(billTotal - sell) >= 0.01 ? (
+                    <Button variant="outline" size="sm" className="mt-2 h-9" onClick={() => patch({ sell_price: Math.round(billTotal * 100) / 100 })}>
+                      Use rate schedule total — {fmt2(billTotal)}
+                    </Button>
+                  ) : null}
                 </div>
 
                 {sell > 0 ? (
@@ -820,7 +923,8 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
                 <KV k="Property">{e.location || "—"}</KV>
                 <KV k="Work type">{e.job_type || "—"}</KV>
                 <KV k="Status">Sent — proposal is with the customer</KV>
-                <KV k="Contract price"><span className="tabular-nums">{sell ? fmt2(sell) : "—"}</span></KV>
+                <KV k="Billing">{isTM ? "Time & material" : "Fixed price"}</KV>
+                <KV k={isTM ? "Est. T&M total" : "Contract price"}><span className="tabular-nums">{sell ? fmt2(sell) : "—"}</span></KV>
                 <KV k="Cost basis"><span className="tabular-nums">{fmt2(totalCost)}</span></KV>
                 <KV k="Photos">{photos.length ? `${photos.length} → job "before"` : "none"}</KV>
               </CardContent>
@@ -829,12 +933,18 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
             <Card>
               <CardHeader><CardTitle>Scope the client sees</CardTitle></CardHeader>
               <CardContent>
-                <Textarea rows={8} value={e.scope_override ?? scopeText}
+                <Textarea rows={8} value={e.scope_override ?? baseScope}
                   onChange={(ev) => setE({ ...e, scope_override: ev.target.value })}
                   onBlur={(ev) => patch({ scope_override: ev.target.value })} />
                 <p className="mt-1 text-xs text-neutral-500">
                   One line per division. This lands on the client hub page and in jobs.scope_of_work.
                 </p>
+                {rateSheet.length ? (
+                  <div className="mt-3 space-y-0.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+                    <div className="text-xs font-semibold text-emerald-300">Added automatically — T&M rate schedule</div>
+                    {rateSheet.map((r, i) => <div key={i} className="text-xs text-neutral-300">{r}</div>)}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           </div>
@@ -902,7 +1012,7 @@ function PaverFloor({ jobType, dimensions, sell }: { jobType?: string; dimension
 
 /* ---------------- one estimate line ---------------- */
 // Phone: a stacked card. md+: one row of the line-item table (LINE_GRID).
-function LineRow({ l, book, workers, onSave, onLearn, onDelete }: any) {
+function LineRow({ l, book, workers, tm, onSave, onLearn, onDelete }: any) {
   const [d, setD] = useState(l);
   const [calc, setCalc] = useState(false);
   useEffect(() => setD(l), [l.id, l.item_id]);
@@ -923,7 +1033,10 @@ function LineRow({ l, book, workers, onSave, onLearn, onDelete }: any) {
     else onSave({ description: name });
   }
   function pickWorker(name: string) {
+    if (name === (l.description ?? "")) return;
     const w = workers.find((x: any) => x.name === name);
+    // not on the crew list — a typed-in role (Laborer, Operator, Mason…): keep it, set the rate by hand
+    if (!w) { setD({ ...d, description: name, worker: null }); onSave({ description: name, worker: null }); return; }
     const unit = w?.rate_type === "daily" ? "day" : "hr";
     setD({ ...d, description: name, unit, unit_cost: Number(w?.rate || 0) });
     onSave({ description: name, worker: name, unit, unit_cost: Number(w?.rate || 0), qty: unit === "day" ? 1 : d.qty });
@@ -941,15 +1054,19 @@ function LineRow({ l, book, workers, onSave, onLearn, onDelete }: any) {
 
         <div className="col-span-6 md:col-span-1">
           {d.category === "Labor" ? (
-            <NativeSelect aria-label="Who" value={d.description ?? ""} onChange={(ev) => pickWorker(ev.target.value)}>
-              <option value="">Who…</option>
-              {workers.map((w: any) => (
-                <option key={w.id} value={w.name}>{w.name} — ${w.rate ?? "?"}/{w.rate_type === "daily" ? "day" : "hr"}</option>
-              ))}
-            </NativeSelect>
+            <>
+              <Input aria-label="Who" list={`crew-${d.id}`} value={d.description ?? ""} placeholder="Who — or type it (Laborer, Operator, Mason…)"
+                onChange={(ev) => setD({ ...d, description: ev.target.value })}
+                onBlur={(ev) => pickWorker(ev.target.value)} />
+              <datalist id={`crew-${d.id}`}>
+                {workers.map((w: any) => (
+                  <option key={w.id} value={w.name}>{`$${w.rate ?? "?"}/${w.rate_type === "daily" ? "day" : "hr"}`}</option>
+                ))}
+              </datalist>
+            </>
           ) : (
             <>
-              <Input aria-label="Item" list={`book-${d.id}`} value={d.description ?? ""} placeholder="What is it?"
+              <Input aria-label="Item" list={`book-${d.id}`} value={d.description ?? ""} placeholder={d.category === "Equipment" ? "Machine or tool — mini ex, skid steer, breaker…" : "What is it?"}
                 onChange={(ev) => setD({ ...d, description: ev.target.value })}
                 onBlur={(ev) => pickBook(ev.target.value)} />
               <datalist id={`book-${d.id}`}>
@@ -978,6 +1095,16 @@ function LineRow({ l, book, workers, onSave, onLearn, onDelete }: any) {
         </Button>
         <Button variant="ghost" size="icon" className="hidden text-neutral-500 hover:text-red-300 md:inline-flex" onClick={onDelete} aria-label="Remove line"><Trash2 size={16} /></Button>
       </div>
+
+      {tm ? (
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1.5 md:ml-[120px]">
+          <span className="text-xs font-semibold text-emerald-300">Bill rate / {d.unit || "unit"}</span>
+          <MoneyInput className={cn(moneyCls, "h-9 text-right")} value={d.bill_rate ?? ""}
+            onChange={(v) => setD({ ...d, bill_rate: v })}
+            onBlur={(v) => onSave({ bill_rate: v === "" ? null : Number(v) })} />
+          <span className="w-24 text-right text-sm font-semibold tabular-nums text-emerald-300">{fmt2(Number(d.qty || 0) * Number(d.bill_rate || 0))}</span>
+        </div>
+      ) : null}
 
       {calc ? <QtyCalc onApply={(qty: number, unit: string) => { setD({ ...d, qty, unit }); onSave({ qty, unit }); setCalc(false); }} /> : null}
 
