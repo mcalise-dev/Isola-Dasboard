@@ -2,6 +2,7 @@ import Image from "next/image";
 import { logout } from "@/app/login/actions";
 import FieldTabBar from "@/components/field/FieldTabBar";
 import FieldName from "@/components/field/FieldName";
+import FieldMain from "@/components/field/FieldMain";
 import Toaster from "@/components/Toaster";
 import DialogHost from "@/components/Dialogs";
 
@@ -23,7 +24,7 @@ export default function FieldLayout({ children }: { children: React.ReactNode })
           </form>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))]">{children}</main>
+      <FieldMain>{children}</FieldMain>
       <FieldTabBar />
       <Toaster />
       <DialogHost />
