@@ -69,7 +69,9 @@ export function nextStep(j: any, ctx: { walked: boolean; drafting: boolean; sche
   return null;
 }
 
-export default function JobRecord({ id }: { id: string }) {
+// partner = Tyler (THM) opening a THM job from his crew app: same screens, no delete, back goes to /field/thm
+export default function JobRecord({ id, partner = false }: { id: string; partner?: boolean }) {
+  const home = partner ? "/field/thm" : "/";
   const sb = useMemo(() => createClient(), []);
   const router = useRouter();
   const [job, setJob] = useState<any | null | undefined>(undefined);
@@ -124,7 +126,7 @@ export default function JobRecord({ id }: { id: string }) {
     <div className="space-y-4"><div className="skeleton h-8 w-64" /><div className="skeleton h-16" />
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]"><div className="skeleton h-80" /><div className="skeleton h-80" /></div></div>
   );
-  if (job === null) return <Empty icon={<Briefcase size={28} />} title="Job not found" body="It may have been deleted." action={<Button asChild variant="outline"><Link href="/">Back to jobs</Link></Button>} />;
+  if (job === null) return <Empty icon={<Briefcase size={28} />} title="Job not found" body="It may have been deleted." action={<Button asChild variant="outline"><Link href={home}>Back to jobs</Link></Button>} />;
 
   const ctx = { walked: visits.length > 0, drafting, scheduled: sched.length > 0 || !!job.start_date };
   const step = nextStep(job, ctx);
@@ -173,7 +175,7 @@ export default function JobRecord({ id }: { id: string }) {
     if (error) { showError("Delete failed: " + error.message); return; }
     window.dispatchEvent(new Event("isola:changed"));
     showToast("Job deleted");
-    router.push("/");
+    router.push(home);
   }
   async function setField(field: string, value: any) {
     setJob({ ...job, [field]: value });
@@ -194,7 +196,7 @@ export default function JobRecord({ id }: { id: string }) {
       {/* header */}
       <div className="mb-4">
         <div className="mb-2 flex items-center gap-1.5 text-[13px] text-neutral-500">
-          <Link href="/" className="inline-flex items-center gap-1 hover:text-white"><ChevronLeft size={15} /> Jobs</Link>
+          <Link href={home} className="inline-flex items-center gap-1 hover:text-white"><ChevronLeft size={15} /> {partner ? "THM jobs" : "Jobs"}</Link>
           {job.customer ? <><span>/</span>{job.customer_id ? <Link href={`/customers/${job.customer_id}`} className="truncate hover:text-white">{job.customer}</Link> : <span className="truncate">{job.customer}</span>}</> : null}
         </div>
         <div className="flex flex-wrap items-start gap-3">
@@ -221,7 +223,7 @@ export default function JobRecord({ id }: { id: string }) {
                 {job.status !== "lost" ? <DropdownMenuItem onSelect={() => setLostPick(true)}><XCircle size={15} /> Mark lost / declined</DropdownMenuItem>
                   : <DropdownMenuItem onSelect={() => patch({ status: "lead", lost_reason: null, lost_date: null }, "Reopened")}><ArrowRight size={15} /> Reopen</DropdownMenuItem>}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={del} className="text-red-300 data-[highlighted]:text-red-200"><Trash2 size={15} /> Delete job</DropdownMenuItem>
+                {partner ? null : <DropdownMenuItem onSelect={del} className="text-red-300 data-[highlighted]:text-red-200"><Trash2 size={15} /> Delete job</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

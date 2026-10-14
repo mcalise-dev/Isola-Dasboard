@@ -1,0 +1,7 @@
+-- v60 (applied 2026-10-14): Tyler (workers.is_thm) gets the full job file for every job THM is on,
+-- from his crew login (/field/thm, /field/thm/<id>). Delete job stays owner-only in the UI.
+-- thm_partner_job(job_id): crew_is_thm() and the job has partner='THM' or contract_holder='thm'.
+-- crew_thm_job_list(): his list of THM jobs.
+-- Additive "thm_partner" policies (FOR ALL, THM jobs only) on the job-screen tables that were owner-only:
+--   thm_job_items, job_crew, job_needs, job_pay_rates, siteline_shares, siteline_updates.
+-- See live definitions in the database.
