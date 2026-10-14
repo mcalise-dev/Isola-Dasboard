@@ -46,7 +46,8 @@ async function readReceipt(file: File): Promise<Rcpt> {
   }
 }
 
-export default function ThmSubmit({ token }: { token: string }) {
+// token = the texted link; crew = inside Tyler's crew-app login (same RPCs behind crew_thm_*)
+export default function ThmSubmit({ token, crew = false }: { token?: string; crew?: boolean }) {
   const sb = useMemo(() => createClient(), []);
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [dead, setDead] = useState("");
@@ -55,16 +56,20 @@ export default function ThmSubmit({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [sent, setSent] = useState<string[]>([]);
+  const [mine, setMine] = useState<any[]>([]);
+  const loadMine = () => { if (crew) sb.rpc("crew_thm_mine").then(({ data }) => setMine((data as any[]) ?? [])); };
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await sb.rpc("thm_submit_jobs", { p_token: token });
+      const { data, error } = crew ? await sb.rpc("crew_thm_jobs") : await sb.rpc("thm_submit_jobs", { p_token: token });
       if (error || !(data as any)?.ok) return setDead((data as any)?.error || "This link isn't working. Call Mike at 508-933-2661.");
       const list: Job[] = (data as any).jobs ?? [];
       setJobs(list);
       if (list.length === 1) setF((x) => ({ ...x, job: list[0].id }));
+      loadMine();
     })();
-  }, [sb, token]);
+    /* eslint-disable-next-line */
+  }, [sb, token, crew]);
 
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
 
@@ -76,10 +81,13 @@ export default function ThmSubmit({ token }: { token: string }) {
     if (!f.what.trim()) return setErr("Say what you bought.");
     if (!(amount > 0)) return setErr("Enter what you paid.");
     setBusy(true);
-    const { data, error } = await sb.rpc("thm_submit", {
-      p_token: token, p_job_id: f.job, p_amount: amount, p_date: f.date || null, p_vendor: f.vendor,
-      p_what: f.what, p_receipt_b64: rcpt?.b64 ?? null, p_receipt_mime: rcpt?.mime ?? null, p_name: f.name,
-    });
+    const common = {
+      p_job_id: f.job, p_amount: amount, p_date: f.date || null, p_vendor: f.vendor,
+      p_what: f.what, p_receipt_b64: rcpt?.b64 ?? null, p_receipt_mime: rcpt?.mime ?? null,
+    };
+    const { data, error } = crew
+      ? await sb.rpc("crew_thm_submit", common)
+      : await sb.rpc("thm_submit", { ...common, p_token: token, p_name: f.name });
     setBusy(false);
     if (error) return setErr("That didn't go through. Check your signal and try again.");
     if (!(data as any)?.ok) return setErr((data as any)?.error || "That didn't go through.");
@@ -88,10 +96,17 @@ export default function ThmSubmit({ token }: { token: string }) {
     setSent((s) => [`$${amount.toFixed(2)} — ${f.what.trim()} (${jobName})`, ...s]);
     setF({ ...f, what: "", amount: "", vendor: "", date: todayNY() });
     setRcpt(null);
+    loadMine();
   }
 
   return (
-    <div className="min-h-screen bg-neutral-100 text-neutral-900">
+    <div className={crew ? "text-neutral-900" : "min-h-screen bg-neutral-100 text-neutral-900"}>
+      {crew ? (
+        <div className="mb-3">
+          <h1 className="text-2xl font-bold text-white">Receipts</h1>
+          <p className="text-sm text-neutral-400">Materials you paid for on Isola jobs — Mike approves, then it comes off the THM tab.</p>
+        </div>
+      ) : (
       <div className="bg-neutral-950 px-5 py-5">
         <div className="mx-auto flex max-w-xl items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -102,8 +117,9 @@ export default function ThmSubmit({ token }: { token: string }) {
           </div>
         </div>
       </div>
+      )}
 
-      <div className="mx-auto max-w-xl space-y-4 px-4 py-6">
+      <div className={crew ? "space-y-4" : "mx-auto max-w-xl space-y-4 px-4 py-6"}>
         {dead ? (
           <div className="rounded-xl bg-white p-6 shadow-sm text-sm font-semibold text-neutral-700">{dead}</div>
         ) : !jobs ? (
@@ -148,8 +164,10 @@ export default function ThmSubmit({ token }: { token: string }) {
                 }} />
             </label>
 
-            <div><label className={lbl}>Your name</label>
-              <input className={inp} value={f.name} onChange={set("name")} /></div>
+            {crew ? null : (
+              <div><label className={lbl}>Your name</label>
+                <input className={inp} value={f.name} onChange={set("name")} /></div>
+            )}
 
             {err ? <div className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{err}</div> : null}
 
@@ -159,7 +177,27 @@ export default function ThmSubmit({ token }: { token: string }) {
           </form>
         )}
 
-        {sent.length ? (
+        {crew && mine.length ? (
+          <div className="rounded-xl bg-white p-5 shadow-sm">
+            <div className="text-sm font-bold">Your receipts</div>
+            <ul className="mt-2 divide-y divide-neutral-200 text-sm">
+              {mine.map((m) => (
+                <li key={m.id} className="flex items-start justify-between gap-3 py-2">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-neutral-900">{m.what}</div>
+                    <div className="text-xs text-neutral-500">{[m.job, m.vendor, m.date].filter(Boolean).join(" · ")}</div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="font-bold tabular-nums">${Number(m.amount).toFixed(2)}</div>
+                    <div className={`text-xs font-semibold ${m.status === "approved" ? "text-emerald-700" : "text-amber-700"}`}>{m.status === "approved" ? "Approved" : "Waiting on Mike"}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {sent.length && !crew ? (
           <div className="rounded-xl bg-white p-5 shadow-sm">
             <div className="text-sm font-bold text-emerald-700">✓ Sent — waiting on Mike to approve</div>
             <ul className="mt-2 space-y-1 text-sm text-neutral-700">{sent.map((s, i) => <li key={i}>{s}</li>)}</ul>
