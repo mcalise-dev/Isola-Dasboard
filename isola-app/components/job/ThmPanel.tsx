@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Empty, ListSkeleton, LoadError, SectionTitle } from "@/components/ui/bits";
 import { cn } from "@/lib/utils";
-import { Clock, Hammer, Pencil, Plus, Trash2, Truck, Wrench } from "lucide-react";
+import { Check, Clock, Hammer, Package, Pencil, Plus, Trash2, Truck, Wrench } from "lucide-react";
 
 /* v5.8 THM on a job. Contract holder + deal live on the job (Edit job).
    Reimburse deal: one line per truck / machine / labor / other, hours or days x rate.
@@ -21,6 +21,7 @@ import { Clock, Hammer, Pencil, Plus, Trash2, Truck, Wrench } from "lucide-react
 
 type Item = {
   id: string; job_id: string; kind: "truck" | "machine" | "labor" | "other"; label: string | null;
+  category?: string | null; status?: string | null; vendor?: string | null; submitted_by?: string | null;
   unit: "hours" | "days" | "flat"; qty: number; rate: number; amount: number;
   entry_date: string | null; notes: string | null; sort: number; created_at: string;
 };
@@ -31,6 +32,8 @@ const KINDS = [
   { key: "labor", label: "Labor time", icon: Clock, placeholder: "Who (Tyler…)" },
   { key: "other", label: "Other", icon: Hammer, placeholder: "Fuel, materials…" },
 ] as const;
+// materials ride on kind "other" with category "material" (THM paid -> reimbursed at cost)
+const MATERIAL = { key: "material", label: "Materials", icon: Package, placeholder: "What was bought" } as const;
 
 const errMsg = (e: any) => (e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
 const num = (v: any) => { const n = Number(String(v ?? "").replace(/[^0-9.]/g, "")); return Number.isFinite(n) ? n : 0; };
@@ -55,6 +58,24 @@ export default function ThmPanel({ job, onChange }: { job: any; onChange?: () =>
     } catch (e: any) { setErr(errMsg(e)); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [job.id]);
+
+  async function addMaterial() {
+    setBusy("material");
+    const row = { job_id: job.id, kind: "other", category: "material", label: null, unit: "flat", qty: 1, rate: 0, entry_date: todayISO(), sort: (items?.length ?? 0) + 1 };
+    const { data, error } = await sb.from("thm_job_items").insert(row).select("*").single();
+    setBusy("");
+    if (error) return showError("Couldn't add the line: " + error.message);
+    setItems((s) => [...(s ?? []), data as Item]);
+    onChange?.();
+  }
+
+  async function approve(it: Item) {
+    const { error } = await sb.from("thm_job_items").update({ status: "approved", updated_at: new Date().toISOString() }).eq("id", it.id);
+    if (error) return showError("Couldn't approve: " + error.message);
+    setItems((s) => (s ?? []).map((x) => (x.id === it.id ? { ...x, status: "approved" } : x)));
+    showToast("Approved — it's on the tab");
+    onChange?.();
+  }
 
   async function add(kind: Item["kind"]) {
     setBusy(kind);
@@ -99,8 +120,11 @@ export default function ThmPanel({ job, onChange }: { job: any; onChange?: () =>
   if (err) return <LoadError message={err} onRetry={load} />;
   if (!items) return <ListSkeleton />;
 
-  const total = items.reduce((a, x) => a + Number(x.amount || 0), 0);
-  const byKind = (k: string) => items.filter((x) => x.kind === k).reduce((a, x) => a + Number(x.amount || 0), 0);
+  const counted = items.filter((x) => x.status !== "submitted");
+  const total = counted.reduce((a, x) => a + Number(x.amount || 0), 0);
+  const isMat = (x: Item) => x.category === "material";
+  const byKind = (k: string) => counted.filter((x) => (k === "material" ? isMat(x) : x.kind === k && !isMat(x))).reduce((a, x) => a + Number(x.amount || 0), 0);
+  const waiting = items.filter((x) => x.status === "submitted").length;
 
   return (
     <div className="space-y-5">
@@ -126,8 +150,8 @@ export default function ThmPanel({ job, onChange }: { job: any; onChange?: () =>
           </div>
         </div>
         {items.length ? (
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-sm sm:grid-cols-4">
-            {KINDS.map((k) => (
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-sm sm:grid-cols-5">
+            {[...KINDS, MATERIAL].map((k) => (
               <div key={k.key}><div className="text-xs text-neutral-500">{k.label}</div><div className="font-semibold tabular-nums text-white">{money(byKind(k.key))}</div></div>
             ))}
           </div>
@@ -136,13 +160,17 @@ export default function ThmPanel({ job, onChange }: { job: any; onChange?: () =>
 
       <section>
         <SectionTitle>Add a line</SectionTitle>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {KINDS.map((k) => (
             <Button key={k.key} variant="outline" className="h-11" disabled={!!busy} onClick={() => add(k.key)}>
               <Plus size={14} /> <k.icon size={15} /> {k.label}
             </Button>
           ))}
+          <Button variant="outline" className="h-11" disabled={!!busy} onClick={addMaterial}>
+            <Plus size={14} /> <Package size={15} /> Materials
+          </Button>
         </div>
+        {waiting ? <p className="mt-1.5 text-xs text-amber-300">{waiting} receipt{waiting === 1 ? "" : "s"} from Tyler waiting for your OK — not counted yet.</p> : null}
         <p className="mt-1.5 text-xs text-neutral-500">Add one Machine line per machine. Rates start from the last one you used.</p>
       </section>
 
@@ -152,7 +180,7 @@ export default function ThmPanel({ job, onChange }: { job: any; onChange?: () =>
           <Empty icon={<Truck size={24} />} title="Nothing on this job yet" body={`Add the truck, each machine and the labor. Pick hours or days, plug in how many and the rate.`} />
         ) : (
           <div className="space-y-2">
-            {items.map((it) => <Line key={it.id} it={it} onSave={(p) => save(it, p)} onRemove={() => remove(it)} />)}
+            {items.map((it) => <Line key={it.id} it={it} onSave={(p) => save(it, p)} onRemove={() => remove(it)} onApprove={() => approve(it)} />)}
           </div>
         )}
       </section>
@@ -160,8 +188,9 @@ export default function ThmPanel({ job, onChange }: { job: any; onChange?: () =>
   );
 }
 
-function Line({ it, onSave, onRemove }: { it: Item; onSave: (p: Partial<Item>) => void; onRemove: () => void }) {
-  const meta = KINDS.find((k) => k.key === it.kind) ?? KINDS[3];
+function Line({ it, onSave, onRemove, onApprove }: { it: Item; onSave: (p: Partial<Item>) => void; onRemove: () => void; onApprove: () => void }) {
+  const meta = it.category === "material" ? MATERIAL : (KINDS.find((k) => k.key === it.kind) ?? KINDS[3]);
+  const pending = it.status === "submitted";
   const Icon = meta.icon;
   const [label, setLabel] = useState(it.label ?? "");
   const [qty, setQty] = useState(String(it.qty ?? ""));
@@ -175,6 +204,9 @@ function Line({ it, onSave, onRemove }: { it: Item; onSave: (p: Partial<Item>) =
       <div className="flex items-center gap-2">
         <Icon size={16} className="shrink-0 text-neutral-400" />
         <span className="text-sm font-semibold text-white">{meta.label}</span>
+        {pending ? <Badge variant="warning">From {it.submitted_by || "Tyler"} — not counted yet</Badge> : null}
+        {pending ? <Button size="sm" className="h-8" onClick={onApprove}><Check size={14} /> Approve</Button> : null}
+        {it.vendor ? <span className="truncate text-xs text-neutral-500">{it.vendor}</span> : null}
         <span className="ml-auto text-base font-semibold tabular-nums text-white">{money(amount)}</span>
         <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Remove line" onClick={onRemove}><Trash2 size={15} /></Button>
       </div>

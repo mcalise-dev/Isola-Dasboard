@@ -5,9 +5,10 @@ import { SUPABASE_URL, SUPABASE_KEY } from "./lib/supabase/client";
 // Routes that must work with NO login: the client hub, the crew time clock, and the
 // private calendar feed (its token is checked in the database), and the vendor COI/W-9
 // upload page (it can only call the insert-only vendor_submit RPC), client punch-list links, SiteLine
-// client update links (/site/, read-only via public_siteline), and the push
+// client update links (/site/, read-only via public_siteline), Tyler's THM materials link
+// (/thm-submit/, token-checked insert-only RPC), and the push
 // delivery routes (they protect themselves with a server secret).
-const PUBLIC_PREFIXES = ["/p/", "/clock", "/cal/", "/vendor-submit", "/punch/", "/site/", "/api/push/"];
+const PUBLIC_PREFIXES = ["/p/", "/clock", "/cal/", "/vendor-submit", "/punch/", "/site/", "/thm-submit/", "/api/push/"];
 const isPublic = (path: string) =>
   PUBLIC_PREFIXES.some((p) => path === p.replace(/\/$/, "") || path.startsWith(p));
 
