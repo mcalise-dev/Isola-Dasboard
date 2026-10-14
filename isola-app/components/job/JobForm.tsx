@@ -15,7 +15,7 @@ import { showToast, showError } from "@/components/Toaster";
 // address is tied to one of the customer's properties.
 const STATUSES = ["lead", "awaiting", "future", "booked", "progress", "complete", "lost"] as const;
 export const LEAD_SOURCES = ["Referral", "Repeat customer", "Property manager", "Cold outreach", "LinkedIn", "Website", "Google", "Drive-by / sign", "THM", "Other"];
-const empty = { job_name: "", customer: "", customer_id: "", location: "", property_id: "", job: "", status: "lead", price: "", contact_name: "", contact_phone: "", notes: "", scope_of_work: "", lead_source: "", referred_by: "" };
+const empty = { job_name: "", customer: "", customer_id: "", location: "", property_id: "", job: "", status: "lead", price: "", contact_name: "", contact_phone: "", notes: "", scope_of_work: "", lead_source: "", referred_by: "", contract_holder: "isola", partner: "", thm_deal: "" };
 
 export function editJob(job?: any) { window.dispatchEvent(new CustomEvent("isola:new-job", { detail: job ?? null })); }
 
@@ -74,6 +74,11 @@ export default function JobForm() {
         if (mp) payload.property_id = mp.id;
       }
     }
+    // THM: a THM-held job always has THM on it; no THM means no deal
+    payload.contract_holder = form.contract_holder === "thm" ? "thm" : "isola";
+    if (payload.contract_holder === "thm") payload.partner = "THM";
+    payload.partner = payload.partner === "THM" ? "THM" : null;
+    payload.thm_deal = payload.partner ? (form.thm_deal || "reimburse") : null;
     if (payload.status === "complete" && !editing?.completed_date) payload.completed_date = new Date().toISOString().slice(0, 10);
     const res = editing
       ? await supabase.from("jobs").update(payload).eq("id", editing.id).select("id").single()
@@ -140,6 +145,31 @@ export default function JobForm() {
             </NativeSelect>
           </Field>
           <Field label="Referred by"><Input placeholder="Who sent it (if a referral)" value={form.referred_by} onChange={(e) => set({ referred_by: e.target.value })} /></Field>
+          <Field label="Contract holder">
+            <NativeSelect value={form.contract_holder || "isola"} onChange={(e) => set({ contract_holder: e.target.value, ...(e.target.value === "thm" ? { partner: "THM", thm_deal: form.thm_deal || "reimburse" } : {}) })}>
+              <option value="isola">Isola (my contract)</option>
+              <option value="thm">THM (Tyler's contract)</option>
+            </NativeSelect>
+          </Field>
+          <Field label="Is THM on this job?">
+            <NativeSelect value={form.contract_holder === "thm" || form.partner === "THM" ? "yes" : "no"} disabled={form.contract_holder === "thm"}
+              onChange={(e) => set(e.target.value === "yes" ? { partner: "THM", thm_deal: form.thm_deal || "reimburse" } : { partner: "", thm_deal: "" })}>
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </NativeSelect>
+          </Field>
+          {form.contract_holder === "thm" || form.partner === "THM" ? (
+            <Field label="Deal with THM" className="sm:col-span-2">
+              <NativeSelect value={form.thm_deal || "reimburse"} onChange={(e) => set({ thm_deal: e.target.value })}>
+                <option value="reimburse">Reimburse time and equipment (truck, machines, labor), no profit split</option>
+                <option value="split">50/50 split of net profit</option>
+              </NativeSelect>
+              <p className="mt-1 text-xs text-neutral-500">
+                {form.contract_holder === "thm" ? "THM holds it: what THM owes you goes on the job's THM tab and onto the running tab."
+                  : "You hold it: what you owe THM goes on the job's THM tab and onto the running tab."}
+              </p>
+            </Field>
+          ) : null}
           <Field label="Scope of work" className="sm:col-span-2"><Textarea rows={3} value={form.scope_of_work} onChange={(e) => set({ scope_of_work: e.target.value })} /></Field>
           <Field label="Notes" className="sm:col-span-2"><Textarea rows={2} value={form.notes} onChange={(e) => set({ notes: e.target.value })} /></Field>
         </div>

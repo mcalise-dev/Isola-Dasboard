@@ -26,7 +26,8 @@ export function computeBill({ job, costs, rates, workers }: Data) {
   const defBill = num(job.tm_bill_rate);
   const markup = num(job.materials_markup);
   const labor = costs.filter((c) => c.category === "Labor");
-  const other = costs.filter((c) => c.category !== "Labor");
+  // THM reimbursement lines are what Isola owes Tyler, not a material to bill the customer
+  const other = costs.filter((c) => c.category !== "Labor" && c.category !== "THM");
   const people = new Map<string, { name: string; worker: any; hours: number; cost: number; bill: number; billRate: number | null; payRate: number | null; lump: number }>();
   let missingRate = false;
   for (const c of labor) {

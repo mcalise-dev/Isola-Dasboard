@@ -21,6 +21,7 @@ import MyClock from "@/components/MyClock";
 import { TmJobBill } from "@/components/TmBilling";
 import { CostsPanel, LaborPanel, TasksPanel, PhotosPanel, SchedulePanel, JobbookCard, ActivityPanel } from "@/components/job/panels";
 import { MoneyPanel, ProposalPanel, DocsPanel } from "@/components/job/hub";
+import ThmPanel from "@/components/job/ThmPanel";
 import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
 import {
@@ -37,8 +38,9 @@ const ORDER = ["lead", "awaiting", "booked", "progress", "complete"];
 
 // Tabs on the job record. Deep link with /jobs/<id>?tab=<key>; aliases map the
 // names other screens use (billing, build, punch…) onto the right tab.
-const TABS = ["overview", "crew", "money", "costs", "schedule", "tasks", "proposal", "docs", "photos", "activity"] as const;
+const TABS = ["overview", "crew", "money", "costs", "schedule", "tasks", "proposal", "docs", "photos", "activity", "thm"] as const;
 const TAB_ALIAS: Record<string, string> = {
+  partner: "thm", tyler: "thm",
   billing: "money", payments: "money", "change-orders": "money",
   build: "proposal", proposals: "proposal", estimate: "proposal",
   documents: "docs", log: "docs", logs: "docs", "daily-log": "docs",
@@ -131,6 +133,7 @@ export default function JobRecord({ id }: { id: string }) {
   const usedPct = priceN ? Math.round((spent / priceN) * 100) : 0;
   const tel = String(job.contact_phone || customer?.phone || "").replace(/[^0-9+]/g, "");
   const today = todayISO();
+  const withThm = job.partner === "THM" || job.contract_holder === "thm";
 
   // where the job sits on the stepper
   const sIdx = ORDER.indexOf(job.status === "future" ? "awaiting" : job.status);
@@ -199,7 +202,7 @@ export default function JobRecord({ id }: { id: string }) {
               {job.paid_date ? <Badge variant="success">Paid</Badge> : job.invoiced_date ? <Badge variant="warning">Invoiced</Badge> : null}
               {job.status === "awaiting" && job.quoted_date ? <Badge variant={daysSince(job.quoted_date) > 30 ? "danger" : daysSince(job.quoted_date) > 14 ? "warning" : "muted"}>{daysSince(job.quoted_date)}d out</Badge> : null}
               {job.priority ? <Badge variant="warning"><Star size={11} /> Priority</Badge> : null}
-              {job.partner ? <Badge variant="muted">With {job.partner}</Badge> : null}
+              {job.contract_holder === "thm" ? <Badge variant="warning">THM contract</Badge> : job.partner ? <Badge variant="muted">With {job.partner}</Badge> : null}
             </div>
             <h1 className="text-2xl font-semibold leading-tight text-white md:text-[28px]">{job.job_name || job.customer}</h1>
             <p className="mt-1 truncate text-sm text-neutral-400">{[job.customer, job.location, job.job].filter(Boolean).join(" · ") || "—"}</p>
@@ -271,6 +274,7 @@ export default function JobRecord({ id }: { id: string }) {
               <TabsTrigger value="proposal">Proposal</TabsTrigger>
               <TabsTrigger value="docs">Docs</TabsTrigger>
               <TabsTrigger value="photos">Photos</TabsTrigger>
+              {withThm ? <TabsTrigger value="thm">THM</TabsTrigger> : null}
               <TabsTrigger value="activity">Activity</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-6">
@@ -330,6 +334,7 @@ export default function JobRecord({ id }: { id: string }) {
             <TabsContent value="schedule"><SchedulePanel job={job} entries={sched} crew={crew} onChange={load} /></TabsContent>
             <TabsContent value="tasks"><TasksPanel jobId={job.id} /></TabsContent>
             <TabsContent value="photos"><PhotosPanel jobId={job.id} /></TabsContent>
+            {withThm ? <TabsContent value="thm"><ThmPanel job={job} onChange={load} /></TabsContent> : null}
             <TabsContent value="activity"><ActivityPanel job={job} extra={{ costs, visits }} /></TabsContent>
           </Tabs>
         </div>
@@ -357,7 +362,8 @@ export default function JobRecord({ id }: { id: string }) {
             </div>
             <Button size="sm" variant="ghost" className="mt-2 h-10 w-full" onClick={() => setTab("money")}>Payments & change orders <ArrowRight size={14} /></Button>
             {job.qbo_invoice_ref ? <KV k="QuickBooks invoice" className="mt-2">#{job.qbo_invoice_ref}</KV> : null}
-            {job.partner ? <KV k={`${job.partner} share`}>{job.partner_share ? `${job.partner_share}%` : "50% of net"}</KV> : null}
+            {job.contract_holder === "thm" ? <KV k="Contract holder">THM</KV> : null}
+            {withThm ? <KV k="THM deal"><button className="hover:underline" onClick={() => setTab("thm")}>{job.thm_deal === "split" ? (job.partner_share ? `${job.partner_share}% of net` : "50/50 of net") : "Reimburse time + equipment"}</button></KV> : null}
           </Card>
 
           <Card className="p-4">
