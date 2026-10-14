@@ -28,6 +28,7 @@ export default function ThmTab() {
   const supabase = useMemo(() => createClient(), []);
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [items, setItems] = useState<any[]>([]);
+  const [thmJobs, setThmJobs] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
@@ -39,6 +40,10 @@ export default function ThmTab() {
         supabase.from("thm_ledger").select("*").order("bucket").order("sort"),
         supabase.from("thm_job_items").select("id,job_id,kind,category,label,vendor,status,submitted_by,amount,entry_date,receipt_mime,jobs(id,job_name,customer,contract_holder,thm_deal,status)"),
       ]));
+      // every job THM is on shows here, even before it has any THM lines
+      const tj = await supabase.from("jobs").select("id,job_name,customer,contract_holder,thm_deal,status,updated_at")
+        .or("partner.eq.THM,contract_holder.eq.thm").neq("status", "lost");
+      setThmJobs(tj.data ?? []);
       const lk = await supabase.from("thm_submit_links").select("token").eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
       setLink(lk.data?.token ?? null);
       if (error) throw new Error(error.message);
@@ -105,6 +110,9 @@ export default function ThmTab() {
   // Isola holds the contract -> Isola owes THM. THM holds it -> THM owes Isola.
   const jobs = new Map<string, { id: string; name: string; holder: string; deal: string; status: string; total: number; lines: number; last: string | null }>();
   const pendingItems = items.filter((it) => it.status === "submitted");
+  for (const j of thmJobs) {
+    jobs.set(j.id, { id: j.id, name: j.job_name || j.customer, holder: j.contract_holder, deal: j.thm_deal, status: j.status, total: 0, lines: 0, last: null });
+  }
   for (const it of items) {
     const j = it.jobs;
     if (!j || it.status === "submitted") continue;
@@ -113,7 +121,9 @@ export default function ThmTab() {
     if (it.entry_date && (!cur.last || it.entry_date > cur.last)) cur.last = it.entry_date;
     jobs.set(j.id, cur);
   }
-  const jobRows = [...jobs.values()].sort((a, b) => String(b.last ?? "").localeCompare(String(a.last ?? "")));
+  const OPEN_FIRST: Record<string, number> = { progress: 0, booked: 1, future: 2, awaiting: 3, lead: 4, complete: 5 };
+  const jobRows = [...jobs.values()].sort((a, b) =>
+    (OPEN_FIRST[a.status] ?? 6) - (OPEN_FIRST[b.status] ?? 6) || String(b.last ?? "").localeCompare(String(a.last ?? "")));
   const running = sum(entries.filter((e) => e.bucket === "running"), "owes_isola") - sum(entries.filter((e) => e.bucket === "running"), "owes_thm");
   const tab = jobRows.reduce((a, j) => a + (j.holder === "thm" ? j.total : -j.total), 0) + running;
   const pending = jobRows.filter((j) => j.status !== "complete").reduce((a, j) => a + (j.holder === "thm" ? j.total : -j.total), 0);

@@ -1,0 +1,2 @@
+-- v61 (applied 2026-10-14): owner can preview Tyler's THM pages in the crew app.
+-- thm_partner_job / crew_thm_job_list now allow crew_is_thm() OR is_owner(). See live definitions.
