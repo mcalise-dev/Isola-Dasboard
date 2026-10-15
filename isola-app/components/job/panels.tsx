@@ -348,7 +348,7 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
       <SectionTitle right={
         <div className="flex items-center gap-2">
           <NativeSelect value={phase} onChange={(e) => setPhase(e.target.value)} className="h-8 w-[110px] text-[13px]"><option value="before">Before</option><option value="during">During</option><option value="after">After</option></NativeSelect>
-          <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-white px-3 text-[13px] font-semibold text-neutral-900">
+          <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-brand px-3 text-[13px] font-semibold text-neutral-950">
             <Camera size={15} /> {busy ? "Saving…" : "Add photos"}
             <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { add(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
           </label>

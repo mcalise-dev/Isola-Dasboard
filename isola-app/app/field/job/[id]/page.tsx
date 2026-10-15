@@ -142,14 +142,14 @@ export default function FieldJob() {
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
           {(d.crew ?? []).map((c: string) => (
             <span key={c} className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.07] py-0.5 pl-0.5 pr-2.5 text-[13px] font-semibold text-neutral-200">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[11px] font-bold text-neutral-900">{c[0]}</span>{c}
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-neutral-950">{c[0]}</span>{c}
             </span>
           ))}
           {days[0] ? <Pill icon={<CalendarDays size={12} />}>{dayLabel(days[0].date)}</Pill> : null}
         </div>
         {j.location ? (
           <a href={`https://maps.google.com/?q=${encodeURIComponent(j.location)}`} target="_blank" rel="noreferrer"
-            className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl bg-white text-neutral-900 min-h-[50px] font-bold"><Navigation size={18} /> Directions</a>
+            className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand text-neutral-950 min-h-[50px] font-bold"><Navigation size={18} /> Directions</a>
         ) : null}
       </div>
 
@@ -162,7 +162,7 @@ export default function FieldJob() {
             return (
               <button key={t.v} onClick={() => { setTab(t.v); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                 className={cn("flex flex-col items-center justify-center gap-0.5 rounded-lg min-h-[52px] text-[12px] font-semibold transition-colors",
-                  on ? "bg-white text-neutral-900" : "text-neutral-400 hover:text-white")}>
+                  on ? "bg-brand text-neutral-950" : "text-neutral-400 hover:text-white")}>
                 <Icon size={18} strokeWidth={on ? 2.4 : 2} />
                 <span className="leading-tight">{t.label}</span>{t.badge ? <span className="text-[11px] tabular-nums text-neutral-500 leading-none">{t.badge}</span> : null}
               </button>
@@ -196,7 +196,7 @@ export default function FieldJob() {
               placeholder="Add to the to-do…"
               className="min-w-0 flex-1 rounded-xl border border-white/[0.1] bg-neutral-950 px-3.5 min-h-[48px] text-base text-white placeholder:text-neutral-500 focus:outline-none focus:border-neutral-400" />
             <button onClick={addCheck} disabled={!adding.trim()} aria-label="Add"
-              className="shrink-0 inline-flex items-center justify-center rounded-xl bg-white text-neutral-900 w-12 min-h-[48px] disabled:opacity-40"><Plus size={20} strokeWidth={2.6} /></button>
+              className="shrink-0 inline-flex items-center justify-center rounded-xl bg-brand text-neutral-950 w-12 min-h-[48px] disabled:opacity-40"><Plus size={20} strokeWidth={2.6} /></button>
           </div>
           {next ? <div className="h-24" aria-hidden /> : null}
           {next ? <NextUpBar step={next} onDone={() => doneWithUndo(next)} /> : null}
@@ -295,7 +295,7 @@ function NextUpBar({ step, onDone }: { step: any; onDone: () => void }) {
           </div>
           <p className="mt-0.5 line-clamp-2 text-[15px] font-semibold leading-snug text-white">{text}</p>
         </div>
-        <button onClick={onDone} className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 min-h-[48px] font-bold text-neutral-900">
+        <button onClick={onDone} className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 min-h-[48px] font-bold text-neutral-950">
           <Check size={18} strokeWidth={3} /> Done
         </button>
       </div>

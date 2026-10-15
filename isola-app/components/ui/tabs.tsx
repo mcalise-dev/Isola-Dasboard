@@ -21,7 +21,7 @@ export function Segmented<T extends string>({ value, onChange, options, classNam
     <div className={cn("inline-flex rounded-lg border border-border bg-neutral-950 p-0.5", className)} role="tablist">
       {options.map((o) => (
         <button key={o.value} role="tab" aria-selected={value === o.value} onClick={() => onChange(o.value)}
-          className={cn("inline-flex items-center gap-1.5 rounded-md px-2.5 h-8 text-[13px] font-semibold", value === o.value ? "bg-white text-neutral-900" : "text-neutral-400 hover:text-white")}>
+          className={cn("inline-flex items-center gap-1.5 rounded-md px-2.5 h-8 text-[13px] font-semibold", value === o.value ? "bg-brand text-neutral-950" : "text-neutral-400 hover:text-white")}>
           {o.icon}{o.label}
         </button>
       ))}

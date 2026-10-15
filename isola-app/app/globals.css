@@ -6,26 +6,49 @@
 /* v4.6 (10/3/26): design tokens for the shadcn/ui kit in components/ui. Black and white,
    with green / amber / red kept for done / heads-up / late. */
 @theme {
-  --color-background: #000000;
-  --color-foreground: #f5f5f5;
-  --color-card: #0b0b0b;
-  --color-card-foreground: #f5f5f5;
-  --color-popover: #111111;
-  --color-popover-foreground: #f5f5f5;
-  --color-primary: #ffffff;
-  --color-primary-foreground: #0a0a0a;
-  --color-secondary: #1a1a1a;
-  --color-secondary-foreground: #f5f5f5;
-  --color-muted: #141414;
-  --color-muted-foreground: #a3a3a3;
-  --color-accent: #1c1c1c;
+  /* v5.0 (10/15/26) ISOLA BRAND: black & yellow, matching the SiteLine brochure.
+     Yellow #F2C230 for the primary action + active states, charcoal #0E1114 / #151A1F
+     surfaces, white and gray text. No blue anywhere. Green / amber / red stay for
+     done / heads-up / late. */
+  --color-brand: #F2C230;
+  --color-brand-dark: #E2AE14;
+  --color-brand-foreground: #0B0D0E;
+  --color-background: #0B0D0E;
+  --color-foreground: #F3F4F5;
+  --color-card: #151A1F;
+  --color-card-foreground: #F3F4F5;
+  --color-popover: #1A2026;
+  --color-popover-foreground: #F3F4F5;
+  --color-primary: #F2C230;
+  --color-primary-foreground: #0B0D0E;
+  --color-secondary: #1C2228;
+  --color-secondary-foreground: #F3F4F5;
+  --color-muted: #161B20;
+  --color-muted-foreground: #9AA1A8;
+  --color-accent: #1E242A;
   --color-accent-foreground: #ffffff;
   --color-border: rgba(255, 255, 255, 0.09);
   --color-input: rgba(255, 255, 255, 0.14);
-  --color-ring: #ffffff;
+  --color-ring: #F2C230;
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-danger: #f87171;
+  /* grays retinted to the Isola charcoal */
+  --color-black: #0B0D0E;
+  --color-neutral-50: #F5F6F7;
+  --color-neutral-100: #E9EBED;
+  --color-neutral-200: #D3D7DB;
+  --color-neutral-300: #B4BAC0;
+  --color-neutral-400: #8D949B;
+  --color-neutral-500: #6B7279;
+  --color-neutral-600: #4E555C;
+  --color-neutral-700: #353B41;
+  --color-neutral-800: #232930;
+  --color-neutral-900: #151A1F;
+  --color-neutral-950: #0E1114;
+  /* no blue: "new / needs review" (was sky) now reads in brand yellow */
+  --color-sky-100: #FDF0C4; --color-sky-200: #FAE18A; --color-sky-300: #F7D25A;
+  --color-sky-400: #F2C230; --color-sky-500: #F2C230;
   --radius-lg: 0.625rem;
   --radius-xl: 0.875rem;
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -33,9 +56,9 @@
   --text-xs--line-height: 1.15rem;
 }
 
-html { -webkit-text-size-adjust: 100%; color-scheme: dark; }
-/* checkboxes, radios and sliders in the app's white instead of browser blue */
-input, progress { accent-color: #fff; }
+html { -webkit-text-size-adjust: 100%; color-scheme: dark; background: #0B0D0E; }
+/* checkboxes, radios and sliders in Isola yellow instead of browser blue */
+input, progress { accent-color: #F2C230; }
 body {
   font-family: var(--font-sans);
   letter-spacing: -0.005em;
@@ -46,8 +69,8 @@ h1, h2, h3 { letter-spacing: -0.015em; }
 
 /* no grey flash on tap in iOS, and a visible focus ring for keyboards */
 * { -webkit-tap-highlight-color: transparent; }
-:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-::selection { background: rgba(255, 255, 255, 0.25); }
+:focus-visible { outline: 2px solid #F2C230; outline-offset: 2px; }
+::selection { background: #F2C230; color: #0B0D0E; }
 
 /* motion: sheets slide up, dialogs fade in; off for people who ask for less motion */
 @keyframes isola-sheet { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }

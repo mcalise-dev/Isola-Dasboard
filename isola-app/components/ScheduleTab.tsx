@@ -304,7 +304,7 @@ export default function ScheduleTab() {
           {crew.length ? (
             <div className="flex flex-wrap gap-1.5">
               <button onClick={() => setFilterWho("")}
-                className={cn("h-9 rounded-full border px-3 text-xs font-bold", filterWho === "" ? "border-white bg-white text-neutral-900" : "border-border text-neutral-400 hover:text-white")}>
+                className={cn("h-9 rounded-full border px-3 text-xs font-bold", filterWho === "" ? "border-brand bg-brand text-neutral-950" : "border-border text-neutral-400 hover:text-white")}>
                 Everyone
               </button>
               {crew.map((w) => (
@@ -345,7 +345,7 @@ export default function ScheduleTab() {
                     <button key={i} onClick={() => setSelected(ds)} aria-label={`${ds}, ${dayEntries.length} scheduled`}
                       className={cn("flex min-h-[66px] flex-col gap-0.5 rounded-lg border p-1 md:min-h-[96px] md:p-1.5",
                         isSel ? "border-white bg-white/[0.08]" : isToday ? "border-white/40 bg-neutral-950" : "border-white/[0.06] bg-neutral-950 hover:border-white/20")}>
-                      <span className={cn("self-center text-xs font-bold leading-none md:self-start", isToday ? "rounded-full bg-white px-1.5 py-0.5 text-neutral-900" : isSel ? "text-white" : "text-neutral-300")}>{d}</span>
+                      <span className={cn("self-center text-xs font-bold leading-none md:self-start", isToday ? "rounded-full bg-brand px-1.5 py-0.5 text-neutral-950" : isSel ? "text-white" : "text-neutral-300")}>{d}</span>
                       <span className="flex w-full flex-col gap-0.5 overflow-hidden">
                         {dayEntries.slice(0, 3).map((e) => {
                           const j = e.job_id ? jobById[e.job_id] : null;

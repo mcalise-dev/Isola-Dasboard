@@ -22,7 +22,7 @@ export default function HubTabs() {
         const Icon = it.icon;
         return (
           <Link key={it.href} href={it.href} data-on={on ? "1" : "0"}
-            className={`inline-flex min-h-[38px] shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-semibold md:min-h-[30px] md:px-3 md:text-[13px] ${on ? "border-white bg-white text-neutral-900" : "border-white/15 text-neutral-300 hover:border-white/30 hover:text-white"}`}>
+            className={`inline-flex min-h-[38px] shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-semibold md:min-h-[30px] md:px-3 md:text-[13px] ${on ? "border-brand bg-brand text-neutral-950" : "border-white/15 text-neutral-300 hover:border-white/30 hover:text-white"}`}>
             <Icon size={15} strokeWidth={2.2} />
             {it.label}
           </Link>

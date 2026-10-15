@@ -290,7 +290,7 @@ export default function BillingTab() {
                 <div className="flex flex-wrap gap-1.5">
                   {STATUSES.map((s) => (
                     <button key={s} onClick={() => setEditJob({ ...editJob, status: s })}
-                      className={cn("h-9 rounded-lg border px-3 text-[13px] font-semibold capitalize", editJob.status === s ? "border-white bg-white text-neutral-900" : "border-input text-neutral-400 hover:text-white")}>
+                      className={cn("h-9 rounded-lg border px-3 text-[13px] font-semibold capitalize", editJob.status === s ? "border-brand bg-brand text-neutral-950" : "border-input text-neutral-400 hover:text-white")}>
                       {s}
                     </button>
                   ))}

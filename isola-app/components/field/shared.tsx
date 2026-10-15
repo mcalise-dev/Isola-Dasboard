@@ -23,7 +23,7 @@ export function StopCard({ s, n }: { s: Stop; n?: number }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-white truncate">{s.job_name || s.label || "—"}</span>
-          {s.mine ? <span className="shrink-0 rounded-full bg-white text-neutral-900 px-2 py-0.5 text-xs font-bold">You</span> : null}
+          {s.mine ? <span className="shrink-0 rounded-full bg-brand text-neutral-950 px-2 py-0.5 text-xs font-bold">You</span> : null}
         </div>
         {s.location ? <div className="text-sm text-neutral-400 truncate flex items-center gap-1"><MapPin size={13} className="shrink-0" />{s.location}</div> : null}
         <div className="text-sm text-neutral-400 truncate">{[s.work_type, s.assignee ? `Crew: ${s.assignee}` : null].filter(Boolean).join(" · ")}</div>

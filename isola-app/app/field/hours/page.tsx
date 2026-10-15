@@ -31,7 +31,7 @@ export default function FieldHours() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-white">My hours</h1>
-      <Link href="/clock" className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-white text-neutral-900 min-h-[52px] font-bold"><Timer size={20} /> Clock in / out</Link>
+      <Link href="/clock" className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-brand text-neutral-950 min-h-[52px] font-bold"><Timer size={20} /> Clock in / out</Link>
       {owed ? (
         <section className="mt-6">
           <div className="flex items-baseline justify-between mb-2">

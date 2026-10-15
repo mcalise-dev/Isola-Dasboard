@@ -60,12 +60,12 @@ export default function PublicSiteLine({ token }: { token: string }) {
 
   return (
     <div className="min-h-screen bg-neutral-100 text-neutral-900">
-      <div className="bg-neutral-950 px-5 py-5">
+      <div className="bg-neutral-950 px-5 py-5 border-b-4 border-brand">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Isola" className="h-10 w-auto" />
           <div>
-            <div className="text-sm font-bold tracking-wide text-white">ISOLA SITELINE</div>
+            <div className="text-sm font-bold tracking-wide text-white">ISOLA <span className="text-brand">SITELINE</span></div>
             <div className="text-xs text-neutral-400">Project updates from Isola Excavation &amp; Design</div>
           </div>
         </div>
@@ -94,7 +94,7 @@ export default function PublicSiteLine({ token }: { token: string }) {
                 <div className="mt-5 grid grid-cols-3 gap-1.5">
                   {PHASES.map((p, i) => (
                     <div key={p}>
-                      <div className={`h-1.5 rounded-full ${i <= phaseIdx ? "bg-neutral-950" : "bg-neutral-200"}`} />
+                      <div className={`h-1.5 rounded-full ${i <= phaseIdx ? "bg-brand" : "bg-neutral-200"}`} />
                       <div className={`mt-1.5 text-xs ${i === phaseIdx ? "font-bold text-neutral-950" : "text-neutral-500"}`}>{p}</div>
                     </div>
                   ))}
@@ -132,7 +132,7 @@ export default function PublicSiteLine({ token }: { token: string }) {
               <div className="text-sm font-bold">Your project lead</div>
               <div className="mt-1 text-[15px]">Mike Calise, Isola Excavation &amp; Design</div>
               <div className="mt-3 grid grid-cols-3 gap-2">
-                <a href={`tel:${PHONE.replace(/-/g, "")}`} className="rounded-lg bg-neutral-950 px-3 py-3 text-center text-sm font-bold text-white">Call</a>
+                <a href={`tel:${PHONE.replace(/-/g, "")}`} className="rounded-lg bg-brand px-3 py-3 text-center text-sm font-bold text-neutral-950">Call</a>
                 <a href={`sms:${PHONE.replace(/-/g, "")}`} className="rounded-lg border border-neutral-300 px-3 py-3 text-center text-sm font-bold">Text</a>
                 <a href={`mailto:${EMAIL}?subject=${encodeURIComponent(d.job_name)}`} className="rounded-lg border border-neutral-300 px-3 py-3 text-center text-sm font-bold">Email</a>
               </div>

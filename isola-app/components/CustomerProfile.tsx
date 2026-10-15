@@ -313,7 +313,7 @@ export default function CustomerProfile({ id }: { id: string }) {
                   setNoteFile({ b64: cv.toDataURL("image/jpeg", 0.72), name: f.name });
                 }}
                 className="flex-1 text-xs text-neutral-400 file:mr-2 file:rounded-lg file:border file:border-neutral-700 file:bg-neutral-900 file:px-2 file:py-1 file:text-xs file:text-neutral-300" />
-              <button onClick={addNote} disabled={!note.trim() && !noteFile} className="rounded-lg bg-white text-black px-4 py-1.5 text-xs font-bold disabled:opacity-40">Save</button>
+              <button onClick={addNote} disabled={!note.trim() && !noteFile} className="rounded-lg bg-brand text-black px-4 py-1.5 text-xs font-bold disabled:opacity-40">Save</button>
             </div>
             {noteFile ? <img src={noteFile.b64} alt="" className="h-20 rounded-lg border border-white/[0.08]" /> : null}
           </div>
@@ -445,7 +445,7 @@ function EditCustomer({ supabase, c, onClose, onSaved }: any) {
           <input type="checkbox" checked={f.archived} onChange={(e) => setF((s) => ({ ...s, archived: e.target.checked }))} />
           Archived — hide from the main list
         </label>
-        <button onClick={save} disabled={busy} className="w-full rounded-xl bg-white text-black py-2.5 text-sm font-bold disabled:opacity-50">
+        <button onClick={save} disabled={busy} className="w-full rounded-xl bg-brand text-black py-2.5 text-sm font-bold disabled:opacity-50">
           {busy ? "Saving…" : "Save changes"}
         </button>
       </div>
@@ -482,7 +482,7 @@ function EditProperty({ supabase, customerId, p, onClose, onSaved }: any) {
           <textarea value={f.access_notes} onChange={set("access_notes")} rows={2} className={inp} />
         </F>
         <F l="Notes"><textarea value={f.notes} onChange={set("notes")} rows={2} className={inp} /></F>
-        <button onClick={save} disabled={busy} className="w-full rounded-xl bg-white text-black py-2.5 text-sm font-bold disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
+        <button onClick={save} disabled={busy} className="w-full rounded-xl bg-brand text-black py-2.5 text-sm font-bold disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
       </div>
     </Modal>
   );
@@ -523,7 +523,7 @@ function EditContact({ supabase, customerId, p, onClose, onSaved }: any) {
           Billing contact — this is who gets the invoice
         </label>
         <F l="Notes"><textarea value={f.notes} onChange={set("notes")} rows={2} className={inp} /></F>
-        <button onClick={save} disabled={busy} className="w-full rounded-xl bg-white text-black py-2.5 text-sm font-bold disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
+        <button onClick={save} disabled={busy} className="w-full rounded-xl bg-brand text-black py-2.5 text-sm font-bold disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
         {p ? <button onClick={del} className="w-full text-xs text-neutral-400 underline">Remove</button> : null}
       </div>
     </Modal>

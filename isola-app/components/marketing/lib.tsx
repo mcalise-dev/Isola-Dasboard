@@ -135,7 +135,7 @@ export function TierBadge({ tier, className }: { tier: string | null | undefined
   const t = tier ?? "—";
   return (
     <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-md border px-1.5 text-xs font-bold tabular-nums",
-      t === "A" ? "border-white bg-white text-neutral-900" : t === "Client" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-white/15 text-neutral-300", className)}>
+      t === "A" ? "border-brand bg-brand text-neutral-950" : t === "Client" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-white/15 text-neutral-300", className)}>
       {t === "Client" ? "Client" : t === "Broker" ? "Br" : t}
     </span>
   );
@@ -146,7 +146,7 @@ export function SeqBar({ total, done, className }: { total: number; done: number
   return (
     <div className={cn("flex gap-0.5", className)} aria-label={`${done} of ${total} steps`}>
       {Array.from({ length: total }).map((_, i) => (
-        <span key={i} className={cn("h-1.5 flex-1 rounded-full", i < done ? "bg-white" : i === done ? "bg-white/35" : "bg-white/10")} />
+        <span key={i} className={cn("h-1.5 flex-1 rounded-full", i < done ? "bg-brand" : i === done ? "bg-white/35" : "bg-white/10")} />
       ))}
     </div>
   );
@@ -164,7 +164,7 @@ export function SeqLine({ steps, current, className }: { steps: Step[]; current?
             {i > 0 ? <span className={cn("absolute left-[-50%] right-[50%] top-[11px] h-px", isDone || isNow ? "bg-white/60" : "bg-white/10")} /> : null}
             <div className="relative z-[1] flex flex-col items-center gap-1">
               <span className={cn("flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-bold tabular-nums",
-                isDone ? "border-white bg-white text-neutral-900" : isNow ? "border-white bg-neutral-950 text-white ring-4 ring-white/10" : "border-white/20 bg-neutral-950 text-neutral-400")}>{i + 1}</span>
+                isDone ? "border-brand bg-brand text-neutral-950" : isNow ? "border-white bg-neutral-950 text-white ring-4 ring-white/10" : "border-white/20 bg-neutral-950 text-neutral-400")}>{i + 1}</span>
               <span className="text-xs font-semibold text-neutral-200 leading-tight px-1">{s.label}</span>
               <span className="text-[11px] text-neutral-500">Day {s.day} · {s.channel}</span>
             </div>
@@ -193,7 +193,7 @@ export function Chips<T extends string>({ value, onChange, options, className }:
       {options.map((o) => (
         <button key={o.value} onClick={() => onChange(o.value)}
           className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold",
-            value === o.value ? "border-white bg-white text-neutral-900" : "border-border text-neutral-300 hover:border-white/25")}>
+            value === o.value ? "border-brand bg-brand text-neutral-950" : "border-border text-neutral-300 hover:border-white/25")}>
           {o.label}{o.count != null ? <span className={cn("tabular-nums", value === o.value ? "text-neutral-500" : "text-neutral-500")}>{o.count}</span> : null}
         </button>
       ))}

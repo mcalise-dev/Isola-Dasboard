@@ -21,7 +21,7 @@ export default function BottomBar() {
   return (
     <div className="md:hidden">
       <button onClick={() => window.dispatchEvent(new Event("isola:quickadd"))} aria-label="Quick add"
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-white text-neutral-900 shadow-[0_8px_24px_rgba(0,0,0,.6)] ring-4 ring-black transition-transform active:scale-95">
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+76px)] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-brand text-neutral-950 shadow-[0_8px_24px_rgba(0,0,0,.6)] ring-4 ring-background transition-transform active:scale-95">
         <Plus size={28} strokeWidth={2.6} />
       </button>
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-black/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md">
@@ -32,16 +32,16 @@ export default function BottomBar() {
             const badge = t.key === "home" ? a?.badges.home : t.key === "money" ? a?.badges.money : 0;
             return (
               <button key={t.key} onClick={() => router.push(t.href)} aria-current={on ? "page" : undefined}
-                className={cn("relative flex min-h-[60px] flex-col items-center justify-center gap-1 text-xs font-semibold", on ? "text-white" : "text-neutral-500")}>
-                {on ? <span className="absolute top-0 h-0.5 w-8 rounded-full bg-white" /> : null}
+                className={cn("relative flex min-h-[60px] flex-col items-center justify-center gap-1 text-xs font-semibold", on ? "text-brand" : "text-neutral-500")}>
+                {on ? <span className="absolute top-0 h-0.5 w-8 rounded-full bg-brand" /> : null}
                 <span className="relative"><Icon size={22} strokeWidth={on ? 2.4 : 1.9} />
                   {badge ? <span className="absolute -right-2 -top-1 min-w-[16px] rounded-full bg-red-500 px-1 text-[10px] font-bold leading-4 text-white">{badge}</span> : null}</span>
                 {t.label}
               </button>
             );
           })}
-          <button onClick={() => setMenu(true)} className={cn("relative flex min-h-[60px] flex-col items-center justify-center gap-1 text-xs font-semibold", !onTab && key ? "text-white" : "text-neutral-500")}>
-            {!onTab && key ? <span className="absolute top-0 h-0.5 w-8 rounded-full bg-white" /> : null}
+          <button onClick={() => setMenu(true)} className={cn("relative flex min-h-[60px] flex-col items-center justify-center gap-1 text-xs font-semibold", !onTab && key ? "text-brand" : "text-neutral-500")}>
+            {!onTab && key ? <span className="absolute top-0 h-0.5 w-8 rounded-full bg-brand" /> : null}
             <span className="relative"><Menu size={22} />
               {moreCount ? <span className="absolute -right-2 -top-1 min-w-[16px] rounded-full bg-white/20 px-1 text-[10px] font-bold leading-4 text-white">{moreCount}</span> : null}</span>
             Menu

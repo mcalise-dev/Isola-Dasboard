@@ -292,7 +292,7 @@ export default function CustomerRecord({ id }: { id: string }) {
               <KV k="QuickBooks names">{(c.qbo_names ?? []).length ? (c.qbo_names ?? []).join(", ") : <span className="text-neutral-500">Same as name</span>}</KV>
               <KV k="Referral partner">
                 <button type="button" role="switch" aria-checked={!!c.referral_partner} onClick={() => patchCustomer({ referral_partner: !c.referral_partner }, c.referral_partner ? "No longer a referral partner" : "Marked as referral partner")}
-                  className={cn("relative inline-flex h-6 w-10 items-center rounded-full transition-colors", c.referral_partner ? "bg-white" : "bg-white/15")}>
+                  className={cn("relative inline-flex h-6 w-10 items-center rounded-full transition-colors", c.referral_partner ? "bg-brand" : "bg-white/15")}>
                   <span className={cn("inline-block h-5 w-5 rounded-full transition-transform", c.referral_partner ? "translate-x-[18px] bg-neutral-900" : "translate-x-0.5 bg-neutral-400")} />
                 </button>
               </KV>
@@ -543,7 +543,7 @@ function ActivityTab({ supabase, customerId, jobs, links, visits, comms, onAdded
         <ol className="relative ml-2 border-l border-white/10">
           {feed.map((e, i) => (
             <li key={i} className="relative pb-3 pl-5">
-              <span className={cn("absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-950", e.kind === "Money" ? "bg-emerald-400" : e.comm ? "bg-white" : "bg-neutral-500")} />
+              <span className={cn("absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-950", e.kind === "Money" ? "bg-emerald-400" : e.comm ? "bg-brand" : "bg-neutral-500")} />
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="text-xs text-neutral-500">{e.kind} · {dt(e.at)}</div>

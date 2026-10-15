@@ -258,7 +258,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
       ) : null}
 
       {step && StepIcon ? (
-        <button onClick={runStep} className="mb-5 flex w-full items-center gap-3 rounded-xl bg-white px-4 py-3 text-left text-neutral-900 transition-transform active:scale-[.995] lg:hidden">
+        <button onClick={runStep} className="mb-5 flex w-full items-center gap-3 rounded-xl bg-brand px-4 py-3 text-left text-neutral-950 transition-transform active:scale-[.995] lg:hidden">
           <StepIcon size={20} strokeWidth={2.4} /><span className="flex-1 text-base font-semibold">{step.label}</span><ArrowRight size={18} className="opacity-60" />
         </button>
       ) : null}
@@ -348,7 +348,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
         {/* right rail */}
         <aside className="space-y-4 lg:sticky lg:top-[76px]">
           {step && StepIcon ? (
-            <button onClick={runStep} className="hidden w-full items-center gap-3 rounded-xl bg-white px-4 py-3 text-left text-neutral-900 transition-colors hover:bg-neutral-200 lg:flex">
+            <button onClick={runStep} className="hidden w-full items-center gap-3 rounded-xl bg-brand px-4 py-3 text-left text-neutral-950 transition-colors hover:bg-brand-dark lg:flex">
               <StepIcon size={18} strokeWidth={2.4} /><span className="flex-1 text-sm font-semibold">{step.label}</span><ArrowRight size={16} className="opacity-60" />
             </button>
           ) : null}

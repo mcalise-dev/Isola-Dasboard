@@ -25,7 +25,7 @@ export default function FieldTabBar() {
           const Icon = t.icon;
           return (
             <Link key={t.href} href={t.href} className={`relative flex flex-col items-center justify-center gap-1 min-h-[60px] text-xs font-semibold ${on ? "text-white" : "text-neutral-400"}`}>
-              {on ? <span className="absolute top-0 h-0.5 w-8 rounded-full bg-white" /> : null}
+              {on ? <span className="absolute top-0 h-0.5 w-8 rounded-full bg-brand" /> : null}
               <Icon size={22} strokeWidth={on ? 2.4 : 1.9} />
               {t.label}
             </Link>

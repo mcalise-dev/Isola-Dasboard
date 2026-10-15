@@ -90,7 +90,7 @@ export function Bar({ value, className }: { value: number; className?: string })
   const v = Math.max(0, Math.min(1, value));
   return (
     <div className={cn("h-1.5 overflow-hidden rounded-full bg-white/[0.08]", className)}>
-      <div className={cn("h-full rounded-full transition-[width] duration-500", v >= 1 ? "bg-emerald-400" : "bg-white")} style={{ width: `${v * 100}%` }} />
+      <div className={cn("h-full rounded-full transition-[width] duration-500", v >= 1 ? "bg-emerald-400" : "bg-brand")} style={{ width: `${v * 100}%` }} />
     </div>
   );
 }
@@ -144,7 +144,7 @@ export function PlanView({ list, onToggle, onRemove, onEdit, readOnly, jump = tr
             return (
               <button key={p.key || "_"} type="button" onClick={() => go(p.key)}
                 className={cn("shrink-0 rounded-xl border px-3 py-2 text-left min-w-[112px]",
-                  current ? "border-white bg-white text-neutral-900" : complete ? "border-emerald-400/30 bg-emerald-400/[0.06] text-emerald-100" : "border-white/[0.1] bg-neutral-950 text-neutral-200")}>
+                  current ? "border-brand bg-brand text-neutral-950" : complete ? "border-emerald-400/30 bg-emerald-400/[0.06] text-emerald-100" : "border-white/[0.1] bg-neutral-950 text-neutral-200")}>
                 <div className="flex items-center gap-1.5 text-[13px] font-semibold leading-tight">
                   {complete ? <Check size={13} strokeWidth={3} className="text-emerald-300" /> : null}
                   <span className="truncate">{p.title}</span>
@@ -170,7 +170,7 @@ export function PlanView({ list, onToggle, onRemove, onEdit, readOnly, jump = tr
               <button type="button" onClick={() => setOpen((s) => ({ ...s, [p.key]: !o }))}
                 className="flex w-full items-center gap-3 px-4 py-3.5 text-left min-h-[60px]">
                 <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-bold",
-                  complete ? "bg-emerald-400 text-neutral-900" : current ? "bg-white text-neutral-900" : "bg-white/[0.08] text-neutral-300")}>
+                  complete ? "bg-emerald-400 text-neutral-900" : current ? "bg-brand text-neutral-950" : "bg-white/[0.08] text-neutral-300")}>
                   {complete ? <Check size={16} strokeWidth={3.2} /> : pi + 1}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -278,7 +278,7 @@ export function LoadOut({ rows, me, kind, onToggle, readOnly }:
         {([["all", `All ${total}`], ...(mineName && mineCount ? [["mine", `Mine ${mineCount}`]] : []), ...(canCheck ? [["left", `Still to get ${total - got}`]] : [])] as [typeof filter, string][]).map(([v, l]) => (
           <button key={v} onClick={() => setFilter(v)}
             className={cn("shrink-0 rounded-full border px-3.5 min-h-[36px] text-[13px] font-semibold",
-              filter === v ? "border-white bg-white text-neutral-900" : "border-white/[0.12] text-neutral-300")}>{l}</button>
+              filter === v ? "border-brand bg-brand text-neutral-950" : "border-white/[0.12] text-neutral-300")}>{l}</button>
         ))}
       </div>
 
@@ -379,7 +379,7 @@ export function DayPicker({ value, onChange, dates, hasBefore, progress }:
         return (
           <button key={k} type="button" onClick={() => onChange(k)}
             className={cn("shrink-0 rounded-xl border px-3 py-1.5 text-left min-h-[48px]",
-              on ? "border-white bg-white text-neutral-900" : "border-white/[0.1] bg-neutral-950 text-neutral-200")}>
+              on ? "border-brand bg-brand text-neutral-950" : "border-white/[0.1] bg-neutral-950 text-neutral-200")}>
             <div className="flex items-center gap-1 text-[13px] font-bold leading-tight whitespace-nowrap">
               {complete ? <Check size={12} strokeWidth={3} className={on ? "text-emerald-600" : "text-emerald-400"} /> : null}{l.top}
             </div>

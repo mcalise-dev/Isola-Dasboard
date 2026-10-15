@@ -75,7 +75,7 @@ export function Progress({ value, tone, className }: { value: number; tone?: "ok
   const v = Math.max(0, Math.min(100, value));
   return (
     <div className={cn("h-1.5 overflow-hidden rounded-full bg-white/[0.08]", className)}>
-      <div className={cn("h-full rounded-full", tone === "ok" ? "bg-emerald-400" : tone === "warn" ? "bg-amber-400" : tone === "bad" ? "bg-red-400" : "bg-white")} style={{ width: v + "%" }} />
+      <div className={cn("h-full rounded-full", tone === "ok" ? "bg-emerald-400" : tone === "warn" ? "bg-amber-400" : tone === "bad" ? "bg-red-400" : "bg-brand")} style={{ width: v + "%" }} />
     </div>
   );
 }
@@ -89,10 +89,10 @@ export function Stepper({ steps, current, done, onPick, className }: { steps: { 
         const isNow = i === current;
         return (
           <li key={s.key} className="relative min-w-[84px] flex-1 text-center">
-            {i > 0 ? <span className={cn("absolute left-[-50%] right-[50%] top-[9px] h-0.5", isDone || isNow ? "bg-white" : "bg-white/10")} /> : null}
+            {i > 0 ? <span className={cn("absolute left-[-50%] right-[50%] top-[9px] h-0.5", isDone || isNow ? "bg-brand" : "bg-white/10")} /> : null}
             <button type="button" disabled={!onPick} onClick={() => onPick?.(s.key)} className="relative z-[1] flex w-full flex-col items-center gap-1.5 disabled:cursor-default">
               <span className={cn("flex h-5 w-5 items-center justify-center rounded-full border-2 text-[10px] font-bold",
-                isDone ? "border-white bg-white text-neutral-900" : isNow ? "border-white bg-neutral-950 ring-4 ring-white/15" : "border-white/20 bg-neutral-950")}>
+                isDone ? "border-brand bg-brand text-neutral-950" : isNow ? "border-white bg-neutral-950 ring-4 ring-white/15" : "border-white/20 bg-neutral-950")}>
                 {isDone ? "✓" : ""}
               </span>
               <span className={cn("text-xs leading-tight", isNow ? "font-semibold text-white" : isDone ? "text-neutral-300" : "text-neutral-500")}>{s.label}</span>
@@ -115,7 +115,7 @@ export function LoadError({ onRetry, message, className }: { onRetry?: () => voi
       <p className="text-base font-semibold text-white">Couldn't load this</p>
       <p className="mx-auto mt-1 max-w-sm text-sm text-neutral-400">{message || "Check your signal, then try again. If it keeps happening, sign out and back in."}</p>
       {onRetry ? (
-        <button onClick={onRetry} className="mt-4 inline-flex h-10 items-center rounded-lg bg-white px-4 text-sm font-semibold text-neutral-900 hover:bg-neutral-200">Try again</button>
+        <button onClick={onRetry} className="mt-4 inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-neutral-950 hover:bg-brand-dark">Try again</button>
       ) : null}
     </div>
   );

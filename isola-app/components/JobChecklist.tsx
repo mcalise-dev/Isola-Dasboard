@@ -193,7 +193,7 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
         </div>
         <div className="flex flex-wrap justify-end gap-1.5">
           {items.length ? (
-            <button onClick={() => setDaysOpen(!daysOpen)} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-3 min-h-[36px] text-[13px] font-semibold", daysOpen ? "border-white bg-white text-neutral-900" : "border-white/[0.12] text-neutral-300 hover:text-white")}>
+            <button onClick={() => setDaysOpen(!daysOpen)} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-3 min-h-[36px] text-[13px] font-semibold", daysOpen ? "border-brand bg-brand text-neutral-950" : "border-white/[0.12] text-neutral-300 hover:text-white")}>
               <CalendarDays size={14} />Phases & days
             </button>
           ) : null}
@@ -206,7 +206,7 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
       {useDays && beforeCount > 0 && dates.some((d) => d < todayIso) ? (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-300/30 bg-amber-300/[0.06] px-4 py-3">
           <p className="min-w-0 flex-1 text-sm text-amber-100"><span className="font-semibold">{beforeCount} step{beforeCount > 1 ? "s" : ""} not on a day</span> (under “Before”). Clear them, or tap Before below to look first.</p>
-          <button onClick={clearBefore} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 min-h-[40px] text-sm font-bold text-neutral-900"><Trash2 size={14} /> Clear them</button>
+          <button onClick={clearBefore} className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 min-h-[40px] text-sm font-bold text-neutral-950"><Trash2 size={14} /> Clear them</button>
         </div>
       ) : null}
 
@@ -279,7 +279,7 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
             onKeyDown={(e) => e.key === "Enter" && add()}
             className={cn(field, "min-w-0 flex-1 px-3.5")} />
           <button onClick={add} disabled={busy || !text.trim()} aria-label="Add step"
-            className="shrink-0 inline-flex items-center justify-center gap-1 rounded-xl bg-white px-4 min-h-[44px] text-sm font-bold text-neutral-900 disabled:opacity-40"><Plus size={16} strokeWidth={2.6} /><span className="hidden sm:inline">Add</span></button>
+            className="shrink-0 inline-flex items-center justify-center gap-1 rounded-xl bg-brand px-4 min-h-[44px] text-sm font-bold text-neutral-950 disabled:opacity-40"><Plus size={16} strokeWidth={2.6} /><span className="hidden sm:inline">Add</span></button>
         </div>
         <div className="mt-2 grid grid-cols-3 gap-2">
           <select value={phase} onChange={(e) => pickPhase(e.target.value, setPhase)} className={field} aria-label="Phase">{phaseOpts(phase)}</select>
@@ -313,7 +313,7 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
             <button onClick={() => { const id = edit?.id; setEdit(null); if (id) remove(id); }} className="inline-flex items-center gap-1.5 rounded-xl px-3 min-h-[44px] text-sm font-semibold text-red-300 hover:bg-red-500/10"><Trash2 size={15} /> Delete</button>
             <div className="flex gap-2">
               <button onClick={() => setEdit(null)} className="rounded-xl border border-white/[0.12] px-4 min-h-[44px] text-sm font-semibold text-neutral-300">Cancel</button>
-              <button onClick={saveEdit} className="rounded-xl bg-white px-4 min-h-[44px] text-sm font-bold text-neutral-900">Save</button>
+              <button onClick={saveEdit} className="rounded-xl bg-brand px-4 min-h-[44px] text-sm font-bold text-neutral-950">Save</button>
             </div>
           </DialogFooter>
         </DialogContent>

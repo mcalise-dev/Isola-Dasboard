@@ -36,7 +36,7 @@ export default function CalendarLinkCard() {
         <div className="px-3.5 pb-3.5 space-y-2">
           <p className="text-xs text-neutral-400">Everything on this calendar, plus tasks with a due date, shows up in your phone's calendar and keeps itself updated. One tap to add:</p>
           <div className="grid grid-cols-2 gap-2">
-            <a href={webcal} className="rounded-lg bg-white text-neutral-900 py-2 text-center text-xs font-bold">iPhone calendar</a>
+            <a href={webcal} className="rounded-lg bg-brand text-neutral-950 py-2 text-center text-xs font-bold">iPhone calendar</a>
             <a href={google} target="_blank" rel="noreferrer" className="rounded-lg border border-neutral-600 py-2 text-center text-xs font-bold text-white">Google Calendar</a>
           </div>
           <button onClick={copy} className="w-full rounded-lg border border-neutral-700 py-1.5 text-xs font-semibold text-neutral-300">{copied ? "✓ Link copied" : "Copy the link"}</button>

@@ -69,7 +69,7 @@ export default function VendorSubmit() {
 
   return (
     <div className="min-h-screen bg-neutral-100 text-neutral-900">
-      <div className="bg-neutral-950 px-5 py-5">
+      <div className="bg-neutral-950 px-5 py-5 border-b-4 border-brand">
         <div className="mx-auto flex max-w-xl items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Isola" className="h-10 w-auto" />

@@ -219,7 +219,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
               onChange={async (e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) { const b = await compressImage(f); setForm((x) => ({ ...x, photo: b })); } }} />
           </label>
           <button onClick={add} disabled={busy}
-            className="shrink-0 rounded-lg bg-white text-neutral-900 px-4 text-xs font-bold disabled:opacity-60">{busy ? "…" : "+ Add"}</button>
+            className="shrink-0 rounded-lg bg-brand text-neutral-950 px-4 text-xs font-bold disabled:opacity-60">{busy ? "…" : "+ Add"}</button>
         </div>
       </div>
       <p className="text-xs text-neutral-500 mt-1.5">Anything left to fix before this job closes out. Adding a fixed photo checks the item off.</p>

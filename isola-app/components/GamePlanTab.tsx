@@ -326,7 +326,7 @@ export default function GamePlanTab() {
               <div className="flex flex-wrap gap-2">
                 {recent.map((r) => (
                   <Button key={r.plan_date} size="sm" variant="outline" onClick={() => setDate(r.plan_date)}
-                    className={cn("h-9", r.plan_date === date && "border-white bg-white text-neutral-900 hover:bg-neutral-200")}>
+                    className={cn("h-9", r.plan_date === date && "border-brand bg-brand text-neutral-950 hover:bg-brand-dark")}>
                     {shortDate(r.plan_date)}
                   </Button>
                 ))}

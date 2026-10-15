@@ -289,7 +289,7 @@ function AccountPeek({ a, onStage }: { a: Account; onStage: (s: StageKey) => voi
       </div>
       <div className="mt-4 flex gap-1 overflow-x-auto no-scrollbar">
         {COLS.map((c, i) => (
-          <button key={c.key} onClick={() => onStage(c.key)} className={cn("h-9 shrink-0 rounded-md px-3 text-xs font-semibold", a.stage === c.key ? "bg-white text-neutral-900" : i < stepIdx ? "bg-white/[0.12] text-white" : "bg-white/[0.04] text-neutral-400 hover:text-white")}>{c.label}</button>
+          <button key={c.key} onClick={() => onStage(c.key)} className={cn("h-9 shrink-0 rounded-md px-3 text-xs font-semibold", a.stage === c.key ? "bg-brand text-neutral-950" : i < stepIdx ? "bg-white/[0.12] text-white" : "bg-white/[0.04] text-neutral-400 hover:text-white")}>{c.label}</button>
         ))}
         <button onClick={() => onStage("lost")} className={cn("h-9 shrink-0 rounded-md px-3 text-xs font-semibold", a.stage === "lost" ? "bg-red-500/15 text-red-300" : "text-neutral-500 hover:text-red-300")}>Lost</button>
       </div>

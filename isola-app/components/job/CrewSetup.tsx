@@ -94,7 +94,7 @@ export default function CrewSetup({ jobId, crewNotes, onSaved }: { jobId: string
               return (
                 <button key={w.id} onClick={() => toggleWorker(w.id)}
                   className={cn("inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3 min-h-[36px] text-sm font-semibold",
-                    on ? "border-white bg-white text-neutral-900" : "border-neutral-700 text-neutral-300 hover:border-neutral-500")}>
+                    on ? "border-brand bg-brand text-neutral-950" : "border-neutral-700 text-neutral-300 hover:border-neutral-500")}>
                   <span className={cn("flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-bold", on ? "bg-neutral-900 text-white" : "bg-white/[0.08] text-neutral-300")}>
                     {on ? <Check size={14} strokeWidth={3} /> : w.name[0]}
                   </span>{w.name}
@@ -112,7 +112,7 @@ export default function CrewSetup({ jobId, crewNotes, onSaved }: { jobId: string
             placeholder="Gate code, where to park, what to do first… One thought per line reads best."
             className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3.5 py-2.5 text-[15px] leading-relaxed text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500" />
           {hasMoney ? <p className="mt-1 text-[13px] text-amber-300">Heads up: the crew sees this text. Leave prices out.</p> : null}
-          {notesDirty ? <button onClick={saveNotes} className="mt-2 rounded-lg bg-white px-4 min-h-[36px] text-sm font-bold text-neutral-900">Save notes</button> : null}
+          {notesDirty ? <button onClick={saveNotes} className="mt-2 rounded-lg bg-brand px-4 min-h-[36px] text-sm font-bold text-neutral-950">Save notes</button> : null}
         </div>
       </div>
 
@@ -120,14 +120,14 @@ export default function CrewSetup({ jobId, crewNotes, onSaved }: { jobId: string
         <div className="inline-flex rounded-xl border border-white/[0.1] bg-neutral-950 p-1">
           {([["material", "Material list", Package, mats.filter(inDay)], ["tool", "Tool list", Wrench, tools.filter(inDay)]] as const).map(([v, l, Icon, list]) => (
             <button key={v} onClick={() => setKind(v)}
-              className={cn("inline-flex items-center gap-1.5 rounded-lg px-3.5 min-h-[38px] text-sm font-semibold", kind === v ? "bg-white text-neutral-900" : "text-neutral-400 hover:text-white")}>
+              className={cn("inline-flex items-center gap-1.5 rounded-lg px-3.5 min-h-[38px] text-sm font-semibold", kind === v ? "bg-brand text-neutral-950" : "text-neutral-400 hover:text-white")}>
               <Icon size={15} />{l}<span className="tabular-nums opacity-60">{list.filter((x) => x.got).length}/{list.length}</span>
             </button>
           ))}
         </div>
         <button onClick={() => setEditing(!editing)}
           className={cn("ml-auto inline-flex items-center gap-1.5 rounded-lg border px-3.5 min-h-[38px] text-sm font-semibold",
-            editing ? "border-white bg-white text-neutral-900" : "border-white/[0.12] text-neutral-300 hover:text-white")}>
+            editing ? "border-brand bg-brand text-neutral-950" : "border-white/[0.12] text-neutral-300 hover:text-white")}>
           {editing ? <><Check size={15} /> Done editing</> : <><Pencil size={14} /> Edit list</>}
         </button>
       </div>
@@ -216,7 +216,7 @@ function NeedEditor({ kind, jobId, rows, people, dates, onChange }:
         </select>
         <input value={where} onChange={(e) => setWhere(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} placeholder="Where from" className={field} />
         {dates.length ? <select value={onDay} onChange={(e) => setOnDay(e.target.value)} className={cn(field, "col-span-2 sm:col-span-4 sm:order-last")} aria-label="Which day">{dayOpts}</select> : null}
-        <button onClick={add} disabled={!item.trim()} className="inline-flex items-center justify-center gap-1 rounded-lg bg-white px-3 min-h-[38px] text-sm font-bold text-neutral-900 disabled:opacity-40"><Plus size={15} strokeWidth={2.6} />Add</button>
+        <button onClick={add} disabled={!item.trim()} className="inline-flex items-center justify-center gap-1 rounded-lg bg-brand px-3 min-h-[38px] text-sm font-bold text-neutral-950 disabled:opacity-40"><Plus size={15} strokeWidth={2.6} />Add</button>
       </div>
     </div>
   );

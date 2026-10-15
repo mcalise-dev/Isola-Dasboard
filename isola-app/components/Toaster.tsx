@@ -64,7 +64,7 @@ export default function Toaster() {
   if (!t) return null;
   return (
     <div className="fixed inset-x-0 z-[70] flex justify-center px-4 bottom-[calc(env(safe-area-inset-bottom)+84px)] md:bottom-6 pointer-events-none">
-      <div role={t.tone === "error" ? "alert" : "status"} className={`pointer-events-auto flex items-center gap-3 rounded-xl shadow-2xl pl-4 pr-2 py-2 max-w-md w-full md:w-auto ${t.tone === "error" ? "bg-red-600 text-white" : "bg-white text-neutral-900"}`}>
+      <div role={t.tone === "error" ? "alert" : "status"} className={`pointer-events-auto flex items-center gap-3 rounded-xl shadow-2xl pl-4 pr-2 py-2 max-w-md w-full md:w-auto ${t.tone === "error" ? "bg-red-600 text-white" : "bg-brand text-neutral-950"}`}>
         {t.tone === "error" ? <AlertTriangle size={18} className="shrink-0" /> : !t.undo ? <Check size={18} className="shrink-0" /> : null}
         <span className={`text-sm font-semibold flex-1 min-w-0 ${t.tone === "error" ? "line-clamp-3" : "truncate"}`}>{t.text}</span>
         {t.undo ? (

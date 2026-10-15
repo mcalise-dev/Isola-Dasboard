@@ -3,13 +3,13 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-// One white primary per screen. Everything else is outline, ghost or a link.
+// One yellow (Isola brand) primary per screen. Everything else is outline, ghost or a link.
 export const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0 select-none",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-neutral-200 active:bg-neutral-300",
+        default: "bg-primary text-primary-foreground hover:bg-brand-dark active:bg-brand-dark",
         secondary: "bg-secondary text-secondary-foreground hover:bg-neutral-800",
         outline: "border border-input bg-transparent text-foreground hover:bg-accent hover:border-white/25",
         ghost: "text-neutral-300 hover:bg-accent hover:text-white",

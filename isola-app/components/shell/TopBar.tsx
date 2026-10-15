@@ -19,13 +19,13 @@ export default function TopBar() {
   const router = useRouter();
   const n = a ? a.items.filter((i) => i.level !== "low").length : 0;
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-black/85 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+    <header className="sticky top-0 z-40 border-b-2 border-brand bg-background/90 backdrop-blur-md pt-[env(safe-area-inset-top)]">
       <div className="flex h-14 items-center gap-3 px-3 md:px-4">
         <Link href="/home" className="flex shrink-0 items-center gap-2.5 md:w-[212px]">
           <Image src="/logo.png" alt="Isola" width={32} height={32} className="rounded-full ring-1 ring-white/15" />
           <span className="flex flex-col leading-none">
             <span className="text-[14px] font-bold tracking-[0.22em] text-white">ISOLA</span>
-            <span className="mt-0.5 text-[11px] font-medium text-neutral-500">On The Go</span>
+            <span className="mt-0.5 text-[11px] font-semibold text-brand">On The Go</span>
           </span>
         </Link>
         <div className="flex min-w-0 flex-1 justify-end md:justify-start"><SearchButton /></div>
@@ -78,7 +78,7 @@ export default function TopBar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button aria-label="Account" className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-neutral-900 md:flex">MC</button>
+            <button aria-label="Account" className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-neutral-950 md:flex">MC</button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Mike Calise · Isola LLC</DropdownMenuLabel>

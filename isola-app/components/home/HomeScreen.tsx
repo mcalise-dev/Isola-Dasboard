@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { Check, Clock, Navigation, Camera, UserPlus, ListChecks, Plus, ChevronRight, CalendarDays, Sparkles } from "lucide-react";
 
 const DOT: Record<Level, string> = { high: "bg-red-400", mid: "bg-amber-400", low: "bg-neutral-500" };
-const KIND_DOT: Record<string, string> = { work: "bg-white", visit: "bg-emerald-400", task: "bg-neutral-500", start: "bg-white", invoice: "bg-amber-400" };
+const KIND_DOT: Record<string, string> = { work: "bg-brand", visit: "bg-emerald-400", task: "bg-neutral-500", start: "bg-brand", invoice: "bg-amber-400" };
 const k$ = (n: number) => n >= 10000 ? `$${Math.round(n / 1000)}k` : `$${Math.round(n).toLocaleString()}`;
 
 function useDismissed() {

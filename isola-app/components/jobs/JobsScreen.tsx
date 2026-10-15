@@ -37,7 +37,7 @@ const VIEWS = [
   { key: "all", label: "All" },
 ] as const;
 type ViewKey = (typeof VIEWS)[number]["key"];
-const BAR: Record<string, string> = { lead: "bg-neutral-600", awaiting: "bg-neutral-400", future: "bg-sky-400", booked: "bg-neutral-200", progress: "bg-white", complete: "bg-emerald-400", lost: "bg-red-400/60" };
+const BAR: Record<string, string> = { lead: "bg-neutral-600", awaiting: "bg-neutral-400", future: "bg-sky-400", booked: "bg-neutral-200", progress: "bg-brand", complete: "bg-emerald-400", lost: "bg-red-400/60" };
 
 const price = (j: any) => Number(j.price_amount) || parsePrice(j.price);
 
@@ -266,7 +266,7 @@ export default function JobsScreen() {
             const on = !stage && view === v.key;
             return (
               <button key={v.key} onClick={() => { setStage(null); setView(v.key); }}
-                className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold", on ? "border-white bg-white text-neutral-900" : "border-white/10 text-neutral-400 hover:border-white/25 hover:text-white")}>
+                className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold", on ? "border-brand bg-brand text-neutral-950" : "border-white/10 text-neutral-400 hover:border-white/25 hover:text-white")}>
                 {v.label}<span className={cn("tabular-nums", on ? "text-neutral-500" : v.key === "attention" && n ? "text-amber-300" : "text-neutral-600")}>{n}</span>
               </button>
             );

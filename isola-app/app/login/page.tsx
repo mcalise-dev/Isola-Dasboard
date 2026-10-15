@@ -23,7 +23,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <input id="password" name="password" type="password" required autoComplete="current-password" className={input} />
           </div>
           {error ? <p className="text-sm text-red-400">Wrong name, email or password — try again.</p> : null}
-          <button type="submit" className="w-full bg-white text-neutral-900 font-semibold rounded-xl min-h-[50px] text-base hover:bg-neutral-200 transition-colors">Sign in</button>
+          <button type="submit" className="w-full bg-brand text-neutral-950 font-semibold rounded-xl min-h-[50px] text-base hover:bg-brand-dark transition-colors">Sign in</button>
         </form>
         <p className="mt-10 text-center text-xs text-neutral-500">Isola LLC · Providence, RI</p>
       </div>

@@ -109,7 +109,7 @@ export default function ThmSubmit({ token, crew = false }: { token?: string; cre
           <p className="text-sm text-neutral-400">Materials you paid for on Isola jobs — Mike approves, then it comes off the THM tab.</p>
         </div>
       ) : (
-      <div className="bg-neutral-950 px-5 py-5">
+      <div className="bg-neutral-950 px-5 py-5 border-b-4 border-brand">
         <div className="mx-auto flex max-w-xl items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Isola" className="h-10 w-auto" />

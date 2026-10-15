@@ -130,7 +130,7 @@ export function TmJobBill({ jobId, compact, onChanged }: { jobId: string; compac
             {MARKUPS.map((m) => (
               <button key={m} onClick={() => setJob({ materials_markup: m })}
                 className={cn("rounded-md border px-2 py-1 text-xs font-semibold tabular-nums",
-                  b.markup === m ? "border-white bg-white text-neutral-900" : "border-white/15 text-neutral-300 hover:border-white/30")}>{m}%</button>
+                  b.markup === m ? "border-brand bg-brand text-neutral-950" : "border-white/15 text-neutral-300 hover:border-white/30")}>{m}%</button>
             ))}
             {b.markup == null ? <Badge variant="warning">pick one</Badge> : null}
           </div>

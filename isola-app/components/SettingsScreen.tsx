@@ -182,7 +182,7 @@ function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: 
       className="flex min-h-[44px] w-full items-center gap-3 py-1.5 text-left">
       <span className="flex-1 text-sm text-neutral-100">{label}</span>
       <span className={cn("relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors",
-        checked ? "border-white bg-white" : "border-white/15 bg-neutral-900")}>
+        checked ? "border-brand bg-brand" : "border-white/15 bg-neutral-900")}>
         <span className={cn("absolute size-[18px] rounded-full transition-all", checked ? "left-[22px] bg-neutral-900" : "left-[3px] bg-neutral-500")} />
       </span>
     </button>

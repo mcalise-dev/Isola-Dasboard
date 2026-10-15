@@ -23,7 +23,7 @@ export default function FieldSchedule() {
         <h1 className="text-2xl font-bold text-white">Next two weeks</h1>
         <div className="flex rounded-full border border-neutral-700 p-0.5">
           {[{ v: false, l: "Everyone" }, { v: true, l: "Just me" }].map((o) => (
-            <button key={o.l} onClick={() => setOnlyMine(o.v)} className={`rounded-full px-3 min-h-[36px] text-sm font-semibold ${onlyMine === o.v ? "bg-white text-neutral-900" : "text-neutral-300"}`}>{o.l}</button>
+            <button key={o.l} onClick={() => setOnlyMine(o.v)} className={`rounded-full px-3 min-h-[36px] text-sm font-semibold ${onlyMine === o.v ? "bg-brand text-neutral-950" : "text-neutral-300"}`}>{o.l}</button>
           ))}
         </div>
       </div>

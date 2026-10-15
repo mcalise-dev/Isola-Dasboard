@@ -28,7 +28,7 @@ import { Plus, Link2, Search, ChevronDown, Phone, Mail, Pencil, Trash2, Eye, Pap
 
 const chip = (on: boolean) => cn(
   "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-semibold transition-colors",
-  on ? "border-white bg-white text-neutral-900" : "border-border bg-neutral-950 text-neutral-400 hover:text-white hover:border-white/25"
+  on ? "border-brand bg-brand text-neutral-950" : "border-border bg-neutral-950 text-neutral-400 hover:text-white hover:border-white/25"
 );
 
 const STATUS: Record<string, { label: string; cls: string }> = {

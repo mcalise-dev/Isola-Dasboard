@@ -65,7 +65,7 @@ export default function FieldToday() {
       </p>
 
       <div className="grid grid-cols-2 gap-2 mt-4">
-        <Link href="/clock" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-neutral-900 min-h-[52px] font-bold"><Timer size={20} /> Clock in / out</Link>
+        <Link href="/clock" className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand text-neutral-950 min-h-[52px] font-bold"><Timer size={20} /> Clock in / out</Link>
         {route ? (
           <a href={route} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-600 text-white min-h-[52px] font-semibold"><Navigation size={18} /> Start the route</a>
         ) : <span className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.08] text-neutral-500 min-h-[52px] font-semibold"><Navigation size={18} /> No stops today</span>}
@@ -175,7 +175,7 @@ function VisitCard({ v, big }: { v: Visit; big?: boolean }) {
         <Stat icon={Wrench} label="Tools" done={v.tools_got} total={v.tools_total} />
         <Stat icon={ListChecks} label="To do" done={v.steps_done} total={v.steps_total} />
       </div>
-      <div className="mt-3 flex items-center justify-center gap-1 rounded-xl bg-white min-h-[46px] text-[15px] font-bold text-neutral-900">Open this visit <ChevronRight size={16} /></div>
+      <div className="mt-3 flex items-center justify-center gap-1 rounded-xl bg-brand min-h-[46px] text-[15px] font-bold text-neutral-950">Open this visit <ChevronRight size={16} /></div>
     </Link>
   );
 }

@@ -71,7 +71,7 @@ export default function ClockApp() {
         className="mt-5 w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-4 text-center text-3xl tracking-[0.5em] text-white focus:outline-none focus:border-neutral-400" />
       {err ? <p className="mt-3 text-center text-sm text-red-400">{err}</p> : null}
       <button onClick={signIn} disabled={busy || pin.length < 3}
-        className="mt-4 w-full rounded-xl bg-white text-black py-3.5 font-bold disabled:opacity-40">
+        className="mt-4 w-full rounded-xl bg-brand text-black py-3.5 font-bold disabled:opacity-40">
         {busy ? "…" : "Continue"}
       </button>
     </Shell>

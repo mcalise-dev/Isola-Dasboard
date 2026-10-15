@@ -39,7 +39,7 @@ export default function OfflineCache() {
           {pending > 0 ? `Offline — ${n} waiting to sync` : "Offline — showing saved data"}
         </div>
       ) : (
-        <div role="status" className="flex items-center gap-2 rounded-full bg-white text-neutral-900 px-3.5 py-1.5 text-sm font-semibold shadow-lg">
+        <div role="status" className="flex items-center gap-2 rounded-full bg-brand text-neutral-950 px-3.5 py-1.5 text-sm font-semibold shadow-lg">
           <RefreshCw size={16} className="shrink-0 animate-spin" /> Syncing {pending}…
         </div>
       )}

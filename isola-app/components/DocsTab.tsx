@@ -152,7 +152,7 @@ export default function DocsTab() {
 
   const pill = (active: boolean) => cn(
     "inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-semibold transition-colors",
-    active ? "border-white bg-white text-neutral-900" : "border-border bg-neutral-950 text-neutral-400 hover:text-white hover:border-white/25"
+    active ? "border-brand bg-brand text-neutral-950" : "border-border bg-neutral-950 text-neutral-400 hover:text-white hover:border-white/25"
   );
   const set = (k: string, v: any) => setEditing((e: any) => ({ ...e, [k]: v }));
 

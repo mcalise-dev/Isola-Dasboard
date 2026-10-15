@@ -326,7 +326,7 @@ export default function CrmTab() {
                     {PATH.map((s, i) => (
                       <button key={s} onClick={() => patch(v, { stage: s, last_touch: v.last_touch ?? (s === "Not started" ? v.last_touch : todayISO()) } as any)}
                         className={cn("inline-flex h-9 shrink-0 items-center gap-1 px-3 text-xs font-semibold first:rounded-l-lg last:rounded-r-lg",
-                          i <= curIdx && curIdx >= 0 ? (i === curIdx ? "bg-white text-neutral-900" : "bg-neutral-600 text-white") : "bg-neutral-800 text-neutral-400 hover:text-white")}>
+                          i <= curIdx && curIdx >= 0 ? (i === curIdx ? "bg-brand text-neutral-950" : "bg-neutral-600 text-white") : "bg-neutral-800 text-neutral-400 hover:text-white")}>
                         {i < curIdx ? <Check size={12} /> : null}{s}
                       </button>
                     ))}

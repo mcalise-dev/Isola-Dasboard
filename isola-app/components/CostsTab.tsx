@@ -273,7 +273,7 @@ export default function CostsTab() {
     </span>
   );
   const pill = (on: boolean) => cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold",
-    on ? "border-white bg-white text-neutral-900" : "border-white/10 text-neutral-400 hover:border-white/25 hover:text-white");
+    on ? "border-brand bg-brand text-neutral-950" : "border-white/10 text-neutral-400 hover:border-white/25 hover:text-white");
   const active = "border-white bg-white/[0.08]";
 
   // plain render helper (not a component) so it doesn't remount on every keystroke
@@ -374,7 +374,7 @@ export default function CostsTab() {
                 <div key={cat} className="flex items-center gap-2.5 py-1 text-sm">
                   <span className="w-28 shrink-0 text-xs text-neutral-400">{cat}</span>
                   <span className="h-1.5 flex-1 overflow-hidden rounded bg-white/[0.08]">
-                    <i className="block h-full rounded bg-white" style={{ width: `${Math.max(4, Math.round((amt / max) * 100))}%` }} />
+                    <i className="block h-full rounded bg-brand" style={{ width: `${Math.max(4, Math.round((amt / max) * 100))}%` }} />
                   </span>
                   <span className="w-24 shrink-0 text-right font-semibold tabular-nums">{money(amt)}</span>
                 </div>

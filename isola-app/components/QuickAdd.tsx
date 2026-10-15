@@ -163,7 +163,7 @@ export default function QuickAdd() {
 
   const input = "w-full rounded-lg border border-neutral-700 bg-neutral-950 text-neutral-100 px-3 min-h-[44px] text-base focus:outline-none focus:ring-2 focus:ring-neutral-400";
   const label = "block text-sm font-semibold text-neutral-400 mb-1";
-  const primary = "w-full rounded-xl bg-white text-neutral-900 min-h-[48px] text-base font-bold disabled:opacity-50";
+  const primary = "w-full rounded-xl bg-brand text-neutral-950 min-h-[48px] text-base font-bold disabled:opacity-50";
   const plus1 = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
   if (!open) return (
@@ -191,7 +191,7 @@ export default function QuickAdd() {
           {mode === "menu" ? (
             <div className="space-y-2">
               <button onClick={() => cam.current?.click()} disabled={busy}
-                className="w-full flex items-center gap-3 rounded-xl bg-white text-neutral-900 px-4 min-h-[64px] text-left">
+                className="w-full flex items-center gap-3 rounded-xl bg-brand text-neutral-950 px-4 min-h-[64px] text-left">
                 <Camera size={26} strokeWidth={2.2} />
                 <span><span className="block text-base font-bold">{busy ? "Reading photo…" : "Snap a receipt"}</span><span className="block text-sm text-neutral-500">Camera → pick the job → save</span></span>
               </button>
@@ -233,7 +233,7 @@ export default function QuickAdd() {
               <div>
                 <span className={label}>Job</span>
                 <JobPicker jobs={jobs} value={rJob === OVERHEAD ? "" : rJob} onChange={setRJob} placeholder="Type to find the job…" />
-                <button onClick={() => setRJob(rJob === OVERHEAD ? "" : OVERHEAD)} className={`mt-2 rounded-full px-3 min-h-[36px] text-sm font-semibold border ${rJob === OVERHEAD ? "bg-white text-neutral-900 border-white" : "border-neutral-700 text-neutral-300"}`}>Overhead — no job</button>
+                <button onClick={() => setRJob(rJob === OVERHEAD ? "" : OVERHEAD)} className={`mt-2 rounded-full px-3 min-h-[36px] text-sm font-semibold border ${rJob === OVERHEAD ? "bg-brand text-neutral-950 border-brand" : "border-neutral-700 text-neutral-300"}`}>Overhead — no job</button>
               </div>
               {shots.length === 1 ? (
                 <div className="grid grid-cols-2 gap-2">
@@ -271,7 +271,7 @@ export default function QuickAdd() {
                 <span className={label}>When</span>
                 <div className="flex flex-wrap gap-1.5">
                   {[{ l: "No date", v: "" }, { l: "Today", v: todayISO() }, { l: "Tomorrow", v: plus1(1) }, { l: "Next week", v: plus1(7) }].map((o) => (
-                    <button key={o.l} onClick={() => setTDue(o.v)} className={`rounded-full px-3 min-h-[36px] text-sm font-semibold border ${tDue === o.v ? "bg-white text-neutral-900 border-white" : "border-neutral-700 text-neutral-300"}`}>{o.l}</button>
+                    <button key={o.l} onClick={() => setTDue(o.v)} className={`rounded-full px-3 min-h-[36px] text-sm font-semibold border ${tDue === o.v ? "bg-brand text-neutral-950 border-brand" : "border-neutral-700 text-neutral-300"}`}>{o.l}</button>
                   ))}
                   <input type="date" value={tDue} onChange={(e) => setTDue(e.target.value)} className="rounded-full border border-neutral-700 bg-neutral-950 text-neutral-200 px-3 min-h-[36px] text-sm" />
                 </div>

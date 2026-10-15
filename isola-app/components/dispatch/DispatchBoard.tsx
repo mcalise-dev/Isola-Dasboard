@@ -349,7 +349,7 @@ export default function DispatchBoard() {
         )}
         <DragOverlay dropAnimation={null}>
           {dragEntry ? <BlockBody e={dragEntry} j={dragEntry.job_id ? jobById[dragEntry.job_id] : null} overlay /> : null}
-          {dragJob ? <div className="w-56 rounded-lg bg-white px-2.5 py-2 text-sm font-semibold text-neutral-900 shadow-2xl">{jobTitle(dragJob)}</div> : null}
+          {dragJob ? <div className="w-56 rounded-lg bg-brand px-2.5 py-2 text-sm font-semibold text-neutral-950 shadow-2xl">{jobTitle(dragJob)}</div> : null}
         </DragOverlay>
       </DndContext>
 
@@ -390,7 +390,7 @@ function Grid({ days, rows, cellMap, jobById, today, onOpen }: { days: string[];
           <div key={d} className={cn("border-b border-l border-border px-2 py-2 text-center", d === today ? "bg-white/[0.05]" : "bg-neutral-950", parse(d).getDay() === 1 && d !== days[0] && "border-l-white/20")}>
             <div className={cn("text-xs font-semibold", d === today ? "text-white" : "text-neutral-400")}>{dayShort(d)}</div>
             <div className={cn("text-sm font-semibold tabular-nums", d === today ? "text-white" : "text-neutral-300")}>
-              {d === today ? <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-white px-1.5 text-neutral-900">{dayNum(d)}</span> : dayNum(d)}
+              {d === today ? <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-brand px-1.5 text-neutral-950">{dayNum(d)}</span> : dayNum(d)}
             </div>
           </div>
         ))}
@@ -443,7 +443,7 @@ function BlockBody({ e, j, overlay, row, showCrew }: { e: Entry; j: JobRow | nul
   const crew = showCrew ? crewLine(e) : row !== undefined ? crewLine(e, row) : "";
   if (j) {
     return (
-      <div className={cn("rounded-md bg-white px-2 py-1.5 text-left text-neutral-900", overlay && "w-48 shadow-2xl")}>
+      <div className={cn("rounded-md bg-brand px-2 py-1.5 text-left text-neutral-950", overlay && "w-48 shadow-2xl")}>
         <div className="truncate text-[13px] font-semibold leading-tight">{jobTitle(j)}</div>
         {shortLoc(j.location) ? <div className="truncate text-[11px] leading-tight text-neutral-600">{shortLoc(j.location)}</div> : null}
         {crew ? <div className="flex items-center gap-1 truncate text-[11px] font-medium leading-tight text-neutral-700"><Users size={10} className="shrink-0" />{crew}</div> : null}
@@ -474,7 +474,7 @@ function Block({ e, j, row, onOpen }: { e: Entry; j: JobRow | null; row: string;
 function Legend() {
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-1 text-xs text-neutral-400">
-      <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-sm bg-white" /> Job day</span>
+      <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-sm bg-brand" /> Job day</span>
       <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-sm border border-white/10 bg-white/[0.06]" /> Note only (shop day, dump run)</span>
       <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-sm bg-white/[0.05] ring-1 ring-inset ring-white/20" /> Today</span>
       <span className="inline-flex items-center gap-1.5"><Users size={13} /> A crew job shows on each person's row</span>
@@ -582,7 +582,7 @@ function CrewPicker({ value, onChange, options }: { value: string[]; onChange: (
         return (
           <button key={n} type="button" onClick={() => toggle(n)} aria-pressed={on}
             className={cn("min-h-[36px] rounded-full border px-3 text-sm font-medium transition-colors",
-              on ? "border-white bg-white text-neutral-900" : "border-white/15 text-neutral-300 hover:border-white/40")}>
+              on ? "border-brand bg-brand text-neutral-950" : "border-white/15 text-neutral-300 hover:border-white/40")}>
             {isThm(n) ? "THM" : n}
           </button>
         );

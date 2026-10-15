@@ -263,7 +263,7 @@ function ManualTime({ supabase, crew, rates, onClose, onSaved }: any) {
             </div>
           ) : null}
 
-          <button onClick={save} disabled={busy} className="w-full rounded-xl bg-white text-black py-2.5 text-sm font-bold disabled:opacity-50">
+          <button onClick={save} disabled={busy} className="w-full rounded-xl bg-brand text-black py-2.5 text-sm font-bold disabled:opacity-50">
             {busy ? "Saving…" : "Log it to the job"}
           </button>
           <p className="text-xs text-neutral-500">Goes on the job as unpaid Labor, same as a real punch.</p>

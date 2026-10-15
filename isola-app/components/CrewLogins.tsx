@@ -121,7 +121,7 @@ export default function CrewLogins({ workers }: { workers: any[] }) {
                 </div>
                 <p className="text-sm text-neutral-400">This is the only time the password shows. They sign in with just the name — no email.</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={async () => { const t = `Isola crew app: ${window.location.origin}\nName: ${done.username}\nPassword: ${done.password}`; await copyText(t, "Copied"); }} className="rounded-lg bg-white text-neutral-900 min-h-[44px] font-bold">Copy</button>
+                  <button onClick={async () => { const t = `Isola crew app: ${window.location.origin}\nName: ${done.username}\nPassword: ${done.password}`; await copyText(t, "Copied"); }} className="rounded-lg bg-brand text-neutral-950 min-h-[44px] font-bold">Copy</button>
                   <button onClick={() => setForm(null)} className="rounded-lg border border-neutral-600 min-h-[44px] font-semibold text-white">Done</button>
                 </div>
               </div>
@@ -142,7 +142,7 @@ export default function CrewLogins({ workers }: { workers: any[] }) {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => setForm(null)} className="rounded-lg border border-neutral-600 min-h-[44px] font-semibold text-white">Cancel</button>
-                  <button onClick={submit} disabled={busy || password.length < 8 || username.length < 2} className="rounded-lg bg-white text-neutral-900 min-h-[44px] font-bold disabled:opacity-50">{busy ? "Saving…" : form.mode === "create" ? "Create login" : "Save password"}</button>
+                  <button onClick={submit} disabled={busy || password.length < 8 || username.length < 2} className="rounded-lg bg-brand text-neutral-950 min-h-[44px] font-bold disabled:opacity-50">{busy ? "Saving…" : form.mode === "create" ? "Create login" : "Save password"}</button>
                 </div>
               </div>
             )}
