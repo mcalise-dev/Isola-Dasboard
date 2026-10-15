@@ -53,6 +53,8 @@ type Cost = {
   worker: string | null;
   hours: number | null;
   rate: number | null;
+  days?: number | null;
+  rate_type?: string | null;
   paid: boolean;
   created_at: string;
 };
@@ -149,8 +151,8 @@ export default function CostsTab() {
   function openSheet(c: Cost | "new", kind: "receipt" | "labor" = "receipt") {
     setSheet(c);
     setForm(c === "new"
-      ? { kind, job_id: filter !== "all" && filter !== OVERHEAD ? filter : (activeJobs[0]?.id ?? OVERHEAD), entry_date: todayISO(), vendor: "", category: kind === "labor" ? "Labor" : "", amount: "", notes: "", receipt_b64: null, worker: "", hours: "", rate: "", paid: true }
-      : { kind: c.hours != null || c.worker ? "labor" : "receipt", job_id: c.job_id ?? OVERHEAD, entry_date: c.entry_date, vendor: c.vendor ?? "", category: c.category ?? "", amount: c.amount ?? "", notes: c.notes ?? "", receipt_b64: c.receipt_b64, worker: c.worker ?? "", hours: c.hours ?? "", rate: c.rate ?? "", paid: c.paid !== false });
+      ? { kind, job_id: filter !== "all" && filter !== OVERHEAD ? filter : (activeJobs[0]?.id ?? OVERHEAD), entry_date: todayISO(), vendor: "", category: kind === "labor" ? "Labor" : "", amount: "", notes: "", receipt_b64: null, worker: "", hours: "", days: "1", rate: "", rate_type: "hourly", paid: true }
+      : { kind: c.hours != null || c.worker ? "labor" : "receipt", job_id: c.job_id ?? OVERHEAD, entry_date: c.entry_date, vendor: c.vendor ?? "", category: c.category ?? "", amount: c.amount ?? "", notes: c.notes ?? "", receipt_b64: c.receipt_b64, worker: c.worker ?? "", hours: c.hours ?? "", days: c.days ?? "1", rate: c.rate ?? "", rate_type: c.rate_type ?? "hourly", paid: c.paid !== false });
   }
 
   // One handler for both inputs. One photo fills the open form; several from the
@@ -187,11 +189,14 @@ export default function CostsTab() {
     const rate = isLabor && String(form.rate ?? "") !== "" ? Number(String(form.rate).replace(/[^0-9.]/g, "")) : null;
     const amtRaw = String(form.amount ?? "").replace(/[$,\s]/g, "");
     let amount = amtRaw === "" ? null : Number(amtRaw);
-    if (isLabor && amount == null && hours != null && rate != null) amount = Math.round(hours * rate * 100) / 100;
+    const daily = isLabor && form.rate_type === "daily";
+    const days = daily && String(form.days ?? "") !== "" ? Number(String(form.days).replace(/[^0-9.]/g, "")) : null;
+    const qty = daily ? days : hours;
+    if (isLabor && amount == null && qty != null && rate != null) amount = Math.round(qty * rate * 100) / 100;
     if (amtRaw !== "" && !isFinite(amount!)) { showError("Amount doesn't look like a number."); return; }
     if (isLabor) {
       if (!String(form.worker ?? "").trim()) { showError("Who worked? Add a name."); return; }
-      if (amount == null) { showError("Add hours and rate (or a total)."); return; }
+      if (amount == null) { showError("Add hours or days and a rate (or a total)."); return; }
     }
     const payload: any = {
       job_id: form.job_id === OVERHEAD ? null : form.job_id,
@@ -202,8 +207,10 @@ export default function CostsTab() {
       notes: form.notes?.trim() || null,
       receipt_b64: form.receipt_b64 || null,
       worker: isLabor ? String(form.worker).trim() : null,
-      hours,
+      hours: daily ? null : hours,
+      days: daily ? days : null,
       rate,
+      rate_type: daily ? "daily" : "hourly",
       paid: form.paid !== false,
       updated_at: new Date().toISOString(),
     };
@@ -251,7 +258,7 @@ export default function CostsTab() {
   }
 
   const isLaborRow = (c: Cost) => c.hours != null || !!c.worker;
-  const detail = (c: Cost) => (c.hours != null ? `${c.hours} hr${c.rate != null ? ` × ${money(Number(c.rate)).replace(".00", "")}/hr` : ""}` : (c.category ?? "—"));
+  const detail = (c: Cost) => (c.rate_type === "daily" ? `${c.days ?? 1} day${Number(c.days ?? 1) === 1 ? "" : "s"}${c.rate != null ? ` × ${money(Number(c.rate)).replace(".00", "")}/day` : ""}` : c.hours != null ? `${c.hours} hr${c.rate != null ? ` × ${money(Number(c.rate)).replace(".00", "")}/hr` : ""}` : (c.category ?? "—"));
   const statusBadge = (c: Cost) =>
     c.paid === false ? <Badge variant="danger">Owed</Badge>
     : c.status === "pending" ? <Badge variant="warning">Claude to fill</Badge>
@@ -493,11 +500,21 @@ export default function CostsTab() {
             {form.kind === "labor" ? (
               <div className="mb-3 space-y-3">
                 <Field label="Worker *"><Input placeholder="e.g. Mike, Jose, THM crew" value={form.worker} onChange={(e) => setForm({ ...form, worker: e.target.value })} /></Field>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Hours"><Input inputMode="decimal" placeholder="8" value={form.hours} onChange={(e) => setForm({ ...form, hours: e.target.value, amount: "" })} /></Field>
-                  <Field label="Rate $/hr"><Input inputMode="decimal" placeholder="45" value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value, amount: "" })} /></Field>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["hourly", "daily"] as const).map((t) => (
+                    <button key={t} type="button" onClick={() => setForm({ ...form, rate_type: t, amount: "" })}
+                      className={`rounded-lg border py-2 text-sm font-semibold ${form.rate_type === t ? "border-neutral-300 bg-neutral-800 text-white" : "border-border text-neutral-500"}`}>
+                      {t === "daily" ? "Per day" : "Per hour"}
+                    </button>
+                  ))}
                 </div>
-                {(() => { const h = Number(String(form.hours).replace(/[^0-9.]/g, "")), r = Number(String(form.rate).replace(/[^0-9.]/g, "")); return h > 0 && r > 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {form.rate_type === "daily"
+                    ? <Field label="Days"><Input inputMode="decimal" placeholder="1" value={form.days} onChange={(e) => setForm({ ...form, days: e.target.value, amount: "" })} /></Field>
+                    : <Field label="Hours"><Input inputMode="decimal" placeholder="8" value={form.hours} onChange={(e) => setForm({ ...form, hours: e.target.value, amount: "" })} /></Field>}
+                  <Field label={form.rate_type === "daily" ? "Rate $/day" : "Rate $/hr"}><Input inputMode="decimal" placeholder={form.rate_type === "daily" ? "400" : "45"} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value, amount: "" })} /></Field>
+                </div>
+                {(() => { const h = Number(String(form.rate_type === "daily" ? form.days : form.hours).replace(/[^0-9.]/g, "")), r = Number(String(form.rate).replace(/[^0-9.]/g, "")); return h > 0 && r > 0 ? (
                   <p className="text-sm text-neutral-300">= <b className="tabular-nums text-white">{money(Math.round(h * r * 100) / 100)}</b> labor cost</p>
                 ) : null; })()}
                 <Field label="Paid yet?">{paidToggle("I owe this")}</Field>
@@ -515,7 +532,7 @@ export default function CostsTab() {
                 {form.kind !== "labor" ? (
                   <Field label="Amount $"><Input inputMode="decimal" placeholder="Claude will read it" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
                 ) : (
-                  <Field label="Override total $"><Input inputMode="decimal" placeholder="auto: hrs × rate" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
+                  <Field label="Override total $"><Input inputMode="decimal" placeholder={form.rate_type === "daily" ? "auto: days × rate" : "auto: hrs × rate"} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
                 )}
               </div>
               {form.kind !== "labor" ? (<>

@@ -139,10 +139,12 @@ export function LaborPanel({ jobId, onChange }: { jobId: string; onChange?: () =
   const [rows, setRows] = useState<any[] | null>(null);
   const [crew, setCrew] = useState<any[]>([]);
   const [jobRates, setJobRates] = useState<any[]>([]);
-  const [f, setF] = useState<any>({ worker: "", hours: "", rate: "", entry_date: todayISO(), paid: true });
+  const [f, setF] = useState<any>({ worker: "", hours: "", days: "1", rate: "", rate_type: "hourly", entry_date: todayISO(), paid: true });
   const [busy, setBusy] = useState(false);
+  const daily = f.rate_type === "daily";
+  const qtyIn = daily ? f.days : f.hours;
   const load = async () => {
-    const { data } = await sb.from("job_costs").select("id,entry_date,worker,hours,rate,amount,paid").eq("job_id", jobId).eq("category", "Labor").order("entry_date", { ascending: false });
+    const { data } = await sb.from("job_costs").select("id,entry_date,worker,hours,days,rate,rate_type,amount,paid").eq("job_id", jobId).eq("category", "Labor").order("entry_date", { ascending: false });
     setRows(data ?? []);
     const { data: jr } = await sb.from("job_pay_rates").select("worker_id,rate,rate_type,bill_rate").eq("job_id", jobId);
     setJobRates(jr ?? []);
@@ -152,22 +154,31 @@ export function LaborPanel({ jobId, onChange }: { jobId: string; onChange?: () =
   const rateFor = (name: string) => {
     const w = crew.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
     const jr = w ? jobRates.find((r) => r.worker_id === w.id) : null;
-    return { w, jr, rate: jr ? Number(jr.rate) : w?.rate != null ? Number(w.rate) : null };
+    const rate_type: string = (jr?.rate_type ?? w?.rate_type ?? "hourly") === "daily" ? "daily" : "hourly";
+    return { w, jr, rate: jr ? Number(jr.rate) : w?.rate != null ? Number(w.rate) : null, rate_type };
   };
   const hrs = (rows ?? []).reduce((a, l) => a + Number(l.hours ?? 0), 0);
+  const days = (rows ?? []).reduce((a, l) => a + (l.rate_type === "daily" ? Number(l.days ?? 1) : 0), 0);
   const total = (rows ?? []).reduce((a, l) => a + Number(l.amount ?? 0), 0);
+  const qtyLabel = (l: any) => l.rate_type === "daily"
+    ? `${Number(l.days ?? 1)} day${Number(l.days ?? 1) === 1 ? "" : "s"} @ $${Number(l.rate)}/day`
+    : `${Number(l.hours)}h @ $${Number(l.rate)}/hr`;
   async function add() {
-    const hours = Number(f.hours), rate = Number(f.rate);
-    if (!f.worker.trim() || !hours || !rate) { showError("Worker, hours, and rate are required."); return; }
+    const qty = Number(qtyIn), rate = Number(f.rate);
+    if (!f.worker.trim() || !qty || !rate) { showError(daily ? "Worker, days, and day rate are required." : "Worker, hours, and rate are required."); return; }
     setBusy(true);
     const cur = rateFor(f.worker);
-    if (cur.w && rate !== cur.rate) {
-      await sb.from("job_pay_rates").upsert({ job_id: jobId, worker_id: cur.w.id, rate, rate_type: cur.w.rate_type ?? "hourly", updated_at: new Date().toISOString() }, { onConflict: "job_id,worker_id" });
+    if (cur.w && (rate !== cur.rate || f.rate_type !== cur.rate_type)) {
+      await sb.from("job_pay_rates").upsert({ job_id: jobId, worker_id: cur.w.id, rate, rate_type: f.rate_type, updated_at: new Date().toISOString() }, { onConflict: "job_id,worker_id" });
     }
-    const { error } = await sb.from("job_costs").insert({ job_id: jobId, entry_date: f.entry_date, category: "Labor", worker: f.worker.trim(), hours, rate, amount: Math.round(hours * rate * 100) / 100, paid: f.paid, status: "ok" })
+    const { error } = await sb.from("job_costs").insert({
+      job_id: jobId, entry_date: f.entry_date, category: "Labor", worker: f.worker.trim(),
+      hours: daily ? null : qty, days: daily ? qty : null, rate, rate_type: f.rate_type,
+      amount: Math.round(qty * rate * 100) / 100, paid: f.paid, status: "ok",
+    });
     setBusy(false);
     if (error) { showError("Save failed: " + error.message); return; }
-    setF({ worker: f.worker.trim(), hours: "", rate: f.rate, entry_date: todayISO(), paid: true });
+    setF({ worker: f.worker.trim(), hours: "", days: "1", rate: f.rate, rate_type: f.rate_type, entry_date: todayISO(), paid: true });
     showToast("Labor logged");
     load(); onChange?.(); changed();
   }
@@ -177,12 +188,12 @@ export function LaborPanel({ jobId, onChange }: { jobId: string; onChange?: () =
   }
   function remove(l: any) {
     const prev = rows ?? [];
-    undoable({ text: `${l.worker ?? "Labor"} ${Number(l.hours)}h deleted`, hide: () => setRows(prev.filter((x) => x.id !== l.id)), restore: () => setRows(prev),
+    undoable({ text: `${l.worker ?? "Labor"} ${l.rate_type === "daily" ? `${Number(l.days ?? 1)}d` : `${Number(l.hours)}h`} deleted`, hide: () => setRows(prev.filter((x) => x.id !== l.id)), restore: () => setRows(prev),
       commit: async () => { const { error } = await sb.from("job_costs").delete().eq("id", l.id); if (error) { load(); throw error; } onChange?.(); changed(); } });
   }
   return (
     <div>
-      <SectionTitle right={<span className="text-sm tabular-nums text-neutral-400">{hrs} hrs · {usd(total)}</span>}>Labor</SectionTitle>
+      <SectionTitle right={<span className="text-sm tabular-nums text-neutral-400">{[hrs ? `${hrs} hrs` : "", days ? `${days} day${days === 1 ? "" : "s"}` : ""].filter(Boolean).join(" + ") || "0 hrs"} · {usd(total)}</span>}>Labor</SectionTitle>
       {rows === null ? <div className="skeleton h-12" /> : rows.length ? (
         <div className="mb-3 space-y-1.5">
           {rows.map((l) => (
@@ -190,7 +201,7 @@ export function LaborPanel({ jobId, onChange }: { jobId: string; onChange?: () =
               <HardHat size={17} className="shrink-0 text-neutral-500" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-white">{l.worker ?? "—"}</div>
-                <div className="text-xs text-neutral-400">{fmtDate(l.entry_date)} · {Number(l.hours)}h @ ${Number(l.rate)}</div>
+                <div className="text-xs text-neutral-400">{fmtDate(l.entry_date)} · {qtyLabel(l)}</div>
               </div>
               <div className="shrink-0 text-sm font-semibold tabular-nums text-white">{usd(Number(l.amount ?? 0))}</div>
               <button onClick={() => togglePaid(l)}><Badge variant={l.paid ? "success" : "warning"}>{l.paid ? "Paid" : "Owed"}</Badge></button>
@@ -200,12 +211,22 @@ export function LaborPanel({ jobId, onChange }: { jobId: string; onChange?: () =
         </div>
       ) : <p className="mb-3 text-sm text-neutral-500">No labor logged on this job yet.</p>}
       <div className="rounded-xl border border-border p-3">
+        <div className="mb-2 grid grid-cols-2 gap-2">
+          {(["hourly", "daily"] as const).map((t) => (
+            <button key={t} type="button" onClick={() => setF({ ...f, rate_type: t })}
+              className={`rounded-lg border py-1.5 text-xs font-semibold ${f.rate_type === t ? "border-neutral-300 bg-neutral-800 text-white" : "border-border text-neutral-500"}`}>
+              {t === "daily" ? "Per day" : "Per hour"}
+            </button>
+          ))}
+        </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Input list="isola-crew" placeholder="Worker" value={f.worker} className="col-span-2 sm:col-span-1"
-            onChange={(e) => { const r = rateFor(e.target.value); setF({ ...f, worker: e.target.value, rate: r.w && r.rate != null ? String(r.rate) : f.rate }); }} />
+            onChange={(e) => { const r = rateFor(e.target.value); setF({ ...f, worker: e.target.value, ...(r.w ? { rate_type: r.rate_type, rate: r.rate != null ? String(r.rate) : f.rate } : {}) }); }} />
           <datalist id="isola-crew">{crew.map((c) => <option key={c.name} value={c.name} />)}</datalist>
-          <Input type="number" inputMode="decimal" placeholder="Hours" value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} />
-          <Input type="number" inputMode="decimal" placeholder="$/hr" value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} />
+          {daily
+            ? <Input type="number" inputMode="decimal" placeholder="Days" value={f.days} onChange={(e) => setF({ ...f, days: e.target.value })} />
+            : <Input type="number" inputMode="decimal" placeholder="Hours" value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} />}
+          <Input type="number" inputMode="decimal" placeholder={daily ? "$/day" : "$/hr"} value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} />
           <Input type="date" value={f.entry_date} onChange={(e) => setF({ ...f, entry_date: e.target.value })} />
         </div>
         <div className="mt-2 flex items-center justify-end gap-3">
@@ -213,7 +234,7 @@ export function LaborPanel({ jobId, onChange }: { jobId: string; onChange?: () =
             {jobRates.length ? <>Pay on this job: {jobRates.map((r) => `${crew.find((c) => c.id === r.worker_id)?.name ?? "?"} $${Number(r.rate)}/${r.rate_type === "daily" ? "day" : "hr"}${r.bill_rate ? ` (bill $${Number(r.bill_rate)})` : ""}`).join(" · ")}. </> : null}
             A rate you type sticks for that worker on this job. New labor saves as Owed.
           </span>
-          <Button size="sm" onClick={add} disabled={busy}><Plus size={15} /> {busy ? "Saving…" : `Log labor${f.hours && f.rate ? ` · ${usd(Number(f.hours) * Number(f.rate))}` : ""}`}</Button>
+          <Button size="sm" onClick={add} disabled={busy}><Plus size={15} /> {busy ? "Saving…" : `Log labor${qtyIn && f.rate ? ` · ${usd(Number(qtyIn) * Number(f.rate))}` : ""}`}</Button>
         </div>
       </div>
     </div>
