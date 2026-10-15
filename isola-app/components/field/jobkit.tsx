@@ -2,10 +2,22 @@
 // v5.4 — shared pieces for the crew job screen and the owner job record:
 // plan of action grouped by phase, and materials/tools as a load-out checklist.
 import { useState } from "react";
-import { Check, ChevronDown, AlertTriangle, Store, User2, X } from "lucide-react";
+import { Check, ChevronDown, AlertTriangle, Phone, Store, User2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ---------- helpers ----------
+// Phone numbers typed into a step or a material source become tap-to-call buttons.
+const PHONE_RE = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g;
+export const phonesIn = (t?: string | null) => [...new Set((t ?? "").match(PHONE_RE) ?? [])];
+export function CallChip({ phone, label }: { phone: string; label?: string }) {
+  const digits = phone.replace(/\D/g, "");
+  return (
+    <a href={`tel:${digits.length === 10 ? "+1" + digits : digits}`} onClick={(e) => e.stopPropagation()}
+      className="inline-flex max-w-full items-center gap-1 rounded-full bg-emerald-400/15 px-2.5 py-1 text-[12px] font-semibold leading-5 text-emerald-200 active:bg-emerald-400/25">
+      <Phone size={12} /><span className="truncate">{label ? `Call ${label}` : `Call ${phone}`}</span>
+    </a>
+  );
+}
 export const stamp = (iso: string) =>
   new Date(iso).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
 
@@ -190,6 +202,9 @@ export function PlanView({ list, onToggle, onRemove, onEdit, readOnly, jump = tr
                             ) : (
                               <div className={cn("text-[15px] leading-snug", s.done ? "text-neutral-500 line-through decoration-neutral-600" : "text-white")}>{s.text}</div>
                             )}
+                            {onEdit && phonesIn(s.text).length ? (
+                              <div className="mt-1 flex flex-wrap gap-1.5">{phonesIn(s.text).map((ph) => <CallChip key={ph} phone={ph} />)}</div>
+                            ) : null}
                             {(warn || s.assignee || (s.done && s.done_by) || (!s.done && s.added_by && s.added_by !== "Mike")) ? (
                               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                                 {s.assignee ? <Pill tone={me && s.assignee.toLowerCase() === me.toLowerCase() ? "info" : "plain"} icon={<User2 size={12} />}>{me && s.assignee.toLowerCase() === me.toLowerCase() ? "You" : s.assignee}</Pill> : null}
@@ -303,7 +318,9 @@ export function LoadOut({ rows, me, kind, onToggle, readOnly }:
                         {notes ? <div className="mt-0.5 text-[13px] leading-snug text-neutral-400">{notes}</div> : null}
                         {(source || (r.got && r.got_by)) ? (
                           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                            {source ? <Pill icon={<Store size={12} />}>{source}</Pill> : null}
+                            {source ? (phonesIn(source).length
+                              ? <CallChip phone={phonesIn(source)[0]} label={source.replace(PHONE_RE, "").replace(/[\s·,-]+$/, "").trim() || undefined} />
+                              : <Pill icon={<Store size={12} />}>{source}</Pill>) : null}
                             {r.got && r.got_by ? <span className="text-[12px] text-emerald-300/90">✓ {r.got_by}{r.got_at ? ` · ${stamp(r.got_at)}` : ""}</span> : null}
                           </div>
                         ) : null}
