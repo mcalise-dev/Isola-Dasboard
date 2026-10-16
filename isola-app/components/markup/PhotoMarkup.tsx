@@ -5,7 +5,7 @@
 // (original stays untouched, the drawing stays editable) or download it.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  MousePointer2, Pencil, Minus, MoveUpRight, Spline, Ruler, Square, Circle, Type,
+  MousePointer2, Pencil, Minus, MoveUpRight, Spline, Ruler, Square, Circle, Type, Hash, Ban,
   Undo2, Redo2, Trash2, Download, Save, Upload, ImagePlus, X, Check, Camera,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -21,10 +21,13 @@ import { drawStamp, stampSafe } from "@/lib/stamp";
 type P = { x: number; y: number };
 type Shape = {
   id: string;
-  type: "pen" | "line" | "arrow" | "path" | "dim" | "rect" | "ellipse" | "text";
-  color: string;
-  size: number; // 1 thin, 2 medium, 3 thick
+  type: "pen" | "line" | "arrow" | "path" | "dim" | "rect" | "ellipse" | "text" | "num";
+  color: string;  // line color / text color / numbered-pin fill
+  size: number;   // 1 small, 2 medium, 3 large
   a?: P; b?: P; points?: P[]; closed?: boolean; at?: P; text?: string;
+  // text boxes (v5.2): font, box background ("none" = no box), optional number badge.
+  // Text with no `bg` is an older label and keeps the original pill look.
+  font?: FontKey; bg?: string; num?: number;
 };
 type Tool = "select" | Shape["type"];
 type Markup = { v: 1; w: number; h: number; shapes: Shape[] };
@@ -37,6 +40,29 @@ const COLORS = [
   { v: "#FFFFFF", n: "White" },
   { v: "#0B0D0E", n: "Black" },
 ];
+type FontKey = "sans" | "bold" | "serif" | "mono" | "marker";
+const FONTS: { k: FontKey; label: string; css: (px: number) => string }[] = [
+  { k: "sans", label: "Sans", css: (px) => `600 ${px}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` },
+  { k: "bold", label: "Bold", css: (px) => `900 ${px}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` },
+  { k: "serif", label: "Serif", css: (px) => `600 ${px}px Georgia, "Times New Roman", serif` },
+  { k: "mono", label: "Mono", css: (px) => `600 ${px}px ui-monospace, Menlo, Consolas, "Courier New", monospace` },
+  { k: "marker", label: "Marker", css: (px) => `700 ${px}px "Marker Felt", "Chalkboard SE", "Comic Sans MS", "Segoe Print", cursive` },
+];
+const fontCss = (k: FontKey | undefined, px: number) => (FONTS.find((f) => f.k === k) ?? FONTS[0]).css(px);
+const BGS = [
+  { v: "none", n: "No box" },
+  { v: "rgba(11,13,14,0.72)", n: "See-through dark" },
+  { v: "#0B0D0E", n: "Black box" },
+  { v: "#FFFFFF", n: "White box" },
+  { v: "#F2C230", n: "Yellow box" },
+  { v: "#EF4444", n: "Red box" },
+  { v: "#F97316", n: "Orange box" },
+  { v: "#22C55E", n: "Green box" },
+];
+const LIGHT = new Set(["#FFFFFF", "#F2C230", "#F97316", "#22C55E"]);
+const contrast = (c: string) => (LIGHT.has(c) ? "#0B0D0E" : "#FFFFFF");
+// numbered dots and numbered text boxes count separately, so box 1 can explain dot 1
+const nextNum = (list: Shape[], type: "num" | "text" = "num") => list.reduce((m, s) => (s.type === type && s.num != null && s.num > m ? s.num : m), 0) + 1;
 const TOOLS: { t: Tool; label: string; icon: any }[] = [
   { t: "select", label: "Move", icon: MousePointer2 },
   { t: "path", label: "Points", icon: Spline },
@@ -46,7 +72,8 @@ const TOOLS: { t: Tool; label: string; icon: any }[] = [
   { t: "rect", label: "Box", icon: Square },
   { t: "ellipse", label: "Circle", icon: Circle },
   { t: "pen", label: "Draw", icon: Pencil },
-  { t: "text", label: "Text", icon: Type },
+  { t: "text", label: "Text box", icon: Type },
+  { t: "num", label: "Number", icon: Hash },
 ];
 const SIZE_MULT = [0, 0.7, 1.2, 2];
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -133,12 +160,80 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape, base: number, opts: 
     }
     case "rect": stroke(() => { ctx.beginPath(); ctx.rect(Math.min(s.a!.x, s.b!.x), Math.min(s.a!.y, s.b!.y), Math.abs(s.b!.x - s.a!.x), Math.abs(s.b!.y - s.a!.y)); }); break;
     case "ellipse": stroke(() => { ctx.beginPath(); ctx.ellipse((s.a!.x + s.b!.x) / 2, (s.a!.y + s.b!.y) / 2, Math.abs(s.b!.x - s.a!.x) / 2 || 0.5, Math.abs(s.b!.y - s.a!.y) / 2 || 0.5, 0, 0, Math.PI * 2); }); break;
-    case "text": if (s.text) pill(ctx, s.text, s.at!.x, s.at!.y, base * 6 * (0.7 + (s.size || 2) * 0.25), s.color); break;
+    case "text":
+      if (s.bg !== undefined) { if (s.text) drawTextBox(ctx, s, base); }
+      else if (s.text) pill(ctx, s.text, s.at!.x, s.at!.y, base * 6 * (0.7 + (s.size || 2) * 0.25), s.color);
+      break;
+    case "num": {
+      const r = pinR(s, base);
+      ctx.shadowColor = "rgba(0,0,0,0.4)"; ctx.shadowBlur = r * 0.35; ctx.shadowOffsetY = r * 0.06;
+      ctx.beginPath(); ctx.arc(s.at!.x, s.at!.y, r * 1.12, 0, Math.PI * 2); ctx.fillStyle = contrast(s.color); ctx.fill();
+      ctx.shadowColor = "transparent";
+      numDot(ctx, s.num ?? 1, s.at!.x, s.at!.y, r, s.color);
+      break;
+    }
   }
   ctx.restore();
 }
 
+let measureCtx: CanvasRenderingContext2D | null = null;
+function textLayout(s: Shape, base: number, ctx?: CanvasRenderingContext2D) {
+  const c = ctx ?? (measureCtx ??= document.createElement("canvas").getContext("2d")!);
+  const f = base * 6 * (0.6 + (s.size || 2) * 0.22);
+  const font = fontCss(s.font, f);
+  c.save(); c.font = font;
+  const lines = (s.text || "").split("\n");
+  const tw = Math.max(f * 0.5, ...lines.map((l) => c.measureText(l).width));
+  c.restore();
+  const lh = f * 1.28, padX = f * 0.55, padY = f * 0.38;
+  const badge = s.num != null ? lh * 1.02 : 0, gap = badge ? f * 0.42 : 0;
+  const w = padX * 2 + badge + gap + tw, h = padY * 2 + Math.max(lines.length * lh, badge);
+  return { f, font, lines, lh, padX, padY, badge, gap, w, h, x0: s.at!.x - w / 2, y0: s.at!.y - h / 2 };
+}
+function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  if ((ctx as any).roundRect) (ctx as any).roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+}
+function numDot(ctx: CanvasRenderingContext2D, n: number, cx: number, cy: number, r: number, fill: string) {
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill();
+  const label = String(n), fs = r * (label.length > 2 ? 0.82 : label.length > 1 ? 1.0 : 1.18);
+  ctx.font = `800 ${fs}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
+  ctx.fillStyle = contrast(fill); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(label, cx, cy + fs * 0.04);
+  ctx.restore();
+}
+function drawTextBox(ctx: CanvasRenderingContext2D, s: Shape, base: number) {
+  const L = textLayout(s, base, ctx);
+  const hasBg = !!s.bg && s.bg !== "none";
+  const txt = hasBg && s.bg === s.color ? contrast(s.bg!) : s.color;
+  ctx.save();
+  if (hasBg) {
+    ctx.shadowColor = "rgba(0,0,0,0.35)"; ctx.shadowBlur = L.f * 0.35; ctx.shadowOffsetY = L.f * 0.06;
+    rrect(ctx, L.x0, L.y0, L.w, L.h, L.f * 0.32); ctx.fillStyle = s.bg!; ctx.fill();
+    ctx.shadowColor = "transparent";
+  }
+  if (L.badge) {
+    const r = L.badge / 2, cx = L.x0 + L.padX + r;
+    const cy = L.lines.length > 1 ? L.y0 + L.padY + L.lh / 2 : L.y0 + L.h / 2;
+    const fill = hasBg ? txt : s.color;
+    if (!hasBg) { ctx.beginPath(); ctx.arc(cx, cy, r + Math.max(1.5, r * 0.12), 0, Math.PI * 2); ctx.fillStyle = contrast(fill); ctx.fill(); }
+    numDot(ctx, s.num!, cx, cy, r, fill);
+  }
+  ctx.font = L.font; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  const x = L.x0 + L.padX + L.badge + L.gap;
+  L.lines.forEach((line, i) => {
+    const y = L.y0 + L.padY + L.lh * (i + 0.5);
+    if (!hasBg) { ctx.lineJoin = "round"; ctx.lineWidth = Math.max(2, L.f * 0.2); ctx.strokeStyle = contrast(s.color) === "#FFFFFF" ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.75)"; ctx.strokeText(line, x, y); }
+    ctx.fillStyle = txt; ctx.fillText(line, x, y);
+  });
+  ctx.restore();
+}
+const pinR = (s: Shape, base: number) => base * (2.6 + (s.size || 2) * 1.3);
+
 function bbox(s: Shape, base: number): { x0: number; y0: number; x1: number; y1: number } {
+  if (s.type === "num") { const r = pinR(s, base); return { x0: s.at!.x - r, y0: s.at!.y - r, x1: s.at!.x + r, y1: s.at!.y + r }; }
+  if (s.type === "text" && s.bg !== undefined) { const L = textLayout(s, base); return { x0: L.x0, y0: L.y0, x1: L.x0 + L.w, y1: L.y0 + L.h }; }
   if (s.type === "text") {
     const f = base * 6 * (0.7 + (s.size || 2) * 0.25), w = (s.text?.length || 1) * f * 0.6 + f;
     return { x0: s.at!.x - w / 2, y0: s.at!.y - f, x1: s.at!.x + w / 2, y1: s.at!.y + f };
@@ -191,12 +286,16 @@ export default function PhotoMarkup() {
   const [tool, setTool] = useState<Tool>("path");
   const [color, setColor] = useState(COLORS[0].v);
   const [size, setSize] = useState(2);
+  const [font, setFont] = useState<FontKey>("sans");
+  const [bg, setBg] = useState("rgba(11,13,14,0.72)");
+  const [numbered, setNumbered] = useState(false);
   const [draft, setDraft] = useState<Shape | null>(null);
   const [hover, setHover] = useState<P | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState({ w: 0, h: 0 });
 
+  const selIsText = !!sel && shapes.some((x) => x.id === sel && x.type === "text");
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drag = useRef<{ mode: "draw" | "move" | "handle" | "pathpt"; start?: P; before?: Shape[]; idx?: number } | null>(null);
@@ -347,8 +446,14 @@ export default function PhotoMarkup() {
       return;
     }
     if (tool === "text") {
-      const t = await askText({ title: "Add text", placeholder: "e.g. Crack here, 14 ft, Saw cut", confirm: "Add" });
-      if (t?.trim()) commit([...shapes, { id: uid(), type: "text", color, size, at: p, text: t.trim() }]);
+      const n = numbered ? nextNum(shapes, "text") : undefined;
+      const t = await askText({ title: n ? `Text box #${n}` : "Text box", placeholder: "e.g. Settled section — reset curb\nEnter for a new line", confirm: "Add", multiline: true });
+      if (t?.trim()) commit([...shapes, { id: uid(), type: "text", color, size, at: p, text: t.trim(), font, bg, num: n }]);
+      return;
+    }
+    if (tool === "num") {
+      const pin: Shape = { id: uid(), type: "num", color, size, at: p, num: nextNum(shapes) };
+      commit([...shapes, pin]);
       return;
     }
     if (tool === "path") {
@@ -406,9 +511,29 @@ export default function PhotoMarkup() {
   function deleteSel() { if (!sel) return; commit(shapes.filter((s) => s.id !== sel)); setSel(null); }
   async function editSelText() {
     const s = shapes.find((x) => x.id === sel); if (!s || (s.type !== "text" && s.type !== "dim")) return;
-    const t = await askText({ title: s.type === "dim" ? "Measurement" : "Edit text", initial: s.text || "", confirm: "Save" });
+    const t = await askText({ title: s.type === "dim" ? "Measurement" : "Edit text", initial: s.text || "", confirm: "Save", multiline: s.type === "text" });
     if (t === null) return;
     commit(shapes.map((x) => (x.id === sel ? { ...x, text: t.trim() } : x)));
+  }
+  async function editSelNum() {
+    const s = shapes.find((x) => x.id === sel); if (!s) return;
+    const t = await askText({ title: "Number", initial: String(s.num ?? nextNum(shapes, s.type === "text" ? "text" : "num")), confirm: "Save" });
+    if (t === null) return;
+    const n = parseInt(t, 10);
+    if (!Number.isFinite(n) || n < 0) { showError("Use a whole number."); return; }
+    commit(shapes.map((x) => (x.id === sel ? { ...x, num: n } : x)));
+  }
+  // text-box style: sets the default for new boxes and restyles the selected box
+  function styleText(patch: Partial<Shape>) {
+    if (patch.font) setFont(patch.font);
+    if (patch.bg) setBg(patch.bg);
+    if (sel && selIsText) commit(shapes.map((x) => (x.id === sel ? { ...x, bg: x.bg ?? bg, font: x.font ?? font, ...patch } : x)));
+  }
+  function toggleNumber() {
+    if (sel && selIsText) {
+      const s = shapes.find((x) => x.id === sel)!;
+      commit(shapes.map((x) => (x.id === sel ? { ...x, bg: x.bg ?? bg, num: s.num != null ? undefined : nextNum(shapes, "text") } : x)));
+    } else setNumbered((v) => !v);
   }
   // restyle the selected shape with the color / size buttons
   function pickColor(c: string) { setColor(c); if (sel) commit(shapes.map((x) => (x.id === sel ? { ...x, color: c } : x))); }
@@ -480,9 +605,10 @@ export default function PhotoMarkup() {
   const selShape = shapes.find((x) => x.id === sel);
   const hint =
     tool === "path" ? (draft ? `${draft.points?.length} point${draft.points?.length === 1 ? "" : "s"} · tap to add more · tap the first point to close it · Done to finish` : "Tap to drop each point — lines connect as you go")
-    : tool === "select" ? (selShape ? "Drag to move · drag a white dot to reshape · color and size buttons restyle it" : "Tap a mark to select it")
+    : tool === "select" ? (selShape ? (selShape.type === "text" ? "Drag to move · change text color, size, font, box color or number below" : "Drag to move · drag a white dot to reshape · color and size buttons restyle it") : "Tap a mark to select it")
     : tool === "dim" ? "Drag from one end to the other, then type the measurement"
-    : tool === "text" ? "Tap where the text should go"
+    : tool === "text" ? "Tap where the box goes · pick the font, box color and numbering below"
+    : tool === "num" ? `Tap to drop numbered dots (next: ${nextNum(shapes)}) · color buttons set the dot color`
     : tool === "pen" ? "Draw with your finger" : "Drag to draw";
 
   // ---------- picker ----------
@@ -546,6 +672,7 @@ export default function PhotoMarkup() {
       </div>
       <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex items-center gap-1.5">
+          {tool === "text" || selShape?.type === "text" ? <span className="mr-0.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">Text</span> : null}
           {COLORS.map((c) => (
             <button key={c.v} aria-label={c.n} onClick={() => pickColor(c.v)}
               className={cn("h-8 w-8 rounded-full border-2", (selShape ? selShape.color : color) === c.v ? "border-white ring-2 ring-brand ring-offset-2 ring-offset-background" : "border-white/20")}
@@ -567,6 +694,42 @@ export default function PhotoMarkup() {
         </div>
       </div>
 
+      {tool === "text" || selShape?.type === "text" ? (() => {
+        const curFont = selShape?.type === "text" ? selShape.font ?? "sans" : font;
+        const curBg = selShape?.type === "text" ? selShape.bg ?? "legacy" : bg;
+        const isNum = selShape?.type === "text" ? selShape.num != null : numbered;
+        return (
+          <div className="mb-2 rounded-lg border border-white/[0.09] bg-card p-2">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="w-12 shrink-0 text-xs font-semibold uppercase tracking-wide text-neutral-500">Font</span>
+              <div className="no-scrollbar flex gap-1 overflow-x-auto">
+                {FONTS.map((f) => (
+                  <button key={f.k} onClick={() => styleText({ font: f.k })}
+                    className={cn("h-9 shrink-0 rounded-md border px-3 text-[15px]", curFont === f.k ? "border-brand bg-brand text-neutral-950" : "border-white/[0.09] text-neutral-200 hover:text-white")}
+                    style={{ font: f.css(15) }}>{f.label}</button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-12 shrink-0 text-xs font-semibold uppercase tracking-wide text-neutral-500">Box</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {BGS.map((b) => (
+                  <button key={b.v} aria-label={b.n} title={b.n} onClick={() => styleText({ bg: b.v })}
+                    className={cn("flex h-8 w-8 items-center justify-center rounded-md border-2", curBg === b.v ? "border-white ring-2 ring-brand ring-offset-2 ring-offset-background" : "border-white/20")}
+                    style={{ background: b.v === "none" ? "transparent" : b.v }}>
+                    {b.v === "none" ? <Ban size={16} className="text-neutral-400" /> : b.v.startsWith("rgba") ? <span className="text-[10px] font-bold text-white/80">50%</span> : null}
+                  </button>
+                ))}
+              </div>
+              <button onClick={toggleNumber}
+                className={cn("ml-auto inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-[13px] font-semibold", isNum ? "border-brand bg-brand text-neutral-950" : "border-white/[0.09] text-neutral-300 hover:text-white")}>
+                <Hash size={15} /> {isNum ? (selShape?.type === "text" ? `Numbered #${selShape.num}` : `Numbered · next ${nextNum(shapes, "text")}`) : "Number it"}
+              </button>
+            </div>
+          </div>
+        );
+      })() : null}
+
       <div className="mb-2 flex min-h-[36px] flex-wrap items-center gap-2 text-[13px] text-neutral-400">
         <span className="mr-auto">{hint}</span>
         {draft?.type === "path" ? (
@@ -578,6 +741,7 @@ export default function PhotoMarkup() {
         ) : selShape ? (
           <>
             {selShape.type === "text" || selShape.type === "dim" ? <Button variant="outline" size="sm" onClick={editSelText}>Edit {selShape.type === "dim" ? "measurement" : "text"}</Button> : null}
+            {selShape.num != null ? <Button variant="outline" size="sm" onClick={editSelNum}>Change #{selShape.num}</Button> : null}
             <Button variant="destructive" size="sm" onClick={deleteSel}><Trash2 size={15} /> Delete</Button>
           </>
         ) : null}
