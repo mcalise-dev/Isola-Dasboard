@@ -6,6 +6,7 @@ import { compressImage, openImage } from "@/lib/image";
 import { showError, undoable } from "@/components/Toaster";
 import Dictate from "@/components/Dictate";
 import { ask, copyText } from "@/components/Dialogs";
+import { stampSafe } from "@/lib/stamp";
 
 /* Punch list for one job — what the PM (or Mike) wants fixed before
    final payment. Each item can carry a photo of the problem and a photo
@@ -73,7 +74,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
   }
 
   async function setPhoto(t: Item, field: "photo_b64" | "fixed_photo_b64", file: File) {
-    const b64 = await compressImage(file);
+    const b64 = await stampSafe(await compressImage(file));
     const patch: any = { [field]: b64 };
     if (field === "fixed_photo_b64" && !t.done) { patch.done = true; patch.done_at = new Date().toISOString(); }
     const { error } = await supabase.from("punch_list").update(patch).eq("id", t.id);
@@ -216,7 +217,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
           <label className={`shrink-0 cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold ${form.photo ? "border-emerald-600 text-emerald-300" : "border-neutral-700 text-neutral-300"}`}>
             {form.photo ? "Photo ✓" : "Photo"}
             <input type="file" accept="image/*" className="hidden"
-              onChange={async (e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) { const b = await compressImage(f); setForm((x) => ({ ...x, photo: b })); } }} />
+              onChange={async (e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) { const b = await stampSafe(await compressImage(f)); setForm((x) => ({ ...x, photo: b })); } }} />
           </label>
           <button onClick={add} disabled={busy}
             className="shrink-0 rounded-lg bg-brand text-neutral-950 px-4 text-xs font-bold disabled:opacity-60">{busy ? "…" : "+ Add"}</button>

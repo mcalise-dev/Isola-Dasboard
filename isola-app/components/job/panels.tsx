@@ -11,7 +11,8 @@ import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { Empty, SectionTitle } from "@/components/ui/bits";
 import PunchList from "@/components/PunchList";
 import { cn } from "@/lib/utils";
-import { Camera, Images, HardHat, Trash2, Plus, Receipt, CalendarPlus, FileSpreadsheet, Upload, Download, X } from "lucide-react";
+import { Camera, Images, HardHat, Trash2, Plus, Receipt, CalendarPlus, FileSpreadsheet, Upload, Download, X, PenTool } from "lucide-react";
+import { stampSafe } from "@/lib/stamp";
 
 export const COST_CATEGORIES = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Subcontractor", "Permits", "Other"];
 const changed = () => window.dispatchEvent(new Event("isola:changed"));
@@ -319,7 +320,7 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
   const [phase, setPhase] = useState("during");
   const [big, setBig] = useState<any>(null);
   const load = async () => {
-    const { data } = await sb.from("job_photos").select("id,phase,caption,photo_b64,created_at").eq("job_id", jobId).order("created_at");
+    const { data } = await sb.from("job_photos").select("id,phase,caption,photo_b64,source_photo_id,created_at").eq("job_id", jobId).order("created_at");
     setRows(data ?? []);
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [jobId]);
@@ -327,8 +328,9 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
     if (!files.length) return;
     setBusy(true);
     for (const file of files) {
-      const b64 = await shrink(file).catch(() => "");
-      if (!b64) continue;
+      const raw = await shrink(file).catch(() => "");
+      if (!raw) continue;
+      const b64 = await stampSafe(raw);
       const { error } = await sb.from("job_photos").insert({ job_id: jobId, phase, photo_b64: b64 });
       if (error) { showError("Photo save failed: " + error.message); break; }
     }
@@ -367,6 +369,7 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
                     <button onClick={() => setBig(p)} className="block w-full"><img src={p.photo_b64} alt={p.phase} className="h-28 w-full rounded-lg border border-white/[0.08] object-cover" /></button>
                     <button onClick={() => remove(p)} aria-label="Delete photo" className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-neutral-300"><X size={13} /></button>
                     <button onClick={() => cycle(p)} className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 text-xs font-semibold capitalize text-neutral-200">{p.phase}</button>
+                    <a href={`/markup?photo=${p.id}`} aria-label="Mark up photo" className="absolute bottom-1 right-1 inline-flex items-center gap-1 rounded bg-brand px-1.5 text-xs font-bold text-neutral-950"><PenTool size={11} />{p.source_photo_id ? "Edit" : "Mark up"}</a>
                   </div>
                 ))}
               </div>

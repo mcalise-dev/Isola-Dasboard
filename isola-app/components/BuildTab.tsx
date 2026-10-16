@@ -17,6 +17,8 @@ import {
   Plus, ArrowLeft, ArrowRight, Trash2, Calculator, Camera, Package, HardHat, Truck, Recycle, Handshake, Ellipsis,
   TriangleAlert, CircleCheck, Eye, Copy, ExternalLink, ClipboardList, Hammer, type LucideIcon,
 } from "lucide-react";
+import { stampSafe } from "@/lib/stamp";
+import { compressImage } from "@/lib/image";
 
 /* ============================================================
    BUILD — the front half of a job: Walk -> Price -> Send.
@@ -411,12 +413,9 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
 
   /* ---------- photos ---------- */
   async function addPhoto(file: File) {
-    const b64: string = await new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(String(r.result));
-      r.onerror = rej;
-      r.readAsDataURL(file);
-    });
+    const raw = await compressImage(file, 1600, 0.82).catch(() => "");
+    if (!raw) return showError("Could not read that photo.");
+    const b64 = await stampSafe(raw);
     const { data, error } = await supabase
       .from("estimate_photos")
       .insert({ estimate_id: e.id, photo_b64: b64, caption: "" })

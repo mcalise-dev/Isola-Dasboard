@@ -65,3 +65,10 @@ if (!rows) return <ListSkeleton />;
 - Floating buttons: use the page's PageHeader `actions` on desktop. The global + (QuickAdd) already exists on phone.
 - Touch targets ≥ 40px tall on anything tapped in the field.
 - Keep all existing behavior, queries, columns and business rules. This is a visual/UX pass, not a rewrite of logic.
+
+## Photos (v5.1)
+- Every photo Mike uploads is stamped with the Isola badge (bottom-right) — run it through
+  `stampSafe()` from `@/lib/stamp` after `compressImage()`. Not for receipts, documents, or
+  photos clients submit on public pages.
+- Drawing on photos lives at `/markup` (`components/markup/PhotoMarkup.tsx`). Marked-up copies are
+  their own `job_photos` rows with `markup` (the editable drawing) and `source_photo_id` (the original).

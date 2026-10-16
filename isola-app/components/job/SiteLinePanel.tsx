@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Input, Textarea, Field } from "@/components/ui/input";
 import { Empty, ListSkeleton, LoadError, SectionTitle } from "@/components/ui/bits";
 import { Copy, ExternalLink, ImagePlus, Link2, Radio, RefreshCw, Trash2, X } from "lucide-react";
+import { stampSafe } from "@/lib/stamp";
 
 /* Isola SiteLine for one job. Mike makes a no-login link (/site/<token>) for the
    property manager and posts plain-language updates. The client page shows the
@@ -155,7 +156,7 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
           <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border text-sm text-neutral-300">
             <ImagePlus size={16} /> {form.photo ? "Photo attached — tap to change" : "Add a photo (optional)"}
             <input type="file" accept="image/*" className="hidden"
-              onChange={async (e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) { const p = await compressImage(f); setForm((x) => ({ ...x, photo: p })); } }} />
+              onChange={async (e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) { const p = await stampSafe(await compressImage(f)); setForm((x) => ({ ...x, photo: p })); } }} />
           </label>
           <p className="text-xs text-neutral-500">Dollar amounts are stripped out before the client sees an update.</p>
           <Button className="h-11 w-full" onClick={post} disabled={busy}>{busy ? "Posting…" : "Post update"}</Button>
