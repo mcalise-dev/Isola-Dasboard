@@ -1,10 +1,7 @@
-// v5.1 (10/16/26): every photo Mike uploads gets the Isola badge in the bottom-right corner —
-// round logo + ISOLA on brand ink with a yellow rule (black / white / yellow).
-// The badge is sized off the photo's short side, so stamping an already-stamped photo of the
-// same size lands exactly on top of the old one (no doubled mark).
-
-const INK = "rgba(11,13,14,0.88)";
-const YEL = "#F2C230";
+// v5.1 (10/16/26): every photo Mike uploads gets the original round Isola logo in the
+// bottom-right corner (Mike: "just the original one" — no pill, no text, no extra color).
+// Sized off the photo's short side, so stamping an already-stamped photo of the same size
+// lands exactly on top of the old one (no doubled mark).
 
 let logoP: Promise<HTMLImageElement | null> | null = null;
 function logo(): Promise<HTMLImageElement | null> {
@@ -19,52 +16,21 @@ function logo(): Promise<HTMLImageElement | null> {
   return logoP;
 }
 
-/** Draw the badge onto a canvas context that covers a w×h image (image pixel space). */
+/** Draw the original round Isola logo in the bottom-right corner of a w×h image (image pixel space). */
 export async function drawStamp(ctx: CanvasRenderingContext2D, w: number, h: number) {
   const lg = await logo();
+  if (!lg) return;
   const short = Math.min(w, h);
-  const H = Math.round(Math.max(30, Math.min(150, short * 0.085)));
+  const D = Math.round(Math.max(40, Math.min(220, short * 0.14)));
   const m = Math.round(short * 0.025);
-  const fs = Math.round(H * 0.36);
-  const track = fs * 0.2;
-  const word = "ISOLA";
+  const x = w - m - D, y = h - m - D;
   ctx.save();
-  ctx.font = `800 ${fs}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif`;
-  const glyphs = [...word].map((c) => ctx.measureText(c).width);
-  const textW = glyphs.reduce((a, b) => a + b, 0) + track * (word.length - 1);
-  const pad = H * 0.11, logoD = H - pad * 2, gap = H * 0.2, right = H * 0.36;
-  const W = pad + logoD + gap + textW + right;
-  const x = w - m - W, y = h - m - H, r = H / 2;
-
-  ctx.shadowColor = "rgba(0,0,0,0.35)"; ctx.shadowBlur = H * 0.25; ctx.shadowOffsetY = H * 0.04;
-  ctx.fillStyle = INK;
-  ctx.beginPath();
-  if ((ctx as any).roundRect) (ctx as any).roundRect(x, y, W, H, r); else ctx.rect(x, y, W, H);
-  ctx.fill();
+  // soft shadow so it lifts off busy photos
+  ctx.shadowColor = "rgba(0,0,0,0.45)"; ctx.shadowBlur = D * 0.12; ctx.shadowOffsetY = D * 0.02;
+  ctx.beginPath(); ctx.arc(x + D / 2, y + D / 2, D / 2, 0, Math.PI * 2); ctx.fillStyle = "#000"; ctx.fill();
   ctx.shadowColor = "transparent";
-  ctx.lineWidth = Math.max(1, H * 0.025); ctx.strokeStyle = "rgba(255,255,255,0.14)"; ctx.stroke();
-
-  // logo
-  const lx = x + pad, ly = y + pad;
-  if (lg) {
-    ctx.save();
-    ctx.beginPath(); ctx.arc(lx + logoD / 2, ly + logoD / 2, logoD / 2, 0, Math.PI * 2); ctx.clip();
-    ctx.drawImage(lg, lx, ly, logoD, logoD);
-    ctx.restore();
-    ctx.beginPath(); ctx.arc(lx + logoD / 2, ly + logoD / 2, logoD / 2, 0, Math.PI * 2);
-    ctx.lineWidth = Math.max(1, H * 0.035); ctx.strokeStyle = YEL; ctx.stroke();
-  }
-
-  // ISOLA, letter-spaced, white
-  let tx = lx + logoD + gap;
-  const ty = y + H * 0.47;
-  ctx.fillStyle = "#FFFFFF"; ctx.textBaseline = "middle";
-  [...word].forEach((c, i) => { ctx.fillText(c, tx, ty); tx += glyphs[i] + track; });
-
-  // yellow rule under the word
-  ctx.fillStyle = YEL;
-  const bh = Math.max(2, H * 0.065);
-  ctx.fillRect(lx + logoD + gap, y + H * 0.7, textW, bh);
+  ctx.beginPath(); ctx.arc(x + D / 2, y + D / 2, D / 2, 0, Math.PI * 2); ctx.clip();
+  ctx.drawImage(lg, x, y, D, D);
   ctx.restore();
 }
 
