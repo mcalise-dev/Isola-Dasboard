@@ -28,6 +28,8 @@ type Shape = {
   // text boxes (v5.2): font, box background ("none" = no box), optional number badge.
   // Text with no `bg` is an older label and keeps the original pill look.
   font?: FontKey; bg?: string; num?: number;
+  // v5.3: box size set by dragging its corners (text wraps to w; h can add room below), and a text-size nudge
+  w?: number; h?: number; ts?: number;
 };
 type Tool = "select" | Shape["type"];
 type Markup = { v: 1; w: number; h: number; shapes: Shape[] };
@@ -179,16 +181,41 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape, base: number, opts: 
 let measureCtx: CanvasRenderingContext2D | null = null;
 function textLayout(s: Shape, base: number, ctx?: CanvasRenderingContext2D) {
   const c = ctx ?? (measureCtx ??= document.createElement("canvas").getContext("2d")!);
-  const f = base * 6 * (0.6 + (s.size || 2) * 0.22);
+  const f = base * 6 * (0.6 + (s.size || 2) * 0.22) * (s.ts || 1);
   const font = fontCss(s.font, f);
-  c.save(); c.font = font;
-  const lines = (s.text || "").split("\n");
-  const tw = Math.max(f * 0.5, ...lines.map((l) => c.measureText(l).width));
-  c.restore();
   const lh = f * 1.28, padX = f * 0.55, padY = f * 0.38;
   const badge = s.num != null ? lh * 1.02 : 0, gap = badge ? f * 0.42 : 0;
-  const w = padX * 2 + badge + gap + tw, h = padY * 2 + Math.max(lines.length * lh, badge);
-  return { f, font, lines, lh, padX, padY, badge, gap, w, h, x0: s.at!.x - w / 2, y0: s.at!.y - h / 2 };
+  const chrome = padX * 2 + badge + gap;
+  c.save(); c.font = font;
+  let lines = (s.text || "").split("\n");
+  // a set width wraps to that; an auto-sized box wraps at ~half the photo so long notes don't run off
+  const autoMax = base * 300 * 0.5;
+  if (s.w) lines = wrapLines(c, lines, Math.max(f, s.w - chrome));
+  else if (lines.some((l) => c.measureText(l).width > autoMax - chrome)) lines = wrapLines(c, lines, Math.max(f * 4, autoMax - chrome));
+  const tw = Math.max(f * 0.5, ...lines.map((l) => c.measureText(l).width));
+  c.restore();
+  const w = s.w ? Math.max(s.w, chrome + f) : chrome + tw;
+  const h = Math.max(padY * 2 + Math.max(lines.length * lh, badge), s.h || 0);
+  return { f, font, lines, lh, padX, padY, badge, gap, chrome, w, h, x0: s.at!.x - w / 2, y0: s.at!.y - h / 2 };
+}
+// word-wrap each paragraph to maxW; words longer than the box break by letter
+function wrapLines(c: CanvasRenderingContext2D, paras: string[], maxW: number) {
+  const out: string[] = [];
+  for (const para of paras) {
+    if (!para) { out.push(""); continue; }
+    let line = "";
+    for (const word of para.split(/\s+/)) {
+      const tryLine = line ? line + " " + word : word;
+      if (c.measureText(tryLine).width <= maxW) { line = tryLine; continue; }
+      if (line) out.push(line);
+      if (c.measureText(word).width <= maxW) { line = word; continue; }
+      let chunk = "";
+      for (const ch of word) { if (c.measureText(chunk + ch).width > maxW && chunk) { out.push(chunk); chunk = ch; } else chunk += ch; }
+      line = chunk;
+    }
+    out.push(line);
+  }
+  return out;
 }
 function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
@@ -253,7 +280,9 @@ function hit(s: Shape, p: P, tol: number, base: number) {
   const b = bbox(s, base);
   return p.x > b.x0 - t && p.x < b.x1 + t && p.y > b.y0 - t && p.y < b.y1 + t;
 }
-function handles(s: Shape): P[] {
+const isBox = (s: Shape) => s.type === "text" && s.bg !== undefined;
+function handles(s: Shape, base: number): P[] {
+  if (isBox(s)) { const L = textLayout(s, base); return [{ x: L.x0, y: L.y0 }, { x: L.x0 + L.w, y: L.y0 }, { x: L.x0 + L.w, y: L.y0 + L.h }, { x: L.x0, y: L.y0 + L.h }]; }
   if (s.type === "path") return s.points || [];
   if (s.type === "line" || s.type === "arrow" || s.type === "dim" || s.type === "rect" || s.type === "ellipse") return [s.a!, s.b!];
   return [];
@@ -262,7 +291,19 @@ function moved(s: Shape, dx: number, dy: number): Shape {
   const m = (p?: P) => (p ? { x: p.x + dx, y: p.y + dy } : p);
   return { ...s, a: m(s.a), b: m(s.b), at: m(s.at), points: s.points?.map((p) => m(p)!) };
 }
-function withHandle(s: Shape, i: number, p: P): Shape {
+function withHandle(s: Shape, i: number, p: P, base: number): Shape {
+  if (isBox(s)) {
+    // drag a corner: the opposite corner stays put, text re-wraps to the new width
+    const L = textLayout(s, base);
+    const corners = [{ x: L.x0, y: L.y0 }, { x: L.x0 + L.w, y: L.y0 }, { x: L.x0 + L.w, y: L.y0 + L.h }, { x: L.x0, y: L.y0 + L.h }];
+    const opp = corners[(i + 2) % 4];
+    const w = Math.max(L.chrome + L.f * 1.5, Math.abs(p.x - opp.x));
+    const sized: Shape = { ...s, w, h: Math.abs(p.y - opp.y) };
+    const L2 = textLayout(sized, base);
+    const x0 = p.x < opp.x ? opp.x - L2.w : opp.x;
+    const y0 = p.y < opp.y ? opp.y - L2.h : opp.y;
+    return { ...sized, h: L2.h, at: { x: x0 + L2.w / 2, y: y0 + L2.h / 2 } };
+  }
   if (s.type === "path") return { ...s, points: s.points!.map((q, j) => (j === i ? p : q)) };
   return i === 0 ? { ...s, a: p } : { ...s, b: p };
 }
@@ -296,9 +337,23 @@ export default function PhotoMarkup() {
   const [view, setView] = useState({ w: 0, h: 0 });
 
   const selIsText = !!sel && shapes.some((x) => x.id === sel && x.type === "text");
+  // keep a text box fully on the photo
+  function clampBox(bx: Shape): Shape {
+    if (!img || !isBox(bx)) return bx;
+    const b0 = baseUnit(img.naturalWidth, img.naturalHeight), L = textLayout(bx, b0);
+    const W = img.naturalWidth, H = img.naturalHeight;
+    let x0 = Math.max(0, Math.min(W - L.w, L.x0)), y0 = Math.max(0, Math.min(H - L.h, L.y0));
+    // stay clear of the Isola logo in the bottom-right corner (same size/margin as lib/stamp)
+    const short = Math.min(W, H), D = Math.max(40, Math.min(220, short * 0.14)), m = short * 0.025, gap = short * 0.012;
+    const lx = W - m - D, ly = H - m - D;
+    if (x0 + L.w > lx - gap && y0 + L.h > ly - gap) {
+      if (lx - gap - L.w >= 0) x0 = lx - gap - L.w; else y0 = Math.max(0, ly - gap - L.h);
+    }
+    return { ...bx, at: { x: x0 + L.w / 2, y: y0 + L.h / 2 } };
+  }
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const drag = useRef<{ mode: "draw" | "move" | "handle" | "pathpt"; start?: P; before?: Shape[]; idx?: number } | null>(null);
+  const drag = useRef<{ mode: "draw" | "move" | "handle" | "pathpt" | "tbdraw"; start?: P; before?: Shape[]; idx?: number } | null>(null);
 
   // jobs for the picker
   useEffect(() => {
@@ -403,7 +458,7 @@ export default function PhotoMarkup() {
       const b = bbox(s, base), pad = strokeW(s, base) + 6 / scale;
       ctx.save(); ctx.setLineDash([6 / scale, 5 / scale]); ctx.lineWidth = 1.5 / scale; ctx.strokeStyle = "#F2C230";
       ctx.strokeRect(b.x0 - pad, b.y0 - pad, b.x1 - b.x0 + pad * 2, b.y1 - b.y0 + pad * 2); ctx.restore();
-      handles(s).forEach((h) => { ctx.beginPath(); ctx.arc(h.x, h.y, 7 / scale, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill(); ctx.lineWidth = 2.5 / scale; ctx.strokeStyle = "#F2C230"; ctx.stroke(); });
+      handles(s, base).forEach((h) => { ctx.beginPath(); ctx.arc(h.x, h.y, 7 / scale, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill(); ctx.lineWidth = 2.5 / scale; ctx.strokeStyle = "#F2C230"; ctx.stroke(); });
     }
   }, [img, view, shapes, draft, hover, sel, scale, base]);
 
@@ -437,7 +492,7 @@ export default function PhotoMarkup() {
     if (tool === "select") {
       const cur = shapes.find((x) => x.id === sel);
       if (cur) {
-        const i = handles(cur).findIndex((h) => dist(h, p) < tolImg * 1.2);
+        const i = handles(cur, base).findIndex((h) => dist(h, p) < tolImg * 1.4);
         if (i >= 0) { drag.current = { mode: "handle", idx: i, before: shapes }; return; }
       }
       const h = [...shapes].reverse().find((s) => hit(s, p, tolImg, base));
@@ -446,9 +501,10 @@ export default function PhotoMarkup() {
       return;
     }
     if (tool === "text") {
-      const n = numbered ? nextNum(shapes, "text") : undefined;
-      const t = await askText({ title: n ? `Text box #${n}` : "Text box", placeholder: "e.g. Settled section — reset curb\nEnter for a new line", confirm: "Add", multiline: true });
-      if (t?.trim()) commit([...shapes, { id: uid(), type: "text", color, size, at: p, text: t.trim(), font, bg, num: n }]);
+      // tap = box sized to the text; drag = draw the box at the size you want
+      setSel(null);
+      setDraft({ id: "__textbox", type: "rect", color: "#F2C230", size: 1, a: p, b: p });
+      drag.current = { mode: "tbdraw" };
       return;
     }
     if (tool === "num") {
@@ -474,13 +530,13 @@ export default function PhotoMarkup() {
     if (!d) { if (tool === "path" && draft && e.pointerType === "mouse") setHover(p); return; }
     if (d.mode === "move" && d.start) {
       const dx = p.x - d.start.x, dy = p.y - d.start.y;
-      setShapes(d.before!.map((s) => (s.id === sel ? moved(s, dx, dy) : s)));
+      setShapes(d.before!.map((s) => (s.id === sel ? clampBox(moved(s, dx, dy)) : s)));
     } else if (d.mode === "handle") {
-      setShapes(d.before!.map((s) => (s.id === sel ? withHandle(s, d.idx!, p) : s)));
+      setShapes(d.before!.map((s) => (s.id === sel ? clampBox(withHandle(s, d.idx!, p, base)) : s)));
     } else if (d.mode === "pathpt") {
       // drag right after tapping fine-tunes the point you just dropped
       setDraft((dr) => (dr?.points ? { ...dr, points: [...dr.points.slice(0, -1), p] } : dr));
-    } else if (d.mode === "draw") {
+    } else if (d.mode === "draw" || d.mode === "tbdraw") {
       setDraft((dr) => {
         if (!dr) return dr;
         if (dr.type === "pen") { const last = dr.points![dr.points!.length - 1]; return dist(last, p) * scale > 2 ? { ...dr, points: [...dr.points!, p] } : dr; }
@@ -493,6 +549,24 @@ export default function PhotoMarkup() {
     if (!d) return;
     if (d.mode === "move" || d.mode === "handle") {
       if (d.before && d.before !== shapes) { setPast((p) => [...p.slice(-60), d.before!]); setFuture([]); }
+      return;
+    }
+    if (d.mode === "tbdraw" && draft) {
+      const { a, b } = draft; setDraft(null);
+      const dragged = Math.abs(b!.x - a!.x) * scale > 24;
+      const n = numbered ? nextNum(shapes, "text") : undefined;
+      const t = await askText({ title: n ? `Text box #${n}` : "Text box", placeholder: "e.g. Settled section — reset curb\nEnter for a new line", confirm: "Add", multiline: true });
+      if (!t?.trim()) return;
+      let box: Shape = { id: uid(), type: "text", color, size, at: a!, text: t.trim(), font, bg, num: n };
+      if (dragged) {
+        const x0 = Math.min(a!.x, b!.x), y0 = Math.min(a!.y, b!.y);
+        box = { ...box, w: Math.abs(b!.x - a!.x), h: Math.abs(b!.y - a!.y) };
+        const L = textLayout(box, base);
+        box = { ...box, h: L.h, at: { x: x0 + L.w / 2, y: y0 + L.h / 2 } };
+      }
+      box = clampBox(box);
+      commit([...shapes, box]);
+      setTool("select"); setSel(box.id);
       return;
     }
     if (d.mode !== "draw" || !draft) return;
@@ -527,7 +601,21 @@ export default function PhotoMarkup() {
   function styleText(patch: Partial<Shape>) {
     if (patch.font) setFont(patch.font);
     if (patch.bg) setBg(patch.bg);
-    if (sel && selIsText) commit(shapes.map((x) => (x.id === sel ? { ...x, bg: x.bg ?? bg, font: x.font ?? font, ...patch } : x)));
+    if (sel && selIsText) commit(shapes.map((x) => (x.id === sel ? clampBox({ ...x, bg: x.bg ?? bg, font: x.font ?? font, ...patch }) : x)));
+  }
+  function nudgeText(dir: 1 | -1) {
+    if (!(sel && selIsText)) return;
+    commit(shapes.map((x) => {
+      if (x.id !== sel) return x;
+      const before = { ...x, bg: x.bg ?? bg }, L0 = textLayout(before, base);
+      const next: Shape = { ...before, ts: Math.max(0.5, Math.min(4, Math.round(((x.ts || 1) * (dir > 0 ? 1.15 : 1 / 1.15)) * 100) / 100)) };
+      const L1 = textLayout(next, base);
+      return clampBox({ ...next, h: next.h ? Math.max(next.h, L1.h) : undefined, at: { x: L0.x0 + L1.w / 2, y: L0.y0 + L1.h / 2 } });
+    }));
+  }
+  function fitBox() {
+    if (!(sel && selIsText)) return;
+    commit(shapes.map((x) => (x.id === sel ? clampBox({ ...x, w: undefined, h: undefined }) : x)));
   }
   function toggleNumber() {
     if (sel && selIsText) {
@@ -605,9 +693,9 @@ export default function PhotoMarkup() {
   const selShape = shapes.find((x) => x.id === sel);
   const hint =
     tool === "path" ? (draft ? `${draft.points?.length} point${draft.points?.length === 1 ? "" : "s"} · tap to add more · tap the first point to close it · Done to finish` : "Tap to drop each point — lines connect as you go")
-    : tool === "select" ? (selShape ? (selShape.type === "text" ? "Drag to move · change text color, size, font, box color or number below" : "Drag to move · drag a white dot to reshape · color and size buttons restyle it") : "Tap a mark to select it")
+    : tool === "select" ? (selShape ? (selShape.type === "text" ? (isBox(selShape) ? "Drag to move · drag a corner dot to resize the box — text wraps to fit" : "Drag to move · change text color, size, font, box color or number below") : "Drag to move · drag a white dot to reshape · color and size buttons restyle it") : "Tap a mark to select it")
     : tool === "dim" ? "Drag from one end to the other, then type the measurement"
-    : tool === "text" ? "Tap where the box goes · pick the font, box color and numbering below"
+    : tool === "text" ? "Tap for a box that fits the text, or drag to draw the box the size you want"
     : tool === "num" ? `Tap to drop numbered dots (next: ${nextNum(shapes)}) · color buttons set the dot color`
     : tool === "pen" ? "Draw with your finger" : "Drag to draw";
 
@@ -721,6 +809,13 @@ export default function PhotoMarkup() {
                   </button>
                 ))}
               </div>
+              {selShape?.type === "text" ? (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => nudgeText(-1)} aria-label="Smaller text" className="h-9 rounded-md border border-white/[0.09] px-2.5 text-[13px] font-bold text-neutral-200 hover:text-white">A−</button>
+                  <button onClick={() => nudgeText(1)} aria-label="Bigger text" className="h-9 rounded-md border border-white/[0.09] px-2.5 text-[16px] font-bold text-neutral-200 hover:text-white">A+</button>
+                  {selShape.w ? <button onClick={fitBox} className="h-9 rounded-md border border-white/[0.09] px-2.5 text-[13px] font-semibold text-neutral-300 hover:text-white">Fit to text</button> : null}
+                </div>
+              ) : null}
               <button onClick={toggleNumber}
                 className={cn("ml-auto inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-[13px] font-semibold", isNum ? "border-brand bg-brand text-neutral-950" : "border-white/[0.09] text-neutral-300 hover:text-white")}>
                 <Hash size={15} /> {isNum ? (selShape?.type === "text" ? `Numbered #${selShape.num}` : `Numbered · next ${nextNum(shapes, "text")}`) : "Number it"}
