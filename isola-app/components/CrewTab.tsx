@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import MyClock from "@/components/MyClock";
 import CrewClock from "@/components/CrewClock";
 import CrewLogins from "@/components/CrewLogins";
+import CrewDocs from "@/components/CrewDocs";
 import { showError, showToast } from "@/components/Toaster";
 import { ask, copyText } from "@/components/Dialogs";
 import { withTimeout, firstError } from "@/lib/load";
@@ -186,6 +187,7 @@ export default function CrewTab() {
       </div>
 
       <CrewLogins workers={workers} />
+      <CrewDocs workers={workers} />
 
       <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
         {editing ? (
