@@ -3,6 +3,7 @@
 // payments, change orders, builds, client links, compliance docs and daily logs
 // for one job are reachable without leaving it. Full editing still lives on
 // /billing, /build, /proposals, /docs and /log — these panels link there.
+import { fixedDraws, stageDue } from "@/lib/draws";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -146,17 +147,18 @@ export function MoneyPanel({ job }: { job: any }) {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Draw schedule: 33 / 33 / balance</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{fixedDraws(job?.terms).deposit != null ? "Draw schedule: per contract" : "Draw schedule: 33 / 33 / balance"}</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               {STAGES.slice(0, 3).map((s) => {
-                const due = contract * (s.pct / 100);
+                const fx = fixedDraws(job?.terms);
+                const due = stageDue(s.key, contract, s.pct, fx);
                 const got = paidByStage(s.key);
                 const done = got >= due - 0.01 && due > 0;
                 return (
                   <div key={s.key} className="flex items-center justify-between gap-2 text-sm">
                     <span className={cn("flex items-center gap-2", done ? "text-emerald-300" : "text-neutral-400")}>
                       <span className={cn("flex h-4 w-4 items-center justify-center rounded border", done ? "border-emerald-500 bg-emerald-500 text-black" : "border-neutral-600")}>{done ? <Check size={12} strokeWidth={3} /> : null}</span>
-                      {s.label} <span className="text-neutral-500">({s.pct}%)</span>
+                      {s.label} {fx.deposit == null ? <span className="text-neutral-500">({s.pct}%)</span> : null}
                     </span>
                     <span className="tabular-nums text-neutral-300">{fmt0(got)} <span className="text-neutral-500">of {fmt0(due)}</span></span>
                   </div>

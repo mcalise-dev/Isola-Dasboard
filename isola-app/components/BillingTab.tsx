@@ -1,4 +1,5 @@
 "use client";
+import { fixedDraws, stageDue } from "@/lib/draws";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import MoneyInput from "@/components/MoneyInput";
@@ -61,6 +62,7 @@ export default function BillingTab() {
   const [addCo, setAddCo] = useState<any>(null);
   const [editJob, setEditJob] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [jobTerms, setJobTerms] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
 
   const [err, setErr] = useState<string | null>(null);
@@ -90,12 +92,14 @@ export default function BillingTab() {
   async function openJob(id: string) {
     setOpenId(id); setEditJob(null); setAddPay(null); setAddCo(null); setSubErr(null);
     try {
-      const [p, c] = await withTimeout(Promise.all([
+      const [p, c, t] = await withTimeout(Promise.all([
         supabase.from("payments").select("*").eq("job_id", id).order("payment_date"),
         supabase.from("change_orders").select("*").eq("job_id", id).order("co_number"),
+        supabase.from("jobs").select("terms").eq("id", id).maybeSingle(),
       ]));
       const e = firstError(p, c);
       if (e) throw new Error(e);
+      setJobTerms((t as any)?.data?.terms ?? null);
       setPayments(p.data ?? []);
       setCos(c.data ?? []);
     } catch (e: any) {
@@ -366,17 +370,18 @@ export default function BillingTab() {
 
             {/* ---- draw schedule ---- */}
             <Card>
-              <CardHeader><CardTitle>Draw schedule — 33 / 33 / balance</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{fixedDraws(jobTerms).deposit != null ? "Draw schedule — per contract" : "Draw schedule — 33 / 33 / balance"}</CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 {STAGES.slice(0, 3).map((s) => {
-                  const due = contract * (s.pct / 100);
+                  const fx = fixedDraws(jobTerms);
+                  const due = stageDue(s.key, contract, s.pct, fx);
                   const got = paidByStage(s.key);
                   const done = got >= due - 0.01 && due > 0;
                   return (
                     <div key={s.key} className="flex items-center justify-between gap-2 text-sm">
                       <span className={cn("flex items-center gap-2", done ? "text-emerald-300" : "text-neutral-400")}>
                         <span className={cn("flex h-4 w-4 items-center justify-center rounded border", done ? "border-emerald-500 bg-emerald-500 text-black" : "border-neutral-600")}>{done ? <Check size={12} strokeWidth={3} /> : null}</span>
-                        {s.label} <span className="text-neutral-500">({s.pct}%)</span>
+                        {s.label} {fx.deposit == null ? <span className="text-neutral-500">({s.pct}%)</span> : null}
                       </span>
                       <span className="tabular-nums text-neutral-300">
                         {fmt0(got)} <span className="text-neutral-500">of {fmt0(due)}</span>
