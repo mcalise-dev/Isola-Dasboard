@@ -360,7 +360,7 @@ export function ProposalPanel({ jobId }: { jobId: string }) {
    Never select file_b64 in the list; fetch it per document on View.
    ============================================================ */
 const DOC_LABEL: Record<string, string> = {
-  coi: "Insurance (COI)", lien_waiver: "Lien waiver", permit: "Permit", contract: "Signed contract",
+  coi: "Insurance (COI)", lien_waiver: "Lien waiver", permit: "Permit", proposal: "Proposal", change_order: "Change order", contract: "Signed contract",
   w9: "W-9", warranty: "Warranty", license: "License", other: "Other",
 };
 

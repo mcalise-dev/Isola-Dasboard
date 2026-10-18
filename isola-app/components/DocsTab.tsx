@@ -29,6 +29,7 @@ const TYPES: { key: string; label: string; icon: string; hint: string }[] = [
   { key: "lien_waiver", label: "Lien waiver", icon: "", hint: "Partial or final, signed at payment" },
   { key: "permit", label: "Permit", icon: "", hint: "Per town — proposals say permits are not included" },
   { key: "proposal", label: "Proposal", icon: "", hint: "Every proposal sent to a client, by job" },
+  { key: "change_order", label: "Change order", icon: "", hint: "Added scope and price, approved by the client — file it against the job" },
   { key: "contract", label: "Signed contract", icon: "", hint: "Executed proposal or agreement" },
   { key: "w9", label: "W-9", icon: "", hint: "Yours, or a sub's for 1099 season" },
   { key: "warranty", label: "Warranty", icon: "", hint: "What's covered and until when" },
