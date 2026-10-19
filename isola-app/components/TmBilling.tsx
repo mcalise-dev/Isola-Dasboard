@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { money, jobLabel } from "@/lib/format";
+import { money, jobLabel, fmtDate } from "@/lib/format";
 import { showError, showToast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -162,9 +162,26 @@ export function TmJobBill({ jobId, compact, onChanged }: { jobId: string; compac
         <div>
           <div className="mb-1 text-[11px] font-bold uppercase tracking-widest text-neutral-500">Materials &amp; other costs</div>
           {b.other.length === 0 ? <p className="text-xs text-neutral-500">None logged yet.</p> : (
-            <div className="flex items-center text-sm">
-              <span className="text-neutral-400">{b.other.length} item{b.other.length === 1 ? "" : "s"} · cost {money(b.matCost)}{b.markup ? ` + ${b.markup}%` : ""}</span>
-              <span className="ml-auto tabular-nums text-neutral-200">{money(b.matBill)}</span>
+            <div className="space-y-1">
+              {b.other.map((c: any) => {
+                const amt = Number(c.amount || 0);
+                const billed = Math.round(amt * (1 + (b.markup ?? 0) / 100) * 100) / 100;
+                return (
+                  <div key={c.id} className="flex items-start gap-3 text-sm">
+                    <span className="w-14 shrink-0 pt-0.5 text-xs tabular-nums text-neutral-500">{c.entry_date ? fmtDate(c.entry_date) : "—"}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium text-white">{c.vendor || c.category || "Item"}</div>
+                      {c.notes ? <div className="truncate text-xs text-neutral-500">{c.notes}</div> : null}
+                    </div>
+                    <span className="shrink-0 pt-0.5 text-xs tabular-nums text-neutral-500">cost {money(amt)}</span>
+                    <span className="w-24 shrink-0 text-right tabular-nums text-neutral-200">{money(billed)}</span>
+                  </div>
+                );
+              })}
+              <div className="flex items-center border-t border-border/60 pt-1.5 text-sm">
+                <span className="text-neutral-400">{b.other.length} item{b.other.length === 1 ? "" : "s"} · cost {money(b.matCost)}{b.markup ? ` + ${b.markup}%` : ""}</span>
+                <span className="ml-auto font-medium tabular-nums text-white">{money(b.matBill)}</span>
+              </div>
             </div>
           )}
         </div>
