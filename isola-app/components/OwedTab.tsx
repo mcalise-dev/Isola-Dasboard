@@ -26,6 +26,9 @@ export default function OwedTab() {
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({ person: "", job_id: "", amount: "", note: "", date: todayISO() });
   const [crew, setCrew] = useState<string[]>([]);
+  const [pays, setPays] = useState<any[]>([]);
+  const [paying, setPaying] = useState<{ name: string; total: number } | null>(null);
+  const [pf, setPf] = useState({ amount: "", date: todayISO(), method: "Check", ref: "", note: "" });
 
   const cols = "id,job_id,entry_date,worker,vendor,category,hours,rate,amount,notes,paid,updated_at";
   async function load() {
@@ -41,6 +44,8 @@ export default function OwedTab() {
     setRecent(((r.data ?? []) as Line[]).filter((l) => l.worker || l.vendor));
     setJobs(j.data ?? []);
     setCrew((w.data ?? []).map((x: any) => x.name));
+    const ph = await sb.from("crew_payments").select("*").order("paid_on", { ascending: false }).order("created_at", { ascending: false }).limit(200);
+    setPays(ph.error ? [] : ph.data ?? []);
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
@@ -71,11 +76,25 @@ export default function OwedTab() {
     return true;
   }
 
-  async function payPerson(p: { name: string; lines: Line[]; total: number }) {
-    if (!confirm(`Mark ${p.name} paid in full — ${money(p.total)}?`)) return;
-    setBusy(p.name);
-    if (await setPaid(p.lines.map((l) => l.id), true)) showToast(`${p.name} paid ${money(p.total)}`);
-    setBusy(""); load();
+  function payPerson(p: { name: string; lines: Line[]; total: number }) {
+    setPf({ amount: p.total.toFixed(2), date: todayISO(), method: "Check", ref: "", note: "" });
+    setPaying({ name: p.name, total: p.total });
+  }
+  // Records the payout in crew_payments and marks that person's oldest owed lines paid
+  // (splitting a line if the payment covers only part of it).
+  async function recordPayment() {
+    if (!paying) return;
+    const amt = Number(String(pf.amount).replace(/[^0-9.]/g, ""));
+    if (!(amt > 0)) { showError("Enter the amount paid."); return; }
+    setBusy(paying.name);
+    const { data, error } = await sb.rpc("record_crew_payment", {
+      p_worker: paying.name, p_amount: amt, p_paid_on: pf.date, p_method: pf.method, p_reference: pf.ref, p_notes: pf.note,
+    });
+    setBusy("");
+    if (error) { showError("Save failed: " + error.message); return; }
+    const un = Number((data as any)?.unapplied || 0);
+    showToast(`${paying.name} paid ${money(amt)}${un > 0 ? ` — ${money(un)} more than owed, kept as credit` : ""}`);
+    setPaying(null); load();
   }
   async function payJob(name: string, lines: Line[]) {
     const t = lines.reduce((a, l) => a + Number(l.amount || 0), 0);
@@ -147,7 +166,7 @@ export default function OwedTab() {
                     <span className="text-xs text-neutral-500">{p.byJob.length} job{p.byJob.length === 1 ? "" : "s"}</span>
                   </button>
                   <span className="text-lg font-semibold tabular-nums text-amber-300">{money(p.total)}</span>
-                  <Button size="sm" variant="outline" onClick={() => payPerson(p)} disabled={busy === p.name}>Paid all</Button>
+                  <Button size="sm" variant="outline" onClick={() => payPerson(p)} disabled={busy === p.name}>Record payment</Button>
                 </div>
                 {isOpen ? (
                   <div className="border-t border-border px-4 py-2.5 space-y-3">
@@ -184,6 +203,43 @@ export default function OwedTab() {
           })}
         </div>
       )}
+
+      {paying ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-3 sm:items-center" onClick={() => setPaying(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="text-base font-semibold text-white">Pay {paying.name}</div>
+            <div className="mt-0.5 text-xs text-neutral-400">Owed {money(paying.total)} — the payment clears the oldest days first.</div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Input inputMode="decimal" placeholder="Amount $" value={pf.amount} onChange={(e) => setPf({ ...pf, amount: e.target.value })} />
+              <Input type="date" value={pf.date} onChange={(e) => setPf({ ...pf, date: e.target.value })} />
+              <select value={pf.method} onChange={(e) => setPf({ ...pf, method: e.target.value })} className="h-9 rounded-lg border border-input bg-transparent px-2 text-sm text-white">
+                {["Check", "Cash", "Venmo", "Zelle", "Other"].map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <Input placeholder="Check # / ref" value={pf.ref} onChange={(e) => setPf({ ...pf, ref: e.target.value })} />
+              <Input className="col-span-2" placeholder="Note (optional)" value={pf.note} onChange={(e) => setPf({ ...pf, note: e.target.value })} />
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setPaying(null)}>Cancel</Button>
+              <Button size="sm" onClick={recordPayment} disabled={busy === paying.name}>{busy === paying.name ? "Saving…" : "Record payment"}</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pays.length ? (
+        <div className="mt-8">
+          <SectionTitle right={<span className="text-xs text-neutral-500">crew sees their own under Payments</span>}>Payment history</SectionTitle>
+          <div className="space-y-1">
+            {pays.map((p) => (
+              <div key={p.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+                <span className="w-20 shrink-0 font-medium text-white truncate">{p.worker}</span>
+                <span className="min-w-0 flex-1 truncate text-neutral-400">{fmtDate(p.paid_on)} · {[p.method, p.reference ? `#${p.reference}` : null, p.notes].filter(Boolean).join(" · ")}</span>
+                <span className="tabular-nums text-emerald-300">{money(Number(p.amount || 0))}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {recent.length ? (
         <div className="mt-8">
