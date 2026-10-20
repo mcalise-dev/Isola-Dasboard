@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronDown, Pin, PinOff } from "lucide-react";
-import { GROUPS, HOME, ALL_ITEMS, activeItem, screensOf, type NavItem } from "@/lib/nav";
+import { GROUPS, HOME, SETTINGS, ALL_ITEMS, activeItem, screensOf, type NavItem } from "@/lib/nav";
 import { useAttention } from "@/lib/attention";
 import { cn } from "@/lib/utils";
 
@@ -72,7 +72,7 @@ export function NavGroups({ onNavigate }: { onNavigate?: () => void }) {
   const pinnedItems = pins.map((h) => ALL_ITEMS.find((x) => x.item.href === h)?.item).filter(Boolean) as NavItem[];
   return (
     <nav className="space-y-4">
-      <NavLink item={HOME} on={hit?.entry === HOME} count={cnt(HOME)} onClick={onNavigate} />
+      <NavLink item={HOME} on={hit?.entry === HOME} count={screensOf(HOME).reduce((t, i) => t + cnt(i), 0)} onClick={onNavigate} />
       {pinnedItems.length ? (
         <div>
           <div className="mb-1 flex items-center gap-1.5 px-2.5 text-xs font-semibold text-neutral-500"><Pin size={11} /> Pinned</div>
@@ -98,6 +98,9 @@ export function NavGroups({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         );
       })}
+      <div className="border-t border-border pt-3">
+        <NavLink item={SETTINGS} on={hit?.entry === SETTINGS} onClick={onNavigate} />
+      </div>
     </nav>
   );
 }
