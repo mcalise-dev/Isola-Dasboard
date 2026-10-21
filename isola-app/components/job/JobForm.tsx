@@ -91,6 +91,20 @@ export default function JobForm() {
     if (!editing && res.data?.id) router.push(`/jobs/${res.data.id}`);
   }
 
+  async function remove() {
+    if (!editing) return;
+    const nm = editing.job_name || [editing.customer, editing.location].filter(Boolean).join(" — ") || "this job";
+    if (!window.confirm(`Delete "${nm}"?\n\nRemoves the job with its photos, schedule entries, checklist and jobbook. This can't be undone.`)) return;
+    setBusy(true);
+    const { error } = await supabase.from("jobs").delete().eq("id", editing.id);
+    setBusy(false);
+    if (error) { showError("Delete failed: " + error.message); return; }
+    setOpen(false);
+    window.dispatchEvent(new Event("isola:changed"));
+    showToast("Job deleted");
+    router.push("/");
+  }
+
   const theirProps = properties.filter((p) => p.customer_id === form.customer_id);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -174,6 +188,7 @@ export default function JobForm() {
           <Field label="Notes" className="sm:col-span-2"><Textarea rows={2} value={form.notes} onChange={(e) => set({ notes: e.target.value })} /></Field>
         </div>
         <DialogFooter>
+          {editing ? <Button variant="destructive" className="sm:mr-auto" onClick={remove} disabled={busy}>Delete job</Button> : null}
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button onClick={save} disabled={busy}>{busy ? "Saving…" : editing ? "Save changes" : "Add job"}</Button>
         </DialogFooter>
