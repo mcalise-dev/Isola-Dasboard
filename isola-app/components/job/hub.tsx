@@ -20,6 +20,8 @@ import { Empty, ListSkeleton, LoadError, Progress, SectionTitle, Stat } from "@/
 import { cn } from "@/lib/utils";
 import { Check, Copy, Download, Eye, ExternalLink, FileText, Hammer, Link2, NotebookPen, Plus, Trash2, X } from "lucide-react";
 import { downloadSignedCopy } from "@/lib/signedPdf";
+import { LinkEditor } from "@/components/ProposalsTab";
+import { Dialog } from "@/components/ui/dialog";
 
 const fmt2 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt0 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -279,33 +281,64 @@ export function ProposalPanel({ jobId }: { jobId: string }) {
   const [ests, setEsts] = useState<any[] | null>(null);
   const [links, setLinks] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [job, setJob] = useState<any>(null);
+  const [site, setSite] = useState<string | null>(null);
+  const [editing, setEditing] = useState<any>(null);
 
   async function load() {
     setErr(null);
     try {
-      const [e, l] = await withTimeout(Promise.all([
+      const [e, l, j, s] = await withTimeout(Promise.all([
         sb.from("estimates").select("*").eq("job_id", jobId).order("created_at", { ascending: false }),
         sb.from("proposal_links").select("*").eq("job_id", jobId).order("created_at", { ascending: false }),
+        sb.from("jobs").select("id,job_name,customer,location,job,price,status,proposal_status,quoted_date,scope_of_work,terms").eq("id", jobId).maybeSingle(),
+        sb.from("siteline_shares").select("token").eq("job_id", jobId).maybeSingle(),
       ]));
-      const fe = firstError(e, l);
+      const fe = firstError(e, l, j, s);
       if (fe) throw new Error(fe);
       setEsts(e.data ?? []);
       setLinks(l.data ?? []);
+      setJob(j.data ?? null);
+      setSite((s.data as any)?.token ?? null);
     } catch (e: any) { setErr(errMsg(e)); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [jobId]);
 
   if (err) return <LoadError message={err} onRetry={load} />;
   if (!ests) return <ListSkeleton />;
-  if (ests.length === 0 && links.length === 0) return (
-    <Empty icon={<Hammer size={28} />} title="No build or proposal yet"
-      body="Price it in Build. Sending it from there creates the client link that shows up here."
-      action={<Button asChild><Link href="/build"><Hammer size={15} /> Start a build</Link></Button>} />
-  );
-
-  const url = (t: string) => `${window.location.origin}/p/${t}`;
+  // v7.0: every job has a SiteLine project page — that's the one link the client gets.
+  const siteUrl = site ? `${window.location.origin}/site/${site}` : null;
+  const url = (t: string) => siteUrl ?? `${window.location.origin}/p/${t}`;
+  const hasProposal = links.some((l) => l.kind !== "change_order" && l.status !== "declined");
 
   return (
+    <div className="space-y-4">
+    {siteUrl ? (
+      <Card className="space-y-2.5 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-semibold text-white">Client project page (SiteLine)</div>
+            <div className="text-xs text-neutral-400">Proposal to sign, address, scope, price, start date, schedule and updates — one link for this job.</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" size="sm" className="h-10" onClick={() => copyText(siteUrl, "Project page link copied")}><Copy size={14} /> Copy link</Button>
+          <Button asChild variant="outline" size="sm" className="h-10"><a href={siteUrl} target="_blank" rel="noopener noreferrer"><Eye size={14} /> See what they see</a></Button>
+        </div>
+        {job ? (
+          <div className={cn("grid gap-2", hasProposal ? "grid-cols-1" : "grid-cols-2")}>
+            {!hasProposal ? <Button variant="outline" className="h-10 border-dashed" onClick={() => setEditing({ kind: "proposal" })}><FileText size={15} /> Proposal for signature</Button> : null}
+            <Button variant="outline" className="h-10 border-dashed" onClick={() => setEditing({ kind: "change_order" })}><Plus size={15} /> Change order</Button>
+          </div>
+        ) : null}
+      </Card>
+    ) : null}
+    <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+      {editing && job ? (
+        <LinkEditor key={(editing.link?.id ?? "") + editing.kind} supabase={sb} job={job} link={editing.link} kind={editing.kind}
+          onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+      ) : null}
+    </Dialog>
     <div className="grid gap-4 md:grid-cols-2">
       <section>
         <SectionTitle right={<Button asChild variant="ghost" size="sm" className="h-9"><Link href="/build">Open Build</Link></Button>}>Builds ({ests.length})</SectionTitle>
@@ -362,9 +395,10 @@ export function ProposalPanel({ jobId }: { jobId: string }) {
               ) : null}
             </Card>
           ))}
-          {links.length === 0 ? <p className="text-sm text-neutral-500">No client link yet. Sending a build creates one.</p> : null}
+          {links.length === 0 ? <p className="text-sm text-neutral-500">Nothing out for signature yet. Use &ldquo;Proposal for signature&rdquo; above, or send it from Build.</p> : null}
         </div>
       </section>
+    </div>
     </div>
   );
 }

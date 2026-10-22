@@ -325,6 +325,13 @@ export default function PublicProposal({ token }: { token: string }) {
         </div>
       ) : null}
 
+      {data.siteline_token ? (
+        <a href={`/site/${data.siteline_token}`}
+          className="mt-8 block w-full border-2 border-black py-3 text-center text-sm font-bold uppercase tracking-[0.12em] text-black">
+          ← Your project page: schedule &amp; updates
+        </a>
+      ) : null}
+
       <div className="mt-8 border-t border-neutral-300 pt-3 text-center text-[11px] text-neutral-500">
         Questions? Call Mike at <a className="underline" href="tel:5089332661">508-933-2661</a> or email <a className="underline" href="mailto:mcalise@isola-ri.com">mcalise@isola-ri.com</a>
       </div>

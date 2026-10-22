@@ -17,7 +17,8 @@ import { stampSafe } from "@/lib/stamp";
 
 /* Isola SiteLine for one job. Mike makes a no-login link (/site/<token>) for the
    property manager and posts plain-language updates. The client page shows the
-   phase, start date, upcoming site days and these updates — never prices, costs
+   proposal/change orders to sign, address, scope, contract price, start date, upcoming
+   site days and these updates (v7.0) — never costs, crew pay
    or internal notes. Updates written in the Daily Log's "for the property manager"
    box land here too (marked "From daily log"). */
 
@@ -120,7 +121,7 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
         <SectionTitle>Client link</SectionTitle>
         <Card className="space-y-3 p-4">
           <p className="text-sm text-neutral-400">
-            The property manager sees the phase, start date, the next days you&apos;re on site, and your updates. No prices, costs or internal notes.
+            The client sees the proposal to sign, the address, scope, contract price, estimated start, where the job stands, site days and your updates. Never your costs, crew pay or internal notes.
           </p>
           {share ? (
             <>

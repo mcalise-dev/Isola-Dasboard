@@ -41,11 +41,12 @@ export default function ProposalsTab() {
   const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<any>(null);
   const [dl, setDl] = useState("");
+  const [sites, setSites] = useState<Record<string, string>>({});
 
   async function load() {
     setErr(null);
     try {
-      const [j, pl] = await withTimeout(Promise.all([
+      const [j, pl, ss] = await withTimeout(Promise.all([
         supabase
           .from("jobs")
           .select("id,job_name,customer,customer_id,location,job,price,contract_holder,isola_cut,status,proposal_status,quoted_date,scope_of_work,terms,contact_phone,updated_at")
@@ -56,12 +57,14 @@ export default function ProposalsTab() {
           .from("proposal_links")
           .select(LINK_COLS)
           .order("created_at", { ascending: true }),
+        supabase.from("siteline_shares").select("job_id,token"),
       ]));
       const e = firstError(j, pl);
       if (e) throw new Error(e);
       const byJob: Record<string, any[]> = {};
       (pl.data ?? []).forEach((l: any) => { (byJob[l.job_id] ??= []).push(l); });
       setLinks(byJob);
+      setSites(Object.fromEntries((ss.data ?? []).map((s: any) => [s.job_id, s.token])));
       setJobs(j.data ?? []);
     } catch (e: any) {
       setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
@@ -77,9 +80,12 @@ export default function ProposalsTab() {
   }
 
   const linkUrl = (t: string) => `${typeof window !== "undefined" ? window.location.origin : ""}/p/${t}`;
+  // v7.0: the client gets ONE link per job — the SiteLine project page, where every
+  // proposal and change order waits to be signed. Falls back to the signing link itself.
+  const shareUrl = (j: any, t: string) => sites[j.id] ? `${typeof window !== "undefined" ? window.location.origin : ""}/site/${sites[j.id]}` : linkUrl(t);
 
-  async function copy(t: string) {
-    await copyText(linkUrl(t), "Link copied");
+  async function copy(j: any, t: string) {
+    await copyText(shareUrl(j, t), sites[j.id] ? "Project page link copied" : "Link copied");
   }
 
   // Opens Mike's own mail app with the link filled in — nothing goes out until he hits send there.
@@ -87,7 +93,7 @@ export default function ProposalsTab() {
     const word = l.kind === "change_order" ? "change order" : "proposal";
     const name = l.title || j.job_name || "your project";
     const subject = `${name} — ${word} for signature`;
-    const body = `Hi,\n\nHere is the ${word} for ${name}. You can review it and sign right from your phone or computer:\n\n${linkUrl(l.token)}\n\nAny questions, give me a call.\n\nThank you,\nMike Calise\nIsola LLC\n508-933-2661`;
+    const body = `Hi,\n\nHere is the ${word} for ${name}. You can review it and sign right from your phone or computer — the same page shows the scope, the schedule and job updates:\n\n${shareUrl(j, l.token)}\n\nAny questions, give me a call.\n\nThank you,\nMike Calise\nIsola LLC\n508-933-2661`;
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
@@ -149,7 +155,7 @@ export default function ProposalsTab() {
           <Button asChild variant="outline" size="sm" className="h-10">
             <a href={`/p/${l.token}`} target="_blank" rel="noopener noreferrer"><Eye size={14} /> View</a>
           </Button>
-          <Button variant="outline" size="sm" className="h-10" onClick={() => copy(l.token)}><Copy size={14} /> Copy link</Button>
+          <Button variant="outline" size="sm" className="h-10" onClick={() => copy(j, l.token)}><Copy size={14} /> Copy link</Button>
           {isSigned ? (
             <Button variant="outline" size="sm" className="h-10" onClick={() => signedCopy(j, l)} disabled={dl === l.id}>
               <Download size={14} /> {dl === l.id ? "Building…" : "Signed copy"}
@@ -265,7 +271,7 @@ export default function ProposalsTab() {
   );
 }
 
-function LinkEditor({ supabase, job, link, kind, onClose, onSaved }: any) {
+export function LinkEditor({ supabase, job, link, kind, onClose, onSaved }: any) {
   const isCO = kind === "change_order";
   const price = link?.price ?? (isCO ? "" : parsePrice(job.price));
   const [f, setF] = useState({
@@ -365,6 +371,13 @@ function LinkEditor({ supabase, job, link, kind, onClose, onSaved }: any) {
       }
       if (link) ({ error } = await supabase.from("proposal_links").update(row).eq("id", link.id));
       else ({ error } = await supabase.from("proposal_links").insert({ ...row, token: newToken(), terms: isCO ? null : (job.terms?.trim() || (await getPaymentTerms())) }));
+      // v7.0: a new proposal link puts the job in "Proposals sent" (and a lead becomes awaiting)
+      if (!error && !link && !isCO && !["sent", "signed", "accepted"].includes(job.proposal_status)) {
+        const jp: any = { proposal_status: "sent", updated_at: new Date().toISOString() };
+        if (!job.quoted_date) jp.quoted_date = new Date().toISOString().slice(0, 10);
+        if (job.status === "lead") jp.status = "awaiting";
+        await supabase.from("jobs").update(jp).eq("id", job.id);
+      }
     } catch (e: any) { error = e; }
     setBusy(false);
     if (error) showError("Save failed: " + error.message);
