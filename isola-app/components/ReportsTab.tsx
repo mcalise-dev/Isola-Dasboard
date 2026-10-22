@@ -6,7 +6,10 @@ import { PageHeader, SectionTitle, Stat, Progress, ListSkeleton, LoadError } fro
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, ChevronRight, X } from "lucide-react";
+import { AlertTriangle, ChevronRight, X, Check, FileDiff } from "lucide-react";
+import { LOST_REASONS, revenueOf, fmtDate, todayISO } from "@/lib/format";
+import { askText } from "@/components/Dialogs";
+import { showError, showToast } from "@/components/Toaster";
 
 /* ============================================================
    REPORTS — the view across jobs the app never had. Everything here
@@ -38,18 +41,22 @@ export default function ReportsTab() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [drill, setDrill] = useState<Drill>(null);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [cos, setCos] = useState<any[]>([]);
+  const [busy, setBusy] = useState("");
 
   async function load() {
     setErr(null);
     try {
-      const [f, hj, e, c, m] = await withTimeout(Promise.all([
+      const [f, hj, e, c, m, co] = await withTimeout(Promise.all([
         supabase.from("job_financials").select("*"),
-        supabase.from("jobs").select("id,contract_holder,isola_cut"),
+        supabase.from("jobs").select("id,job_name,customer,status,price,price_amount,contract_holder,isola_cut,est_costs,quoted_date,won_date,lost_date,lost_reason"),
         supabase.from("estimates").select("id,status,sell_price,cost_total,customer_id,job_type"),
         supabase.from("customers").select("id,name,client_type"),
         supabase.from("money_snapshot").select("data,updated_at").eq("id", 1).maybeSingle(),
+        supabase.from("change_orders").select("id,job_id,co_number,title,amount,status,billed,billed_at,approved_at,created_at").order("created_at", { ascending: false }),
       ]));
-      const bad = firstError(f, hj, e, c, m);
+      const bad = firstError(f, hj, e, c, m, co);
       if (bad) throw new Error(bad);
       // THM holds the contract -> the price is THM's money. Isola's revenue on it is
       // only Mike's cut (isola_cut, set at closeout); costs are inside that cut.
@@ -61,6 +68,7 @@ export default function ReportsTab() {
           balance_due: 0, net_profit: cut, margin_pct: null, partner_share: 0, net_to_isola: cut, qbo_invoice_ref: r.qbo_invoice_ref };
       })); setEsts(e.data ?? []); setCusts(c.data ?? []);
       setQbo(m.data ?? null);
+      setJobs(hj.data ?? []); setCos(co.data ?? []);
       setLoading(false);
     } catch (e: any) {
       setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
@@ -126,6 +134,50 @@ export default function ReportsTab() {
 
   const missing = priced.filter((f) => Number(f.actual_cost) === 0);
 
+  // v6.9: finished work nobody has billed, and approved change orders not on an invoice yet
+  const unbilled = priced.filter((f) => f.status === "complete" && !f.invoiced_date && !f.qbo_invoice_ref && Number(f.balance_due) > 0);
+  const unbilledCOs = cos.filter((c) => c.status === "approved" && !c.billed);
+  const unbilledTotal = unbilled.reduce((s, f) => s + Number(f.balance_due || 0), 0) + unbilledCOs.reduce((s, c) => s + Number(c.amount || 0), 0);
+
+  // v6.9: estimate vs actual — jobs with costs but no estimated cost on file
+  const noEstimate = fin.filter((f) => Number(f.actual_cost) > 0 && !(Number(f.estimated_cost) > 0) && Number(f.contract_total) > 0);
+
+  // v6.9: win / loss from the jobs themselves (last 6 months), with the why
+  const cut6 = (() => { const d = new Date(); d.setMonth(d.getMonth() - 6); return d.toISOString().slice(0, 10); })();
+  const wonJ = jobs.filter((j) => j.won_date && j.won_date >= cut6);
+  const lostJ = jobs.filter((j) => j.status === "lost" && (j.lost_date ?? "") >= cut6);
+  const wl = wonJ.length + lostJ.length;
+  const lostWhy: Record<string, { n: number; v: number }> = {};
+  lostJ.forEach((j) => { const k = j.lost_reason || "No reason given"; lostWhy[k] = lostWhy[k] ?? { n: 0, v: 0 }; lostWhy[k].n++; lostWhy[k].v += revenueOf(j); });
+  const staleOut = jobs.filter((j) => j.status === "awaiting" && j.quoted_date && j.quoted_date <= new Date(Date.now() - 21 * 86400000).toISOString().slice(0, 10));
+  const jobName = (id: string) => { const j = jobs.find((x) => x.id === id); return (j?.job_name && String(j.job_name).trim()) || j?.customer || "Job"; };
+
+  async function setEstimate(f: any) {
+    const v = await askText({ title: `Estimated cost — ${f.job_name || "job"}`, body: "What you expected this job to cost when you priced it (materials, labor, disposal, rentals).", placeholder: "e.g. 6,950", initial: f.estimated_cost ? String(f.estimated_cost) : "" });
+    if (v == null) return;
+    const n = Number(v.replace(/[$,\s]/g, ""));
+    if (!isFinite(n) || n < 0) return showError("That isn't a number.");
+    setBusy(f.job_id);
+    const { error } = await supabase.from("jobs").update({ est_costs: n || null, updated_at: new Date().toISOString() }).eq("id", f.job_id);
+    setBusy("");
+    if (error) return showError("Couldn't save: " + error.message);
+    showToast("Estimate saved"); load();
+  }
+  async function markLost(j: any, reason: string) {
+    setBusy(j.id);
+    const { error } = await supabase.from("jobs").update({ status: "lost", lost_reason: reason, lost_date: todayISO(), updated_at: new Date().toISOString() }).eq("id", j.id);
+    setBusy("");
+    if (error) return showError("Couldn't save: " + error.message);
+    showToast("Marked lost"); load();
+  }
+  async function toggleBilled(c: any) {
+    setBusy(c.id);
+    const { error } = await supabase.from("change_orders").update({ billed: !c.billed, billed_at: c.billed ? null : todayISO(), updated_at: new Date().toISOString() }).eq("id", c.id);
+    setBusy("");
+    if (error) return showError("Couldn't save: " + error.message);
+    showToast(c.billed ? "Marked not billed" : "Marked billed"); load();
+  }
+
   /* ---------- what a given drill shows ---------- */
   function drillJobs(d: Drill): any[] {
     if (!d) return [];
@@ -138,6 +190,7 @@ export default function ReportsTab() {
       case "keep":       return withCosts.sort((a, b) => Number(b.net_to_isola) - Number(a.net_to_isola));
       case "partner":    return priced.filter((f) => Number(f.partner_share) > 0).sort((a, b) => Number(b.partner_share) - Number(a.partner_share));
       case "missing":    return missing.sort((a, b) => Number(b.contract_total) - Number(a.contract_total));
+      case "unbilled":   return unbilled.sort((a, b) => Number(b.balance_due) - Number(a.balance_due));
       case "unlinked":   return [];
       default:           return [];
     }
@@ -220,6 +273,7 @@ export default function ReportsTab() {
         {/* ---- what's actually yours ---- */}
         {tile("keep", "You keep", fmt0(totKeep), `${withCosts.length} jobs with costs`, "ok")}
         {tile("partner", "To partners", fmt0(totPartner), "THM profit shares", totPartner > 0 ? "warn" : undefined)}
+        {tile("unbilled", "Done, not billed", fmt0(unbilledTotal), `${unbilled.length} job${unbilled.length === 1 ? "" : "s"}${unbilledCOs.length ? ` + ${unbilledCOs.length} change order${unbilledCOs.length === 1 ? "" : "s"}` : ""}`, unbilledTotal > 0 ? "warn" : undefined)}
       </div>
 
       {drill?.kind === "tile" ? drillPanel() : null}
@@ -322,8 +376,8 @@ export default function ReportsTab() {
           <CardContent className="space-y-0.5">
             {variance.length === 0 ? (
               <p className="text-sm text-neutral-500">
-                Fills in once a job priced in the Build tab is finished with its costs logged. This is the
-                one that tells you which work you underprice — worth the wait.
+                Fills in once a job has an estimated cost (from Build, or set below) and real costs logged.
+                This is the one that tells you which work you underprice.
               </p>
             ) : variance.map((f) => {
               const v = Number(f.cost_variance_pct);
@@ -332,10 +386,22 @@ export default function ReportsTab() {
                   <span className="truncate text-neutral-300">{f.job_name}</span>
                   <span className={cn("shrink-0 font-semibold tabular-nums", v > 10 ? "text-red-400" : v < -10 ? "text-emerald-400" : "text-neutral-300")}>
                     {v > 0 ? "+" : ""}{v}% {v > 0 ? "over" : "under"}
+                    <span className="ml-1.5 font-normal text-neutral-500">{fmt0(Number(f.actual_cost))} / {fmt0(Number(f.estimated_cost))}</span>
                   </span>
                 </a>
               );
             })}
+            {noEstimate.length ? (
+              <div className="mt-2 border-t border-border pt-2">
+                <div className="px-2 pb-1 text-xs text-neutral-500">Costs logged, no estimate on file — add what you priced it at:</div>
+                {noEstimate.map((f) => (
+                  <div key={f.job_id} className="flex min-h-[40px] items-center justify-between gap-2 px-2 text-sm">
+                    <span className="truncate text-neutral-400">{f.job_name} <span className="text-neutral-600">· {fmt0(Number(f.actual_cost))} spent</span></span>
+                    <Button size="sm" variant="outline" disabled={busy === f.job_id} onClick={() => setEstimate(f)}>Set estimate</Button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -351,6 +417,92 @@ export default function ReportsTab() {
                 <span className="tabular-nums text-neutral-200">{Math.round((v.won / v.total) * 100)}% <span className="text-neutral-500">({v.won}/{v.total})</span></span>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        {/* ---- win / loss, from the jobs (v6.9) ---- */}
+        <Card>
+          <CardHeader><CardTitle>Win / loss · last 6 months</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {wl === 0 ? (
+              <p className="text-sm text-neutral-500">Fills in as proposals get booked or marked lost.</p>
+            ) : (
+              <>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm text-neutral-400">{wonJ.length} won · {lostJ.length} lost</span>
+                  <span className="text-2xl font-semibold tabular-nums text-white">{Math.round((wonJ.length / wl) * 100)}%</span>
+                </div>
+                <div className="flex justify-between text-xs text-neutral-500">
+                  <span>Won {fmt0(wonJ.reduce((s, j) => s + revenueOf(j), 0))}</span>
+                  <span>Lost {fmt0(lostJ.reduce((s, j) => s + revenueOf(j), 0))}</span>
+                </div>
+                {Object.keys(lostWhy).length ? (
+                  <div className="space-y-1.5 border-t border-border pt-2">
+                    <div className="text-xs font-medium text-neutral-400">Why we lost</div>
+                    {Object.entries(lostWhy).sort((a, b) => b[1].n - a[1].n).map(([k, v]) => (
+                      <div key={k} className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className={k === "No reason given" ? "text-neutral-500" : "text-neutral-200"}>{k}</span>
+                          <span className="tabular-nums text-neutral-400">{v.n} · {fmt0(v.v)}</span>
+                        </div>
+                        <Progress value={(v.n / lostJ.length) * 100} tone="plain" />
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            )}
+            {staleOut.length ? (
+              <div className="space-y-1.5 border-t border-border pt-2">
+                <div className="text-xs font-medium text-amber-300/90">Out 3+ weeks — still alive?</div>
+                {staleOut.map((j) => (
+                  <div key={j.id} className="flex min-h-[40px] items-center justify-between gap-2 text-sm">
+                    <a href={`/jobs/${j.id}`} className="min-w-0 truncate text-neutral-300 hover:underline">{j.job_name || j.customer} <span className="text-neutral-500">· sent {fmtDate(j.quoted_date)}</span></a>
+                    <select disabled={busy === j.id} defaultValue="" onChange={(e) => e.target.value && markLost(j, e.target.value)}
+                      className="h-9 shrink-0 rounded-md border border-border bg-neutral-950 px-2 text-xs text-neutral-300">
+                      <option value="">Still waiting</option>
+                      {LOST_REASONS.map((r) => <option key={r} value={r}>Lost — {r}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        {/* ---- change orders (v6.9) ---- */}
+        <Card>
+          <CardHeader><CardTitle>Change orders</CardTitle></CardHeader>
+          <CardContent className="space-y-1">
+            {cos.length === 0 ? (
+              <p className="text-sm text-neutral-500">None yet. Added scope gets a written change order on the job's Billing page — it shows up here so it never slips off the invoice.</p>
+            ) : (
+              <>
+                <div className="flex justify-between pb-1 text-xs text-neutral-500">
+                  <span>Approved {fmt0(cos.filter((c) => c.status === "approved").reduce((s, c) => s + Number(c.amount || 0), 0))}</span>
+                  <span className={unbilledCOs.length ? "text-amber-300" : ""}>{unbilledCOs.length ? `${fmt0(unbilledCOs.reduce((s, c) => s + Number(c.amount || 0), 0))} not billed` : "all billed"}</span>
+                </div>
+                {cos.map((c) => (
+                  <div key={c.id} className="flex min-h-[44px] items-center justify-between gap-2 rounded-md px-1 text-sm">
+                    <a href={`/billing?job=${c.job_id}`} className="min-w-0 hover:underline">
+                      <div className="truncate text-neutral-200"><FileDiff size={13} className="mr-1 inline text-neutral-500" />CO #{c.co_number} · {c.title}</div>
+                      <div className="truncate text-xs text-neutral-500">{jobName(c.job_id)} · {c.status}</div>
+                    </a>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="tabular-nums text-white">{fmt0(Number(c.amount || 0))}</span>
+                      {c.status === "approved" ? (
+                        <Button size="sm" variant={c.billed ? "ghost" : "outline"} disabled={busy === c.id} onClick={() => toggleBilled(c)}
+                          className={cn(!c.billed && "border-amber-500/50 text-amber-200")}>
+                          {c.billed ? <><Check size={14} /> Billed</> : "Mark billed"}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
