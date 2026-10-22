@@ -18,7 +18,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, NativeSelect, Field } from "@/components/ui/input";
 import { Empty, ListSkeleton, LoadError, Progress, SectionTitle, Stat } from "@/components/ui/bits";
 import { cn } from "@/lib/utils";
-import { Check, Copy, Eye, ExternalLink, FileText, Hammer, Link2, NotebookPen, Plus, Trash2, X } from "lucide-react";
+import { Check, Copy, Download, Eye, ExternalLink, FileText, Hammer, Link2, NotebookPen, Plus, Trash2, X } from "lucide-react";
+import { downloadSignedCopy } from "@/lib/signedPdf";
 
 const fmt2 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt0 = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -266,7 +267,7 @@ function estBadge(e: any) {
 }
 function linkBadge(l: any) {
   const expired = l.status === "expired" || (l.status !== "approved" && l.status !== "declined" && l.expires_at && String(l.expires_at).slice(0, 10) < todayISO());
-  if (l.status === "approved") return <Badge variant="success"><Check size={12} /> Approved{l.approved_by ? ` by ${l.approved_by}` : ""}</Badge>;
+  if (l.status === "approved") return <Badge variant="success"><Check size={12} /> Signed{l.approved_by ? ` by ${l.approved_by}` : ""}</Badge>;
   if (l.status === "declined") return <Badge variant="danger">Declined</Badge>;
   if (expired) return <Badge variant="danger">Expired</Badge>;
   if (l.status === "viewed" || Number(l.view_count) > 0) return <Badge><Eye size={12} /> Viewed</Badge>;
@@ -336,7 +337,12 @@ export function ProposalPanel({ jobId }: { jobId: string }) {
         <div className="space-y-2">
           {links.map((l) => (
             <Card key={l.id} className="space-y-2 p-4">
-              <div className="flex flex-wrap items-center gap-1.5">{linkBadge(l)}</div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge variant={l.kind === "change_order" ? "warning" : "default"}>{l.kind === "change_order" ? "Change order" : "Proposal"}</Badge>
+                {linkBadge(l)}
+                {l.price != null ? <span className="ml-auto text-xs font-semibold tabular-nums text-neutral-300">${Number(l.price).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span> : null}
+              </div>
+              {l.kind === "change_order" && l.title ? <div className="truncate text-xs text-neutral-400">{l.title}</div> : null}
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-neutral-400">
                 <span>Opened {Number(l.view_count || 0)}×{l.viewed_at ? `, last ${shortDate(l.viewed_at)}` : ""}</span>
                 {l.approved_at ? <span className="text-emerald-300">Approved {shortDate(l.approved_at)}</span> : null}
@@ -348,6 +354,12 @@ export function ProposalPanel({ jobId }: { jobId: string }) {
                   <a href={`/p/${l.token}`} target="_blank" rel="noopener noreferrer"><Eye size={14} /> View</a>
                 </Button>
               </div>
+              {l.status === "approved" && l.signature_png ? (
+                <Button variant="outline" size="sm" className="h-10 w-full" onClick={() =>
+                  downloadSignedCopy(sb, l.id).catch((e: any) => showError("Couldn't build the signed copy: " + (e?.message ?? e)))}>
+                  <Download size={14} /> Signed copy (PDF)
+                </Button>
+              ) : null}
             </Card>
           ))}
           {links.length === 0 ? <p className="text-sm text-neutral-500">No client link yet. Sending a build creates one.</p> : null}
