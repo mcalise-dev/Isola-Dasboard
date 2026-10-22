@@ -13,28 +13,29 @@
   --color-brand: #F2C230;
   --color-brand-dark: #E2AE14;
   --color-brand-foreground: #0B0D0E;
-  --color-background: #0B0D0E;
+  /* v7.1 (10/22/26): darker — near-black page, deeper cards (Mike: "make it darker") */
+  --color-background: #030405;
   --color-foreground: #F3F4F5;
-  --color-card: #151A1F;
+  --color-card: #0C0F12;
   --color-card-foreground: #F3F4F5;
-  --color-popover: #1A2026;
+  --color-popover: #111518;
   --color-popover-foreground: #F3F4F5;
   --color-primary: #F2C230;
   --color-primary-foreground: #0B0D0E;
-  --color-secondary: #1C2228;
+  --color-secondary: #13171B;
   --color-secondary-foreground: #F3F4F5;
-  --color-muted: #161B20;
+  --color-muted: #0E1215;
   --color-muted-foreground: #9AA1A8;
-  --color-accent: #1E242A;
+  --color-accent: #161A1E;
   --color-accent-foreground: #ffffff;
-  --color-border: rgba(255, 255, 255, 0.09);
+  --color-border: rgba(255, 255, 255, 0.08);
   --color-input: rgba(255, 255, 255, 0.14);
   --color-ring: #F2C230;
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-danger: #f87171;
   /* grays retinted to the Isola charcoal */
-  --color-black: #0B0D0E;
+  --color-black: #030405;
   --color-neutral-50: #F5F6F7;
   --color-neutral-100: #E9EBED;
   --color-neutral-200: #D3D7DB;
@@ -43,9 +44,9 @@
   --color-neutral-500: #6B7279;
   --color-neutral-600: #4E555C;
   --color-neutral-700: #353B41;
-  --color-neutral-800: #232930;
-  --color-neutral-900: #151A1F;
-  --color-neutral-950: #0E1114;
+  --color-neutral-800: #1A1F24;
+  --color-neutral-900: #0C0F12;
+  --color-neutral-950: #07090B;
   /* no blue: "new / needs review" (was sky) now reads in brand yellow */
   --color-sky-100: #FDF0C4; --color-sky-200: #FAE18A; --color-sky-300: #F7D25A;
   --color-sky-400: #F2C230; --color-sky-500: #F2C230;
@@ -56,7 +57,7 @@
   --text-xs--line-height: 1.15rem;
 }
 
-html { -webkit-text-size-adjust: 100%; color-scheme: dark; background: #0B0D0E; }
+html { -webkit-text-size-adjust: 100%; color-scheme: dark; background: #030405; }
 /* checkboxes, radios and sliders in Isola yellow instead of browser blue */
 input, progress { accent-color: #F2C230; }
 body {
