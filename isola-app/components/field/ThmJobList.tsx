@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronRight } from "lucide-react";
 import ThmBrand from "@/components/field/ThmBrand";
+import ThmStatement from "@/components/field/ThmStatement";
 
 type J = { id: string; name: string; location: string | null; status: string; holder: string; start: string | null };
 const STAGE: Record<string, string> = { progress: "In progress", booked: "Booked", future: "Future", awaiting: "Quoted", lead: "Lead", complete: "Complete" };
@@ -16,7 +17,10 @@ export default function ThmJobList() {
   return (
     <div>
       <ThmBrand className="mb-5" />
-      <h1 className="text-2xl font-bold text-white">THM jobs</h1>
+      <h1 className="text-2xl font-bold text-white">What THM is owed</h1>
+      <p className="mb-4 text-sm text-neutral-400">Every job, line by line — your half of the profit plus anything paid back on top.</p>
+      <ThmStatement />
+      <h2 className="mt-8 text-2xl font-bold text-white">THM jobs</h2>
       <p className="text-sm text-neutral-400">Every job THM is on — open one to see the money and log crew, materials, tools and to-dos.</p>
       <div className="mt-4 space-y-2">
         {jobs === null ? <div className="text-sm text-neutral-500">Loading…</div>
