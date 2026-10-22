@@ -26,6 +26,8 @@ const addDays = (iso: string, n: number) => {
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
 };
 
+const in30 = (iso: string) => addDays(iso, 30);
+
 let cache: Attention | null = null;
 let inflight: Promise<Attention> | null = null;
 const subs = new Set<(a: Attention) => void>();
@@ -34,7 +36,7 @@ async function compute(): Promise<Attention> {
   const sb = createClient();
   const today = todayISO();
   const in7 = addDays(today, 7);
-  const [j, t, se, sv, ms, ct, mt, jc, ap] = await Promise.all([
+  const [j, t, se, sv, ms, ct, mt, jc, ap, vo] = await Promise.all([
     sb.from("jobs").select("id,job_name,customer,location,job,status,price,price_amount,contract_holder,isola_cut,quoted_date,start_date,completed_date,invoiced_date,paid_date,created_at,review_requested_at,priority,due_date"),
     sb.from("tasks").select("id,title,job_id,due_date,priority").eq("done", false),
     sb.from("schedule_entries").select("id,entry_date,job_id,label,assignee").gte("entry_date", addDays(today, -60)),
@@ -44,6 +46,8 @@ async function compute(): Promise<Attention> {
     sb.from("mkt_tasks").select("id,title,due_date").eq("done", false),
     sb.from("job_costs").select("id").eq("status", "pending"),
     sb.from("mkt_action_proposals").select("id,title,action_type,recipients,created_at").eq("status", "proposed"),
+    // subs whose COI is expired or runs out within 30 days (same rule as the push alert)
+    sb.from("vendor_overview").select("coi_expires,status").not("coi_id", "is", null).lte("coi_expires", in30(today)),
   ]);
   const jobs: any[] = j.data ?? [];
   const tasks: any[] = t.data ?? [];
@@ -141,6 +145,7 @@ async function compute(): Promise<Attention> {
     mkttasks: mtasks.filter((x) => x.due_date && x.due_date <= today).length,
     reviews: reviewable.length,
     approvals: approvals.length,
+    vendors: (vo.data ?? []).filter((v: any) => v.status !== "inactive").length,
     jobs: jobs.filter((x) => x.status === "complete" && !x.invoiced_date && !x.paid_date).length,
   };
 

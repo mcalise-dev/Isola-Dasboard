@@ -7,23 +7,39 @@ import { GROUPS, HOME, SETTINGS, ALL_ITEMS, activeItem, screensOf, type NavItem 
 import { useAttention } from "@/lib/attention";
 import { cn } from "@/lib/utils";
 
-export function NavLink({ item, on, count, onClick, pinned, onPin }: { item: NavItem; on: boolean; count?: number; onClick?: () => void; pinned?: boolean; onPin?: () => void }) {
+const URGENT = new Set(["home", "money", "jobs", "approvals", "vendors"]);
+
+export function NavLink({ item, on, count, onClick, pinned, onPin, expanded, onExpand, sub }: {
+  item: NavItem; on: boolean; count?: number; onClick?: () => void; pinned?: boolean; onPin?: () => void;
+  /** menu entry with screens under it: show an open/close arrow */
+  expanded?: boolean; onExpand?: () => void;
+  /** a screen listed under its entry */
+  sub?: boolean;
+}) {
   const Icon = item.icon;
   return (
     <div className="group relative">
       <Link href={item.href} onClick={onClick} aria-current={on ? "page" : undefined}
-        className={cn("flex min-h-[36px] items-center gap-2.5 rounded-lg px-2.5 text-[14px] font-medium transition-colors",
-          onPin && "pr-9",
+        className={cn("flex items-center gap-2.5 rounded-lg px-2.5 font-medium transition-colors",
+          sub ? "ml-2 min-h-[40px] text-[13.5px] md:min-h-[32px]" : "min-h-[44px] text-[14px] md:min-h-[36px]",
+          onPin && onExpand ? "pr-[4.5rem]" : onPin || onExpand ? "pr-9" : "",
           on ? "bg-brand/[0.10] text-white shadow-[inset_2px_0_0_var(--color-brand)]" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-100")}>
         <Icon size={16} strokeWidth={2} className={on ? "text-brand" : "text-neutral-500 group-hover:text-neutral-300"} />
         <span className="flex-1 truncate">{item.label}</span>
-        {count ? <span className={cn("min-w-[20px] rounded-full px-1.5 text-center text-[11px] font-bold leading-5", item.badge === "home" || item.badge === "money" || item.badge === "jobs" || item.badge === "approvals" ? "bg-red-500/90 text-white" : "bg-white/10 text-neutral-200")}>{count}</span> : null}
+        {count ? <span className={cn("min-w-[20px] rounded-full px-1.5 text-center text-[11px] font-bold leading-5", URGENT.has(item.badge ?? "") ? "bg-red-500/90 text-white" : "bg-white/10 text-neutral-200")}>{count}</span> : null}
       </Link>
       {onPin ? (
         <button onClick={onPin} aria-label={pinned ? `Unpin ${item.label}` : `Pin ${item.label}`} title={pinned ? "Unpin" : "Pin to top"}
-          className={cn("absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-neutral-500 hover:bg-white/10 hover:text-white",
+          className={cn("absolute top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-neutral-500 hover:bg-white/10 hover:text-white",
+            onExpand ? "right-9" : "right-1",
             "md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100", pinned && "text-neutral-300")}>
           {pinned ? <PinOff size={13} /> : <Pin size={13} />}
+        </button>
+      ) : null}
+      {onExpand ? (
+        <button onClick={onExpand} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} ${item.label} screens`}
+          className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-neutral-400 hover:bg-white/10 hover:text-white">
+          <ChevronDown size={16} className={cn("transition-transform", !expanded && "-rotate-90")} />
         </button>
       ) : null}
     </div>
@@ -40,6 +56,10 @@ export function NavGroups({ onNavigate }: { onNavigate?: () => void }) {
   const a = useAttention();
   const [shut, setShut] = useState<Record<string, boolean>>({});
   const [pins, setPins] = useState<string[]>([]);
+  // which entries show their screens; the entry you're in is always open
+  const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
+  useEffect(() => { try { setOpenKeys(JSON.parse(localStorage.getItem("isola.nav.open") || "{}")); } catch {} }, []);
+  const toggleOpen = (k: string, now: boolean) => setOpenKeys((o) => { const n = { ...o, [k]: !now }; try { localStorage.setItem("isola.nav.open", JSON.stringify(n)); } catch {} return n; });
   useEffect(() => {
     const readShut = () => { try { setShut(JSON.parse(localStorage.getItem("isola.nav.shut") || "{}")); } catch { setShut({}); } };
     readShut();
@@ -62,11 +82,26 @@ export function NavGroups({ onNavigate }: { onNavigate?: () => void }) {
   const entryLink = (e: NavItem) => {
     const screens = screensOf(e);
     const total = screens.reduce((s, i) => s + cnt(i), 0);
-    const urgent = screens.find((i) => (i.badge === "approvals" || i.badge === "money" || i.badge === "jobs") && cnt(i) > 0);
+    const urgent = screens.find((i) => URGENT.has(i.badge ?? "") && cnt(i) > 0);
     const shown: NavItem = { ...e, badge: urgent?.badge ?? e.badge };
+    const k = e.key ?? e.href;
+    const inHere = hit?.entry === e;
+    const many = screens.length > 1;
+    const isOpen = many && (openKeys[k] ?? inHere);
     return (
-      <NavLink key={e.href + e.label} item={shown} on={hit?.entry === e} count={total} onClick={onNavigate}
-        pinned={pins.includes(e.href)} onPin={() => togglePin(e.href)} />
+      <div key={e.href + e.label}>
+        <NavLink item={shown} on={inHere && !isOpen} count={isOpen ? 0 : total} onClick={onNavigate}
+          pinned={pins.includes(e.href)} onPin={() => togglePin(e.href)}
+          expanded={isOpen} onExpand={many ? () => toggleOpen(k, isOpen) : undefined} />
+        {isOpen ? (
+          <div className="mt-0.5 space-y-0.5 border-l border-white/[0.08] ml-[18px] pl-0">
+            {screens.map((sc) => (
+              <NavLink key={sc.href} sub item={sc} on={hit?.item.href === sc.href} count={cnt(sc)} onClick={onNavigate}
+                pinned={pins.includes(sc.href)} onPin={sc.href === e.href ? undefined : () => togglePin(sc.href)} />
+            ))}
+          </div>
+        ) : null}
+      </div>
     );
   };
   const pinnedItems = pins.map((h) => ALL_ITEMS.find((x) => x.item.href === h)?.item).filter(Boolean) as NavItem[];

@@ -18,6 +18,8 @@ import {
 export type NavItem = { href: string; label: string; icon: LucideIcon; badge?: string; key?: string; tabs?: NavItem[] };
 export type NavGroup = { key: string; label: string; icon: LucideIcon; home: string; items: NavItem[] };
 
+// v7.4 (10/22/26): Crew & subs gets its own entry (crew, vendors/COIs, subs payroll) and
+// Reports splits out of Money. The menu now lists every screen under its entry.
 // v6.8 (10/19/26): cleanup — 7 menu entries instead of 13. Today/Game plan/Daily log/Mail
 // moved under Home, Build & proposals under Jobs, Crew & time under Schedule, Costs under
 // Money, Docs & vendors under Customers. Settings sits at the bottom of the menu.
@@ -47,20 +49,26 @@ export const GROUPS: NavGroup[] = [
       { key: "schedule", href: "/dispatch", label: "Schedule", icon: CalendarDays, tabs: [
         { href: "/dispatch", label: "Dispatch board", icon: LayoutGrid, badge: "dispatch" },
         { href: "/schedule", label: "Calendar", icon: CalendarDays },
-        { href: "/crew", label: "Crew & time", icon: HardHat },
         { href: "/snow", label: "Recurring", icon: Snowflake },
+      ] },
+      // v7.4: everyone you pay or put on a site, in one place
+      { key: "crew", href: "/crew", label: "Crew & subs", icon: HardHat, tabs: [
+        { href: "/crew", label: "Crew & time", icon: HardHat },
+        { href: "/vendors", label: "Subs & vendors (COI, W-9)", icon: Truck, badge: "vendors" },
+        { href: "/payroll", label: "Subs payroll", icon: HandCoins },
       ] },
       { key: "money", href: "/money", label: "Money", icon: Wallet, tabs: [
         { href: "/money", label: "Owed to me", icon: Wallet, badge: "money" },
         { href: "/costs", label: "Costs", icon: Receipt, badge: "costs" },
         { href: "/tm", label: "T&M billing", icon: Clock },
         { href: "/billing", label: "Billing", icon: CreditCard },
-        { href: "/payroll", label: "Subs payroll", icon: HandCoins },
-        { href: "/money/pay", label: "My pay", icon: Gauge },
         { href: "/thm", label: "THM tab", icon: Handshake },
+      ] },
+      { key: "reports", href: "/reports", label: "Reports", icon: BarChart3, tabs: [
         { href: "/reports", label: "Reports", icon: BarChart3 },
         { href: "/money/cashflow", label: "Cash flow", icon: TrendingUp },
         { href: "/money/review", label: "Monthly review", icon: CalendarCheck },
+        { href: "/money/pay", label: "My pay", icon: Gauge },
       ] },
       { key: "tasks", href: "/tasks", label: "Tasks", icon: ListChecks, tabs: [
         { href: "/tasks", label: "Tasks", icon: ListChecks, badge: "tasks" },
@@ -74,7 +82,6 @@ export const GROUPS: NavGroup[] = [
       { key: "customers", href: "/customers", label: "Customers", icon: Building2, tabs: [
         { href: "/customers", label: "Customers & properties", icon: Building2 },
         { href: "/docs", label: "Documents", icon: ShieldCheck },
-        { href: "/vendors", label: "Vendors", icon: Truck },
       ] },
       { key: "marketing", href: "/marketing", label: "Marketing", icon: Megaphone, tabs: [
         { href: "/marketing", label: "Overview", icon: Gauge },
@@ -104,7 +111,7 @@ export const TABS: { key: string; label: string; icon: LucideIcon; href: string;
   { key: "home", label: "Home", icon: Home, href: "/home", match: ["home"] },
   { key: "work", label: "Jobs", icon: Briefcase, href: "/", match: ["jobs"] },
   { key: "schedule", label: "Schedule", icon: CalendarDays, href: "/dispatch", match: ["schedule"] },
-  { key: "money", label: "Money", icon: Wallet, href: "/money", match: ["money"] },
+  { key: "money", label: "Money", icon: Wallet, href: "/money", match: ["money", "reports"] },
 ];
 
 // Old name kept so anything importing HUBS still compiles.
