@@ -144,6 +144,8 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
           )}
         </Card>
 
+        <WelcomeCard jobId={jobId} />
+
         <SectionTitle>Post an update</SectionTitle>
         <Card className="space-y-3 p-4">
           <Field label="Date"><Input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} /></Field>
@@ -194,5 +196,83 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
         )}
       </section>
     </div>
+  );
+}
+
+/* v7.1: the top of the client's page — "Welcome, <name>" and an optional photo of the property.
+   Kept in siteline_settings so a new or turned-off link never loses them. */
+function WelcomeCard({ jobId }: { jobId: string }) {
+  const sb = useMemo(() => createClient(), []);
+  const [name, setName] = useState("");
+  const [fallback, setFallback] = useState("");
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [saved, setSaved] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const [st, jb] = await Promise.all([
+        sb.from("siteline_settings").select("welcome_name,cover_photo_b64").eq("job_id", jobId).maybeSingle(),
+        sb.from("jobs").select("contact_name").eq("id", jobId).maybeSingle(),
+      ]);
+      setName(st.data?.welcome_name ?? "");
+      setSaved(st.data?.welcome_name ?? "");
+      setPhoto(st.data?.cover_photo_b64 ?? null);
+      setFallback(String(jb.data?.contact_name ?? "").trim().split(/\s+/)[0] ?? "");
+    })();
+  }, [jobId, sb]);
+
+  async function save(patch: Record<string, any>, msg: string) {
+    setBusy(true);
+    const { error } = await sb.from("siteline_settings").upsert({ job_id: jobId, ...patch, updated_at: new Date().toISOString() });
+    setBusy(false);
+    if (error) { showError("Couldn't save: " + error.message); return false; }
+    showToast(msg);
+    return true;
+  }
+
+  async function pick(e: any) {
+    const f: File | undefined = e.target.files?.[0];
+    e.currentTarget.value = "";
+    if (!f) return;
+    const p = await compressImage(f, 1400, 0.72);
+    if (await save({ cover_photo_b64: p }, "Property photo added")) setPhoto(p);
+  }
+
+  const shown = name.trim() || fallback;
+  return (
+    <>
+      <SectionTitle>Welcome &amp; property photo</SectionTitle>
+      <Card className="space-y-3 p-4">
+        <Field label="Welcome name — the client sees “Welcome, …” at the top">
+          <div className="flex gap-2">
+            <Input value={name} placeholder={fallback || "e.g. Paulina"} onChange={(e) => setName(e.target.value)} />
+            <Button variant="outline" className="h-10 shrink-0" disabled={busy || name.trim() === saved.trim()}
+              onClick={async () => { if (await save({ welcome_name: name.trim() || null }, "Welcome name saved")) setSaved(name.trim()); }}>Save</Button>
+          </div>
+        </Field>
+        <p className="text-xs text-neutral-500">{shown ? <>Shows: <span className="text-neutral-300">Welcome, {shown}</span>{!name.trim() ? " (from the job's contact)" : ""}</> : "Leave blank and add a contact name to the job, or type one here."}</p>
+        <div>
+          <div className="mb-1 text-[13px] font-semibold text-neutral-400">Property photo (optional)</div>
+          {photo ? (
+            <div className="space-y-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photo} alt="Property" className="h-40 w-full rounded-lg border border-border object-cover" />
+              <div className="flex gap-2">
+                <Button asChild variant="outline" size="sm" className="h-9">
+                  <label className="cursor-pointer"><ImagePlus size={14} /> Change<input type="file" accept="image/*" className="hidden" onChange={pick} /></label>
+                </Button>
+                <Button variant="ghost" size="sm" className="h-9 text-red-300" disabled={busy}
+                  onClick={async () => { if (await save({ cover_photo_b64: null }, "Property photo removed")) setPhoto(null); }}><Trash2 size={14} /> Remove</Button>
+              </div>
+            </div>
+          ) : (
+            <Button asChild variant="outline" className="h-24 w-full border-dashed">
+              <label className="cursor-pointer flex-col"><ImagePlus size={18} /> {busy ? "Saving…" : "Add a photo of the property"}<input type="file" accept="image/*" className="hidden" onChange={pick} /></label>
+            </Button>
+          )}
+        </div>
+      </Card>
+    </>
   );
 }
