@@ -26,6 +26,12 @@ import SiteLinePanel from "@/components/job/SiteLinePanel";
 import JobTimeline from "@/components/job/JobTimeline";
 import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
+import { needsConfirm } from "@/lib/schedule";
+
+const addDaysISO = (s: string, n: number) => {
+  const d = new Date(s + "T12:00:00"); d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 import {
   Phone, Navigation, Pencil, MoreHorizontal, Star, Trash2, XCircle, ChevronLeft, MapPin, Hammer, ThumbsUp,
   CalendarPlus, Play, CheckCircle2, PauseCircle, FileText, Banknote, ArrowRight, ListChecks, Briefcase, Building2,
@@ -38,9 +44,11 @@ const STEPS = [
 ];
 const ORDER = ["lead", "awaiting", "booked", "progress", "complete"];
 
-// Tabs on the job record. Deep link with /jobs/<id>?tab=<key>; aliases map the
-// names other screens use (billing, build, punch…) onto the right tab.
-const TABS = ["overview", "crew", "money", "costs", "schedule", "tasks", "siteline", "proposal", "docs", "photos", "activity", "thm"] as const;
+// v6.9: four tabs on the job record — Overview · Schedule · Money · Files.
+// Deep link with /jobs/<id>?tab=<key>. The old twelve tab names (and the aliases other
+// screens use: billing, build, punch…) still work: they open the tab that now holds that
+// section and scroll to it.
+const TABS = ["overview", "schedule", "money", "files"] as const;
 const TAB_ALIAS: Record<string, string> = {
   partner: "thm", tyler: "thm",
   billing: "money", payments: "money", "change-orders": "money",
@@ -50,11 +58,21 @@ const TAB_ALIAS: Record<string, string> = {
   plan: "crew", checklist: "crew", materials: "crew", tools: "crew", field: "crew",
   site: "siteline", "site-line": "siteline", client: "siteline", updates: "siteline",
 };
-export const resolveTab = (t: string | null | undefined) => {
+// which of the four tabs each section lives in now
+const SECTION_TAB: Record<string, (typeof TABS)[number]> = {
+  tasks: "overview",
+  crew: "schedule",
+  costs: "money", proposal: "money", thm: "money",
+  docs: "files", photos: "files", siteline: "files", activity: "files",
+};
+const resolve = (t: string | null | undefined): { tab: string; section: string | null } | null => {
   const k = String(t ?? "").toLowerCase();
   const v = TAB_ALIAS[k] ?? k;
-  return (TABS as readonly string[]).includes(v) ? v : null;
+  if ((TABS as readonly string[]).includes(v)) return { tab: v, section: null };
+  if (SECTION_TAB[v]) return { tab: SECTION_TAB[v], section: v };
+  return null;
 };
+export const resolveTab = (t: string | null | undefined) => resolve(t)?.tab ?? null;
 
 export function nextStep(j: any, ctx: { walked: boolean; drafting: boolean; scheduled: boolean }) {
   const today = todayISO();
@@ -84,16 +102,26 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
   const [customer, setCustomer] = useState<any | null>(null);
   const [property, setProperty] = useState<any | null>(null);
   const searchParams = useSearchParams();
-  const urlTab = resolveTab(searchParams?.get("tab"));
+  const urlKey = searchParams?.get("tab") ?? null;
+  const urlTab = resolveTab(urlKey);
   const [tab, setTabState] = useState<string>(urlTab ?? "overview");
+  const [scrollTo, setScrollTo] = useState<string | null>(resolve(urlKey)?.section ?? null);
   // follow ?tab= when it changes (links into this same job from elsewhere)
-  useEffect(() => { if (urlTab) setTabState(urlTab); }, [urlTab]);
+  useEffect(() => { const r = resolve(urlKey); if (r) { setTabState(r.tab); setScrollTo(r.section); } }, [urlKey]);
+  // an old tab name (photos, costs, crew…) opens the tab that holds it, then scrolls to it
+  useEffect(() => {
+    if (!scrollTo) return;
+    const id = window.setTimeout(() => { document.getElementById(`sec-${scrollTo}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); setScrollTo(null); }, 120);
+    return () => window.clearTimeout(id);
+  }, [scrollTo, tab]);
   // keep ?tab= in the address bar so refresh / share lands on the same tab
-  const setTab = useCallback((t: string) => {
-    setTabState(t);
+  const setTab = useCallback((key: string) => {
+    const r = resolve(key) ?? { tab: "overview", section: null };
+    setTabState(r.tab);
+    setScrollTo(r.section);
     try {
       const u = new URL(window.location.href);
-      if (t === "overview") u.searchParams.delete("tab"); else u.searchParams.set("tab", t);
+      if (r.tab === "overview") u.searchParams.delete("tab"); else u.searchParams.set("tab", r.tab);
       window.history.replaceState(window.history.state, "", u.pathname + u.search + u.hash);
     } catch { /* ignore */ }
   }, []);
@@ -104,7 +132,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
       sb.from("jobs").select("*").eq("id", id).maybeSingle(),
       sb.from("job_costs").select("id,entry_date,category,vendor,worker,amount").eq("job_id", id).order("entry_date", { ascending: false }),
       sb.from("site_visits").select("id,visit_date,met_with,purpose").eq("job_id", id).order("visit_date"),
-      sb.from("schedule_entries").select("id,entry_date,assignee").eq("job_id", id).order("entry_date"),
+      sb.from("schedule_entries").select("id,entry_date,job_id,label,notes,assignee,assignees,item_type,vendor_id,company,start_time,end_time,qty,status,sort").eq("job_id", id).order("entry_date").order("start_time", { nullsFirst: false }),
       sb.from("estimates").select("id,sent_at").eq("job_id", id),
     ]);
     setJob(j.data ?? null);
@@ -139,6 +167,8 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
   const tel = String(job.contact_phone || customer?.phone || "").replace(/[^0-9+]/g, "");
   const today = todayISO();
   const withThm = job.partner === "THM" || job.contract_holder === "thm";
+  // outside companies coming in the next 3 days that nobody has confirmed yet
+  const schedOpen = sched.filter((e) => needsConfirm(e) && e.entry_date >= today && e.entry_date <= addDaysISO(today, 3)).length;
 
   // where the job sits on the stepper
   const sIdx = ORDER.indexOf(job.status === "future" ? "awaiting" : job.status);
@@ -268,20 +298,12 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
         {/* main */}
         <div className="min-w-0">
           <Tabs value={tab} onValueChange={setTab}>
-            {/* 10 tabs: one scrolling row on a phone (no wrap), bleeds to the screen edge */}
-            <TabsList className="-mx-4 flex-nowrap gap-4 scroll-px-4 px-4 sm:mx-0 sm:gap-5 sm:px-0 [&>*]:min-h-[40px]">
+            {/* v6.9: four tabs, fit on a phone without scrolling */}
+            <TabsList className="flex-nowrap gap-5 [&>*]:min-h-[40px]">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="crew">Crew plan</TabsTrigger>
+              <TabsTrigger value="schedule">Schedule{schedOpen ? <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 text-[11px] font-bold text-amber-300">{schedOpen}</span> : null}</TabsTrigger>
               <TabsTrigger value="money">Money</TabsTrigger>
-              <TabsTrigger value="costs">Costs & labor</TabsTrigger>
-              <TabsTrigger value="schedule">Schedule</TabsTrigger>
-              <TabsTrigger value="tasks">Tasks</TabsTrigger>
-              <TabsTrigger value="siteline">SiteLine</TabsTrigger>
-              <TabsTrigger value="proposal">Proposal</TabsTrigger>
-              <TabsTrigger value="docs">Docs</TabsTrigger>
-              <TabsTrigger value="photos">Photos</TabsTrigger>
-              {withThm ? <TabsTrigger value="thm">THM</TabsTrigger> : null}
-              <TabsTrigger value="activity">Activity</TabsTrigger>
+              <TabsTrigger value="files">Files</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-6">
               <JobTimeline jobId={job.id} onEditPlan={() => setTab("crew")} />
@@ -326,24 +348,46 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
                   <ArrowRight size={16} className="shrink-0 text-neutral-500" />
                 </button>
               </section>
+              <section id="sec-tasks" className="scroll-mt-24"><TasksPanel jobId={job.id} /></section>
             </TabsContent>
-            <TabsContent value="crew" className="space-y-6">
-              <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5"><JobChecklist jobId={job.id} jobType={job.job} /></section>
-              <CrewSetup jobId={job.id} crewNotes={job.crew_notes ?? null} onSaved={load} />
+
+            <TabsContent value="schedule" className="space-y-8">
+              <SchedulePanel job={job} entries={sched} crew={crew} onChange={load} />
+              <section id="sec-crew" className="scroll-mt-24 space-y-6">
+                <h2 className="text-[17px] font-semibold text-white">Crew plan</h2>
+                <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5"><JobChecklist jobId={job.id} jobType={job.job} /></section>
+                <CrewSetup jobId={job.id} crewNotes={job.crew_notes ?? null} onSaved={load} />
+              </section>
             </TabsContent>
-            <TabsContent value="money" className="space-y-6"><MoneyPanel job={job} /><TmJobBill jobId={job.id} onChanged={load} /></TabsContent>
-            <TabsContent value="proposal"><ProposalPanel jobId={job.id} /></TabsContent>
-            <TabsContent value="docs"><DocsPanel jobId={job.id} /></TabsContent>
-            <TabsContent value="costs" className="space-y-8">
-              <CostsPanel jobId={job.id} onChange={load} />
-              <LaborPanel jobId={job.id} onChange={load} />
+
+            <TabsContent value="money" className="space-y-8">
+              <section className="space-y-6">
+                <h2 className="text-[17px] font-semibold text-white">Payments & change orders</h2>
+                <MoneyPanel job={job} />
+                <TmJobBill jobId={job.id} onChanged={load} />
+              </section>
+              <section id="sec-costs" className="scroll-mt-24 space-y-8">
+                <CostsPanel jobId={job.id} onChange={load} />
+                <LaborPanel jobId={job.id} onChange={load} />
+              </section>
+              <section id="sec-proposal" className="scroll-mt-24"><ProposalPanel jobId={job.id} /></section>
+              {withThm ? (
+                <section id="sec-thm" className="scroll-mt-24 space-y-4">
+                  <h2 className="text-[17px] font-semibold text-white">THM</h2>
+                  <ThmPanel job={job} onChange={load} />
+                </section>
+              ) : null}
             </TabsContent>
-            <TabsContent value="schedule"><SchedulePanel job={job} entries={sched} crew={crew} onChange={load} /></TabsContent>
-            <TabsContent value="tasks"><TasksPanel jobId={job.id} /></TabsContent>
-            <TabsContent value="siteline"><SiteLinePanel jobId={job.id} /></TabsContent>
-            <TabsContent value="photos"><PhotosPanel jobId={job.id} /></TabsContent>
-            {withThm ? <TabsContent value="thm"><ThmPanel job={job} onChange={load} /></TabsContent> : null}
-            <TabsContent value="activity"><ActivityPanel job={job} extra={{ costs, visits }} /></TabsContent>
+
+            <TabsContent value="files" className="space-y-8">
+              <section id="sec-photos" className="scroll-mt-24"><PhotosPanel jobId={job.id} /></section>
+              <section id="sec-docs" className="scroll-mt-24"><DocsPanel jobId={job.id} /></section>
+              <section id="sec-siteline" className="scroll-mt-24 space-y-4">
+                <h2 className="text-[17px] font-semibold text-white">SiteLine</h2>
+                <SiteLinePanel jobId={job.id} />
+              </section>
+              <section id="sec-activity" className="scroll-mt-24"><ActivityPanel job={job} extra={{ costs, visits }} /></section>
+            </TabsContent>
           </Tabs>
         </div>
 

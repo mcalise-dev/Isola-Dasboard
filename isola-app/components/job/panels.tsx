@@ -11,8 +11,10 @@ import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { Empty, SectionTitle } from "@/components/ui/bits";
 import PunchList from "@/components/PunchList";
 import { cn } from "@/lib/utils";
-import { Camera, Images, HardHat, Trash2, Plus, Receipt, CalendarPlus, FileSpreadsheet, Upload, Download, X, PenTool } from "lucide-react";
+import { Camera, Images, HardHat, Trash2, Plus, Receipt, CalendarPlus, FileSpreadsheet, Upload, Download, X, PenTool, Check } from "lucide-react";
 import { stampSafe } from "@/lib/stamp";
+import ScheduleItemDialog from "@/components/schedule/ScheduleItemDialog";
+import { ITEM_TYPES, NEXT_STATUS, SCHED_STATUS, byTime, detailLine, isOutside, timeWindow, typeOf, whoOn, type SchedItem } from "@/lib/schedule";
 
 export const COST_CATEGORIES = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Subcontractor", "Permits", "Other"];
 const changed = () => window.dispatchEvent(new Event("isola:changed"));
@@ -384,60 +386,83 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
 // ---------------- Schedule ----------------
 export function SchedulePanel({ job, entries, crew, onChange }: { job: any; entries: any[]; crew: string[]; onChange: () => void }) {
   const sb = useMemo(() => createClient(), []);
-  const tomorrow = () => { const d = new Date(); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-  const [f, setF] = useState({ date: tomorrow(), days: 1, who: "", skip: true });
-  const [busy, setBusy] = useState(false);
-  async function add() {
-    if (!f.date) return;
-    setBusy(true);
-    const dates: string[] = [];
-    const d = new Date(f.date + "T12:00:00");
-    while (dates.length < Math.max(1, f.days)) {
-      const dow = d.getDay();
-      if (!(f.skip && (dow === 0 || dow === 6))) dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
-      d.setDate(d.getDate() + 1);
-    }
-    const have = new Set(entries.map((e) => e.entry_date));
-    const rows = dates.filter((x) => !have.has(x)).map((x) => ({ entry_date: x, job_id: job.id, assignee: f.who || null }));
-    if (rows.length) {
-      const { error } = await sb.from("schedule_entries").insert(rows);
-      if (error) { setBusy(false); showError("Could not schedule: " + error.message); return; }
-    }
-    // first time a booked job lands on the calendar, that day becomes its start date
-    if (!job.start_date && ["booked", "progress"].includes(job.status)) {
-      await sb.from("jobs").update({ start_date: dates[0], updated_at: new Date().toISOString() }).eq("id", job.id);
-    }
-    setBusy(false);
-    showToast(`${rows.length} day${rows.length === 1 ? "" : "s"} added`);
-    onChange(); changed();
-  }
-  async function remove(e: any) {
-    await sb.from("schedule_entries").delete().eq("id", e.id);
-    onChange(); changed();
-  }
+  const [dlg, setDlg] = useState<{ item?: SchedItem | null; type?: string; date?: string } | null>(null);
+  const [showPast, setShowPast] = useState(false);
   const today = todayISO();
+  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+  const list = [...(entries as SchedItem[])].sort((a, b) => (a.entry_date === b.entry_date ? byTime(a, b) : a.entry_date < b.entry_date ? -1 : 1));
+  const past = list.filter((e) => e.entry_date < today);
+  const upcoming = list.filter((e) => e.entry_date >= today);
+  const shown = showPast ? list : upcoming;
+
+  // first time a booked job lands on the calendar, that day becomes its start date
+  async function afterSave(first?: string) {
+    if (first && !job.start_date && ["booked", "progress"].includes(job.status)) {
+      await sb.from("jobs").update({ start_date: first, updated_at: new Date().toISOString() }).eq("id", job.id);
+    }
+    onChange(); changed();
+  }
+  async function cycle(e: SchedItem) {
+    const next = NEXT_STATUS[e.status ?? "scheduled"] ?? "scheduled";
+    const { error } = await sb.from("schedule_entries").update({ status: next, updated_at: new Date().toISOString() }).eq("id", e.id);
+    if (error) { showError("Update failed: " + error.message); return; }
+    showToast(SCHED_STATUS[next].label);
+    onChange(); changed();
+  }
+
   return (
     <div>
       <SectionTitle right={<a href="/dispatch" className="text-sm font-semibold text-neutral-400 hover:text-white">Dispatch board</a>}>Schedule</SectionTitle>
-      {entries.length ? (
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {entries.map((e) => (
-            <span key={e.id} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[13px]", e.entry_date < today ? "border-white/[0.06] text-neutral-500" : "border-white/15 text-neutral-200")}>
-              {fmtDate(e.entry_date)}{e.assignee ? ` · ${e.assignee}` : ""}
-              <button onClick={() => remove(e)} aria-label="Remove day" className="text-neutral-500 hover:text-red-400"><X size={13} /></button>
-            </span>
-          ))}
-        </div>
-      ) : <p className="mb-3 text-sm text-neutral-500">Not on the calendar yet.</p>}
-      <div className="rounded-xl border border-border p-3">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
-          <Input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} className="col-span-2 sm:col-span-1" />
-          <NativeSelect value={f.days} onChange={(e) => setF({ ...f, days: Number(e.target.value) })}>{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} day{n === 1 ? "" : "s"}</option>)}</NativeSelect>
-          <NativeSelect value={f.who} onChange={(e) => setF({ ...f, who: e.target.value })}><option value="">Who?</option>{crew.map((w) => <option key={w}>{w}</option>)}<option>THM</option></NativeSelect>
-          <Button onClick={add} disabled={busy} className="col-span-2 sm:col-span-1"><CalendarPlus size={16} /> {busy ? "Adding…" : "Add to schedule"}</Button>
-        </div>
-        <label className="mt-2 flex items-center gap-2 text-xs text-neutral-400"><input type="checkbox" checked={f.skip} onChange={(e) => setF({ ...f, skip: e.target.checked })} /> Skip weekends</label>
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {ITEM_TYPES.filter((t) => t.key !== "other").map((t) => {
+          const Icon = t.icon;
+          return (
+            <Button key={t.key} size="sm" variant={t.key === "crew" ? "default" : "outline"} className="h-10" onClick={() => setDlg({ type: t.key, date: tomorrow })}>
+              <Plus size={14} /><Icon size={14} /> {t.key === "crew" ? "Crew days" : t.label}
+            </Button>
+          );
+        })}
       </div>
+      {past.length ? (
+        <button onClick={() => setShowPast(!showPast)} className="mb-2 text-xs font-semibold text-neutral-500 hover:text-white">
+          {showPast ? "Hide earlier days" : `Show ${past.length} earlier item${past.length === 1 ? "" : "s"}`}
+        </button>
+      ) : null}
+      {shown.length ? (
+        <div className="space-y-1.5">
+          {shown.map((e) => {
+            const t = typeOf(e);
+            const Icon = t.icon;
+            const st = e.status ?? "scheduled";
+            const who = whoOn(e);
+            const isPast = e.entry_date < today;
+            return (
+              <div key={e.id} className={cn("flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2", (isPast || st === "done") && "opacity-60", st === "cancelled" && "opacity-40")}>
+                <button onClick={() => setDlg({ item: e })} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label="Edit">
+                  <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]", t.tint)}><Icon size={17} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className={cn("block truncate text-sm font-semibold text-white", st === "cancelled" && "line-through")}>
+                      {fmtDate(e.entry_date)}{timeWindow(e) ? <span className="font-normal text-neutral-300"> · {timeWindow(e)}</span> : null}
+                    </span>
+                    <span className="block truncate text-xs text-neutral-400">
+                      {[e.item_type && e.item_type !== "crew" ? t.label : null, detailLine(e), who.join(", "), e.job_id ? null : e.label].filter(Boolean).join(" · ") || "Crew day · unassigned"}
+                    </span>
+                  </span>
+                </button>
+                {isOutside(e) || st !== "scheduled" ? (
+                  <button onClick={() => cycle(e)} title="Tap to change status" className="shrink-0">
+                    <Badge variant={st === "scheduled" && isOutside(e) && !isPast ? "warning" : SCHED_STATUS[st]?.badge ?? "muted"}>
+                      {st === "confirmed" ? <Check size={11} /> : null}{st === "scheduled" && isOutside(e) ? "Confirm?" : SCHED_STATUS[st]?.label ?? st}
+                    </Badge>
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : <p className="text-sm text-neutral-500">{list.length ? "Nothing coming up." : "Not on the calendar yet. Add crew days, a pour, a delivery or a sub above."}</p>}
+      <ScheduleItemDialog open={!!dlg} onOpenChange={(o) => { if (!o) setDlg(null); }} item={dlg?.item ?? null} date={dlg?.date} type={dlg?.type}
+        jobId={job.id} lockJob crew={crew} onSaved={(first) => afterSave(first)} />
     </div>
   );
 }

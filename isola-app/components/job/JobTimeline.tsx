@@ -9,9 +9,10 @@ import { splitPhase, phaseTitle, fmtTime } from "@/components/field/jobkit";
 import { todayISO } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CalendarDays, Check, Clock3, Users, ChevronDown } from "lucide-react";
+import { typeOf, timeWindow, needsConfirm, byTime, type SchedItem } from "@/lib/schedule";
 
 type Row = { id: string; label: string; done: boolean; work_date: string | null; work_time: string | null; assignee: string | null; sort: number | null };
-type Day = { entry_date: string; assignee: string | null; assignees: string[] | null; label: string | null };
+type Day = { id: string; entry_date: string; assignee: string | null; assignees: string[] | null; label: string | null; item_type: string | null; company: string | null; start_time: string | null; end_time: string | null; qty: string | null; status: string | null };
 
 const dayHead = (iso: string, t: string) => {
   const d = new Date(iso + "T12:00:00");
@@ -32,7 +33,7 @@ export default function JobTimeline({ jobId, onEditPlan }: { jobId: string; onEd
     const go = async () => {
       const [a, b] = await Promise.all([
         sb.from("job_checklist").select("id,label,done,work_date,work_time,assignee,sort").eq("job_id", jobId).order("sort").order("created_at"),
-        sb.from("schedule_entries").select("entry_date,assignee,assignees,label").eq("job_id", jobId).order("entry_date"),
+        sb.from("schedule_entries").select("id,entry_date,assignee,assignees,label,item_type,company,start_time,end_time,qty,status").eq("job_id", jobId).neq("status", "cancelled").order("entry_date"),
       ]);
       setRows((a.data as Row[]) ?? []);
       setDays((b.data as Day[]) ?? []);
@@ -66,6 +67,8 @@ export default function JobTimeline({ jobId, onEditPlan }: { jobId: string; onEd
       .sort((a, b) => (a.work_time ? 0 : 1) - (b.work_time ? 0 : 1) || String(a.work_time ?? "").localeCompare(String(b.work_time ?? "")) || (a.sort ?? 0) - (b.sort ?? 0));
     const phases = [...new Set(steps.map((s) => splitPhase(s.label).phase).filter(Boolean))];
     const crew = crewOn(d);
+    // v6.9: pours, deliveries, subs, inspections… booked on the schedule for this day
+    const items = days.filter((x) => x.entry_date === d && x.item_type && x.item_type !== "crew").sort((a, b) => byTime(a as SchedItem, b as SchedItem));
     const h = dayHead(d, t);
     const isToday = d === t;
     const allDone = steps.length > 0 && steps.every((s) => s.done);
@@ -81,9 +84,30 @@ export default function JobTimeline({ jobId, onEditPlan }: { jobId: string; onEd
           <div className="flex flex-wrap items-center gap-1.5">
             {phases.length ? phases.map((p) => (
               <span key={p} className="rounded-full bg-white/[0.07] px-2 py-0.5 text-xs font-semibold text-neutral-200">{phaseTitle(p)}</span>
-            )) : <span className="text-xs text-neutral-500">{steps.length ? "No phase" : "Crew booked"}</span>}
+            )) : <span className="text-xs text-neutral-500">{steps.length ? "No phase" : items.length && !crew.length ? "On site" : "Crew booked"}</span>}
             {crew.length ? <span className="inline-flex items-center gap-1 text-xs text-neutral-400"><Users size={12} /> {crew.join(", ")}</span> : null}
           </div>
+          {items.length ? (
+            <ul className="mt-2 space-y-1.5">
+              {items.map((x) => {
+                const ty = typeOf(x);
+                const Icon = ty.icon;
+                const open = needsConfirm(x as SchedItem) && d >= t;
+                return (
+                  <li key={x.id} className="flex items-start gap-2 text-sm">
+                    {x.start_time ? (
+                      <span className="mt-px inline-flex shrink-0 items-center gap-1 rounded-md bg-brand/15 px-1.5 py-0.5 text-[12px] font-semibold text-brand"><Clock3 size={11} />{timeWindow(x as SchedItem)}</span>
+                    ) : null}
+                    <Icon size={15} className={cn("mt-0.5 shrink-0", ty.tint)} />
+                    <span className={cn("min-w-0", x.status === "done" ? "text-neutral-500 line-through" : "text-neutral-100")}>
+                      {x.company || ty.label}<span className="text-neutral-500">{[x.company ? ty.label : null, x.qty].filter(Boolean).map((v) => " · " + v).join("")}</span>
+                      {x.status === "confirmed" ? <span className="ml-1.5 text-xs font-semibold text-emerald-300">Confirmed</span> : open ? <span className="ml-1.5 text-xs font-semibold text-amber-300">Not confirmed</span> : null}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
           {steps.length ? (
             <ul className="mt-2 space-y-1.5">
               {steps.map((s) => {

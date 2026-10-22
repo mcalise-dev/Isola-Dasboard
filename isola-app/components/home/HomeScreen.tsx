@@ -15,6 +15,7 @@ import { Stat, Empty, SectionTitle } from "@/components/ui/bits";
 import { Segmented } from "@/components/ui/tabs";
 import { Tip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { typeOf, timeWindow, isOutside } from "@/lib/schedule";
 import { Check, Clock, Navigation, Camera, UserPlus, ListChecks, Plus, ChevronRight, CalendarDays, Sparkles } from "lucide-react";
 
 const DOT: Record<Level, string> = { high: "bg-red-400", mid: "bg-amber-400", low: "bg-neutral-500" };
@@ -39,12 +40,12 @@ export default function HomeScreen() {
   const t = todayISO();
 
   useEffect(() => {
-    const go = () => sb.from("schedule_entries").select("id,label,job_id,assignee,sort,jobs(id,job_name,customer,location)").eq("entry_date", t).order("sort").then(({ data }: any) => setToday(data ?? []));
+    const go = () => sb.from("schedule_entries").select("id,label,job_id,assignee,assignees,sort,item_type,company,qty,start_time,end_time,status,jobs(id,job_name,customer,location)").eq("entry_date", t).neq("status", "cancelled").order("start_time", { nullsFirst: false }).order("sort").then(({ data }: any) => setToday(data ?? []));
     window.addEventListener("isola:changed", go);
     return () => window.removeEventListener("isola:changed", go);
   }, [sb, t]);
   useEffect(() => {
-    sb.from("schedule_entries").select("id,label,job_id,assignee,sort,jobs(id,job_name,customer,location)").eq("entry_date", t).order("sort").then(({ data }: any) => setToday(data ?? []));
+    sb.from("schedule_entries").select("id,label,job_id,assignee,assignees,sort,item_type,company,qty,start_time,end_time,status,jobs(id,job_name,customer,location)").eq("entry_date", t).neq("status", "cancelled").order("start_time", { nullsFirst: false }).order("sort").then(({ data }: any) => setToday(data ?? []));
   }, [sb, t]);
 
   const hour = new Date().getHours();
@@ -69,8 +70,9 @@ export default function HomeScreen() {
     const uns = a.badges.dispatch;
     if (uns) parts.push(`${uns} booked job${uns === 1 ? "" : "s"} not on the board`);
     const crew = today?.length ?? 0;
+    const unconfirmed = (today ?? []).filter((e: any) => isOutside(e) && (e.status ?? "scheduled") === "scheduled").length;
     const lead = parts.length ? `${parts.slice(0, 3).join(", ")}.` : "Nothing urgent.";
-    return `${lead} ${crew ? `${crew} job${crew === 1 ? "" : "s"} on the board today.` : "Nothing on the board today."}`;
+    return `${lead} ${crew ? `${crew} thing${crew === 1 ? "" : "s"} on the schedule today${unconfirmed ? `, ${unconfirmed} not confirmed` : ""}.` : "Nothing on the board today."}`;
   })();
 
   const stops = (today ?? []).map((e: any) => e.jobs?.location).filter((x: string | undefined): x is string => !!x && x.trim().length > 2);
@@ -144,10 +146,26 @@ export default function HomeScreen() {
             ) : (
               <div className="grid gap-2 sm:grid-cols-2">
                 {today.map((e: any) => (
-                  <Link key={e.id} href={e.job_id ? `/jobs/${e.job_id}` : "/schedule"} className="rounded-xl border border-border bg-card px-4 py-3 hover:border-white/20">
-                    <div className="truncate text-sm font-medium text-white">{e.jobs?.job_name || e.jobs?.customer || e.label || "Work"}</div>
-                    <div className="truncate text-xs text-neutral-400">{[e.assignee, e.jobs?.location].filter(Boolean).join(" · ") || "—"}</div>
-                  </Link>
+                  (() => {
+                    const ty = typeOf(e);
+                    const Icon = ty.icon;
+                    const st = e.status ?? "scheduled";
+                    return (
+                      <Link key={e.id} href={e.job_id ? `/jobs/${e.job_id}?tab=schedule` : "/schedule"} className={cn("flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:border-white/20", st === "done" && "opacity-60")}>
+                        <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]", ty.tint)}><Icon size={17} /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-white">
+                            {e.start_time ? <span className="tabular-nums text-neutral-300">{timeWindow(e)} · </span> : null}{e.jobs?.job_name || e.jobs?.customer || e.label || ty.label}
+                          </span>
+                          <span className="block truncate text-xs text-neutral-400">
+                            {(isOutside(e) ? [e.company || ty.label, e.qty] : [e.item_type && e.item_type !== "crew" ? ty.label : null, e.company, e.assignee, e.jobs?.location]).filter(Boolean).join(" · ") || "—"}
+                          </span>
+                        </span>
+                        {st === "confirmed" ? <Check size={15} className="shrink-0 text-emerald-300" aria-label="Confirmed" />
+                          : isOutside(e) && st === "scheduled" ? <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" title="Not confirmed" /> : null}
+                      </Link>
+                    );
+                  })()
                 ))}
               </div>
             )}
