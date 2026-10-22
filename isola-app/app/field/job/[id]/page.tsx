@@ -2,10 +2,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Navigation, ChevronLeft, Plus, MapPin, ListChecks, Package, Wrench, Info, Check, AlertTriangle, CalendarDays } from "lucide-react";
+import { Navigation, ChevronLeft, Plus, MapPin, ListChecks, Package, Wrench, Info, Check, AlertTriangle, CalendarDays, Clock3 } from "lucide-react";
 import { CheckRow, Empty, H, dayLabel } from "@/components/field/shared";
 import { showError, undoable } from "@/components/Toaster";
-import { PlanView, LoadOut, Ring, splitPhase, phaseTitle, isHeadsUp, Pill, DayPicker, pickDefaultDay, dayTitle, type DayKey } from "@/components/field/jobkit";
+import { PlanView, LoadOut, Ring, splitPhase, phaseTitle, isHeadsUp, Pill, DayPicker, pickDefaultDay, dayTitle, fmtTime, type DayKey } from "@/components/field/jobkit";
 import { cn } from "@/lib/utils";
 
 // v5.4 crew job screen: Plan / Materials / Tools / Info tabs.
@@ -152,6 +152,36 @@ export default function FieldJob() {
             className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand text-neutral-950 min-h-[50px] font-bold"><Navigation size={18} /> Directions</a>
         ) : null}
       </div>
+
+      {/* v7.3: timed steps coming up (concrete truck, inspection, delivery) — can't be missed */}
+      {(() => {
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        const timed = (d.checklist ?? [])
+          .filter((k: any) => !k.done && k.work_date && k.work_time && k.work_date >= today)
+          .sort((a: any, b: any) => (a.work_date + a.work_time).localeCompare(b.work_date + b.work_time))
+          .slice(0, 3);
+        if (!timed.length) return null;
+        return (
+          <div className="mt-3 space-y-2">
+            {timed.map((k: any, i: number) => {
+              const { phase, text } = splitPhase(k.label);
+              const when = k.work_date === today ? "Today" : new Date(k.work_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+              return (
+                <div key={k.id} className={cn("flex items-center gap-3 rounded-2xl border px-3.5 py-3", i === 0 ? "border-brand/60 bg-brand/[0.08]" : "border-white/[0.08] bg-neutral-950")}>
+                  <div className={cn("flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl", i === 0 ? "bg-brand text-neutral-950" : "bg-white/[0.06] text-white")}>
+                    <Clock3 size={18} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className={cn("text-[13px] font-semibold", i === 0 ? "text-brand" : "text-neutral-400")}>{when} · {fmtTime(k.work_time)}{phase ? ` · ${phaseTitle(phase)}` : ""}</div>
+                    <div className="truncate text-[15px] font-semibold text-white">{text}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Tabs */}
       <div className="sticky top-[calc(60px+env(safe-area-inset-top))] z-20 -mx-4 mt-3 bg-black/90 px-4 py-2 backdrop-blur-md">

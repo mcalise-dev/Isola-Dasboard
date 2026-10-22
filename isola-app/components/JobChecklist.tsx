@@ -146,6 +146,7 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
     if (!t) { showError("Write what needs doing."); return; }
     const { error } = await supabase.from("job_checklist").update({
       label: withPhase(edit.phase, t), work_date: edit.work_date || null, assignee: edit.assignee || null,
+      work_time: edit.work_date && edit.work_time ? edit.work_time : null,
     }).eq("id", edit.id);
     if (error) { showError("Couldn't save: " + error.message); return; }
     setEdit(null); load();
@@ -268,7 +269,7 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
       ) : null}
 
       {items.length ? (shown.length
-        ? <PlanView list={shown as Step[]} onToggle={toggle} onRemove={remove} onEdit={(s) => { const sp = splitPhase(s.label); setEdit({ id: s.id, text: sp.text, phase: sp.phase, work_date: s.work_date ?? "", assignee: s.assignee ?? "" }); }} />
+        ? <PlanView list={shown as Step[]} onToggle={toggle} onRemove={remove} onEdit={(s) => { const sp = splitPhase(s.label); setEdit({ id: s.id, text: sp.text, phase: sp.phase, work_date: s.work_date ?? "", work_time: String((s as any).work_time ?? "").slice(0, 5), assignee: s.assignee ?? "" }); }} />
         : <div className="rounded-2xl border border-dashed border-white/10 px-5 py-6 text-center text-sm text-neutral-400">Nothing set for this day.</div>)
         : !pickOpen ? <div className="rounded-2xl border border-dashed border-white/10 px-5 py-8 text-center text-sm text-neutral-400">Add the first step below, or start from a template.</div> : null}
 
@@ -301,12 +302,16 @@ export default function JobChecklist({ jobId, jobType }: { jobId: string; jobTyp
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block text-[13px] font-semibold text-neutral-400">Day
-                  <select value={edit.work_date} onChange={(e) => setEdit({ ...edit, work_date: e.target.value })} className={cn(field, "mt-1 w-full")}>{dayOpts}</select>
+                  <input type="date" value={edit.work_date} onChange={(e) => setEdit({ ...edit, work_date: e.target.value })} className={cn(field, "mt-1 w-full")} />
                 </label>
-                <label className="block text-[13px] font-semibold text-neutral-400">Who's responsible
-                  <select value={edit.assignee} onChange={(e) => setEdit({ ...edit, assignee: e.target.value })} className={cn(field, "mt-1 w-full")}>{whoOpts}</select>
+                <label className="block text-[13px] font-semibold text-neutral-400">Time (optional)
+                  <input type="time" value={edit.work_time} disabled={!edit.work_date} onChange={(e) => setEdit({ ...edit, work_time: e.target.value })} className={cn(field, "mt-1 w-full disabled:opacity-40")} />
                 </label>
               </div>
+              <label className="block text-[13px] font-semibold text-neutral-400">Who's responsible
+                <select value={edit.assignee} onChange={(e) => setEdit({ ...edit, assignee: e.target.value })} className={cn(field, "mt-1 w-full")}>{whoOpts}</select>
+              </label>
+              <p className="text-[12px] text-neutral-500">Give it a time for anything set for a certain hour — a concrete truck, an inspection, a delivery. The crew sees it on the job, and it shows on the job timeline.</p>
             </div>
           ) : null}
           <DialogFooter className="flex-row justify-between gap-2">

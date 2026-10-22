@@ -2,7 +2,7 @@
 // v5.4 — shared pieces for the crew job screen and the owner job record:
 // plan of action grouped by phase, and materials/tools as a load-out checklist.
 import { useState } from "react";
-import { Check, ChevronDown, AlertTriangle, Phone, Store, User2, X } from "lucide-react";
+import { Check, ChevronDown, AlertTriangle, Clock3, Phone, Store, User2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ---------- helpers ----------
@@ -44,8 +44,16 @@ export const phaseTitle = (p: string) => (p ? PHASE_NAMES[p] ?? titleCase(p) : "
 const HEADS_UP = /\b(FIRST|STOP|WATCH|ONLY IF|ONLY|DO NOT|NO FALL|BEFORE CONCRETE)\b/;
 export const isHeadsUp = (t: string) => HEADS_UP.test(t);
 
-export type Step = { id: string; label: string; done: boolean; done_by?: string | null; done_at?: string | null; added_by?: string | null; assignee?: string | null; work_date?: string | null };
+export type Step = { id: string; label: string; done: boolean; done_by?: string | null; done_at?: string | null; added_by?: string | null; assignee?: string | null; work_date?: string | null; work_time?: string | null };
 export type Phase = { key: string; title: string; steps: (Step & { text: string })[]; done: number };
+
+/** "09:00" / "09:00:00" -> "9:00 AM" */
+export function fmtTime(t?: string | null) {
+  if (!t) return "";
+  const [h, m] = String(t).split(":").map(Number);
+  if (Number.isNaN(h)) return "";
+  return `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
 
 export function groupPlan(list: Step[]): Phase[] {
   const out: Phase[] = [];
@@ -205,8 +213,9 @@ export function PlanView({ list, onToggle, onRemove, onEdit, readOnly, jump = tr
                             {onEdit && phonesIn(s.text).length ? (
                               <div className="mt-1 flex flex-wrap gap-1.5">{phonesIn(s.text).map((ph) => <CallChip key={ph} phone={ph} />)}</div>
                             ) : null}
-                            {(warn || s.assignee || (s.done && s.done_by) || (!s.done && s.added_by && s.added_by !== "Mike")) ? (
+                            {(warn || s.assignee || s.work_time || (s.done && s.done_by) || (!s.done && s.added_by && s.added_by !== "Mike")) ? (
                               <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                {s.work_time ? <Pill tone="warn" icon={<Clock3 size={12} />}>{fmtTime(s.work_time)}</Pill> : null}
                                 {s.assignee ? <Pill tone={me && s.assignee.toLowerCase() === me.toLowerCase() ? "info" : "plain"} icon={<User2 size={12} />}>{me && s.assignee.toLowerCase() === me.toLowerCase() ? "You" : s.assignee}</Pill> : null}
                                 {warn ? <Pill tone="warn" icon={<AlertTriangle size={12} />}>Heads up</Pill> : null}
                                 {s.done && s.done_by ? <span className="text-[12px] text-emerald-300/90">✓ {s.done_by}{s.done_at ? ` · ${stamp(s.done_at)}` : ""}</span> : null}

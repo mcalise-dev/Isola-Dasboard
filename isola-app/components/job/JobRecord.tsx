@@ -23,6 +23,7 @@ import { CostsPanel, LaborPanel, TasksPanel, PhotosPanel, SchedulePanel, Jobbook
 import { MoneyPanel, ProposalPanel, DocsPanel } from "@/components/job/hub";
 import ThmPanel from "@/components/job/ThmPanel";
 import SiteLinePanel from "@/components/job/SiteLinePanel";
+import JobTimeline from "@/components/job/JobTimeline";
 import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
 import {
@@ -283,6 +284,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
               <TabsTrigger value="activity">Activity</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-6">
+              <JobTimeline jobId={job.id} onEditPlan={() => setTab("crew")} />
               <section>
                 <h2 className="mb-2 text-[17px] font-semibold text-white">Scope of work</h2>
                 {job.scope_of_work ? <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-300">{job.scope_of_work}</p>
