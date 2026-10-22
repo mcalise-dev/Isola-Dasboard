@@ -7,6 +7,7 @@ import { withTimeout, firstError } from "@/lib/load";
 import { getProposalValidDays, getPaymentTerms, daysFromToday } from "@/lib/settings";
 import { showError, showToast, undoable } from "@/components/Toaster";
 import { copyText } from "@/components/Dialogs";
+import CustomerPicker from "@/components/CustomerPicker";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,8 @@ import { compressImage } from "@/lib/image";
    BUILD — the front half of a job: Walk -> Price -> Send.
 
    Rules this screen enforces (see ISOLA_Project_Instructions.md):
-   - Customer is PICKED, never typed. Sets customer_id AND copies the
+   - Customer is picked from the list or typed new (CustomerPicker, v7.0) —
+     an exact name match always reuses the record. Sets customer_id AND copies the
      exact stored spelling into jobs.customer.
    - The build's title becomes jobs.job_name, verbatim, everywhere.
    - The sell price is NEVER auto-generated. Cost is calculated;
@@ -576,22 +578,12 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
             <Card>
               <CardHeader><CardTitle>The job</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                <Field label="Job name — this becomes the job name everywhere">
-                  <Input value={e.title ?? ""} placeholder="e.g. 407 East Ave — Sidewalk Replacement"
-                    onChange={(ev) => setE({ ...e, title: ev.target.value })}
-                    onBlur={(ev) => patch({ title: ev.target.value })} />
-                </Field>
-
                 <div>
-                  <Field label="Customer — pick, don't type">
-                    <NativeSelect value={e.customer_id ?? ""}
-                      onChange={(ev) => {
-                        const c = customers.find((x: any) => x.id === ev.target.value);
-                        patch({ customer_id: c?.id ?? null, customer: c?.name ?? null, property_id: null, location: null });
-                      }}>
-                      <option value="">Select a customer…</option>
-                      {customers.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </NativeSelect>
+                  <Field label="Customer — pick one or type a new one">
+                    <CustomerPicker customers={customers} autoFocus={!e.customer_id && !e.title}
+                      value={{ id: e.customer_id ?? null, name: e.customer ?? null }}
+                      onCreated={() => reloadRefs()}
+                      onPick={(c) => patch({ customer_id: c?.id ?? null, customer: c?.name ?? null, property_id: null, location: null })} />
                   </Field>
                   {cust ? (
                     <div className="mt-1.5 rounded-lg border border-border bg-neutral-950 px-3 py-2">
@@ -600,10 +592,16 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
                     </div>
                   ) : (
                     <p className="mt-1 text-xs text-neutral-500">
-                      New customer? Add them on the Customers tab first so the spelling stays clean.
+                      Not on the list? Type the name and tap &ldquo;Add as a new customer&rdquo;.
                     </p>
                   )}
                 </div>
+
+                <Field label="Job name — this becomes the job name everywhere">
+                  <Input value={e.title ?? ""} placeholder="e.g. 407 East Ave — Sidewalk Replacement"
+                    onChange={(ev) => setE({ ...e, title: ev.target.value })}
+                    onBlur={(ev) => patch({ title: ev.target.value })} />
+                </Field>
 
                 {e.customer_id ? (
                   <Field label="Property">
