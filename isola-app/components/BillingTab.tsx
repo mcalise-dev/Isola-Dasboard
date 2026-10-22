@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import MoneyInput from "@/components/MoneyInput";
 import { todayISO, fmtDate } from "@/lib/format";
 import { showError, showToast, undoable } from "@/components/Toaster";
+import { copyText } from "@/components/Dialogs";
+import { linkForChangeOrder, signUrl } from "@/lib/esign";
 import { withTimeout, firstError } from "@/lib/load";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +15,7 @@ import { Input, Textarea, NativeSelect, Field } from "@/components/ui/input";
 import { TableWrap, Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { PageHeader, Stat, Empty, ListSkeleton, LoadError, Progress } from "@/components/ui/bits";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Check, Pencil, Plus, Receipt, Trash2, X, FilePlus2 } from "lucide-react";
+import { ArrowLeft, Check, Pencil, Plus, Receipt, Trash2, X, FilePlus2, PenLine, Eye } from "lucide-react";
 
 /* ============================================================
    BILLING — payments and change orders, per job, plus the job's
@@ -57,6 +59,9 @@ export default function BillingTab() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [payments, setPayments] = useState<any[]>([]);
   const [cos, setCos] = useState<any[]>([]);
+  // e-signature link per change order (latest one)
+  const [coLinks, setCoLinks] = useState<Record<string, any>>({});
+  const [coLinkBusy, setCoLinkBusy] = useState("");
   const [loading, setLoading] = useState(true);
   const [addPay, setAddPay] = useState<any>(null);
   const [addCo, setAddCo] = useState<any>(null);
@@ -148,6 +153,30 @@ export default function BillingTab() {
   }
 
   /* ---------- change orders ---------- */
+  useEffect(() => {
+    if (!cos.length) { setCoLinks({}); return; }
+    supabase.from("proposal_links").select("id,token,status,view_count,change_order_id,approved_by")
+      .in("change_order_id", cos.map((c) => c.id)).order("created_at", { ascending: true })
+      .then(({ data }: any) => {
+        const m: Record<string, any> = {};
+        (data ?? []).forEach((l: any) => { m[l.change_order_id] = l; });
+        setCoLinks(m);
+      });
+  }, [cos]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function coSignLink(c: any) {
+    setCoLinkBusy(c.id);
+    try {
+      const l = await linkForChangeOrder(supabase, c);
+      await copyText(signUrl(l.token), "Signature link copied — paste it to the client");
+      openJob(openId!); load();
+    } catch (e: any) {
+      showError("Couldn't create the link: " + (e?.message ?? e));
+    } finally {
+      setCoLinkBusy("");
+    }
+  }
+
   async function saveCo() {
     if (!addCo.scope_text?.trim()) return showError("Describe the added scope — it goes to the client.");
     setBusy(true);
@@ -472,6 +501,20 @@ export default function BillingTab() {
                       </div>
                       <p className="whitespace-pre-wrap text-xs text-neutral-400">{c.scope_text}</p>
                       <div className="flex flex-wrap gap-1.5">
+                        {coLinks[c.id] ? (
+                          <>
+                            <Button variant="outline" size="sm" className="h-9" onClick={() => copyText(signUrl(coLinks[c.id].token), "Signature link copied")}>
+                              <PenLine size={14} /> {coLinks[c.id].status === "approved" ? `Signed by ${coLinks[c.id].approved_by ?? "client"}` : coLinks[c.id].view_count > 0 ? `Sign link · opened ${coLinks[c.id].view_count}×` : "Copy sign link"}
+                            </Button>
+                            <Button asChild variant="ghost" size="sm" className="h-9">
+                              <a href={`/p/${coLinks[c.id].token}`} target="_blank" rel="noopener noreferrer"><Eye size={14} /> View</a>
+                            </Button>
+                          </>
+                        ) : c.status !== "approved" && c.status !== "declined" ? (
+                          <Button variant="outline" size="sm" className="h-9" disabled={coLinkBusy === c.id} onClick={() => coSignLink(c)}>
+                            <PenLine size={14} /> {coLinkBusy === c.id ? "Creating…" : "Get signature link"}
+                          </Button>
+                        ) : null}
                         {c.status === "draft" ? <Button variant="outline" size="sm" className="h-9" onClick={() => setCoStatus(c, "sent")}>Mark sent</Button> : null}
                         {c.status !== "approved" ? <Button variant="outline" size="sm" className="h-9" onClick={() => setCoStatus(c, "approved")}>Approved</Button> : null}
                         {c.status !== "declined" ? <Button variant="outline" size="sm" className="h-9" onClick={() => setCoStatus(c, "declined")}>Declined</Button> : null}
