@@ -124,12 +124,12 @@ export default function PublicProposal({ token }: { token: string }) {
     setDlBusy(false);
   }
 
-  if (loading) return <Shell><p className="text-neutral-500 text-sm">Loading…</p></Shell>;
+  if (loading) return <Shell><p className="text-neutral-400 text-sm">Loading…</p></Shell>;
 
   if (!data?.ok) return (
     <Shell>
-      <h1 className="text-xl font-bold text-neutral-900">Document not found</h1>
-      <p className="mt-2 text-sm text-neutral-600">This link isn&apos;t valid. Please check the link or call us at <a className="underline" href="tel:5089332661">508-933-2661</a>.</p>
+      <h1 className="text-xl font-bold text-white">Document not found</h1>
+      <p className="mt-2 text-sm text-neutral-300">This link isn&apos;t valid. Please check the link or call us at <a className="underline" href="tel:5089332661">508-933-2661</a>.</p>
     </Shell>
   );
 
@@ -145,18 +145,18 @@ export default function PublicProposal({ token }: { token: string }) {
   return (
     <Shell>
       {/* letterhead */}
-      <div className="flex items-start justify-between gap-4 border-b-2 border-black pb-4">
+      <div className="flex items-start justify-between gap-4 border-b-2 border-brand pb-4">
         <div className="flex items-center gap-3">
           <img src="/logo.png" alt="Isola" className="h-14 w-14 rounded-full object-cover" />
           <div>
-            <div className="text-base font-extrabold tracking-tight text-black leading-tight">ISOLA EXCAVATION &amp; DESIGN</div>
-            <div className="text-[11px] text-neutral-600 leading-snug">Providence, RI · Serving RI &amp; MA</div>
-            <div className="text-[11px] text-neutral-600 leading-snug">508-933-2661 · mcalise@isola-ri.com</div>
+            <div className="text-base font-extrabold tracking-tight text-white leading-tight">ISOLA EXCAVATION &amp; DESIGN</div>
+            <div className="text-[11px] text-neutral-300 leading-snug">Providence, RI · Serving RI &amp; MA</div>
+            <div className="text-[11px] text-neutral-300 leading-snug">508-933-2661 · mcalise@isola-ri.com</div>
           </div>
         </div>
         <div className="text-right shrink-0">
-          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-500">{isCO ? "Change Order" : "Proposal"}</div>
-          <div className="text-[11px] text-neutral-600 mt-1">{longDate(data.sent_at)}</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">{isCO ? "Change Order" : "Proposal"}</div>
+          <div className="text-[11px] text-neutral-300 mt-1">{longDate(data.sent_at)}</div>
         </div>
       </div>
 
@@ -170,35 +170,35 @@ export default function PublicProposal({ token }: { token: string }) {
       {expired && <Banner tone="warn" title="This document has expired">Pricing was valid for 30 days. Call 508-933-2661 and we&apos;ll get you an updated number.</Banner>}
 
       <div className="mt-6">
-        <div className="bg-black text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]">Project</div>
-        <div className="border border-t-0 border-neutral-300 px-3 py-3">
-          <div className="text-lg font-bold text-black">{data.title}</div>
-          <div className="text-sm text-neutral-700 mt-0.5">
+        <div className="border-b border-white/[0.08] bg-white/[0.04] text-brand px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]">Project</div>
+        <div className="border border-t-0 border-white/15 px-3 py-3">
+          <div className="text-lg font-bold text-white">{data.title}</div>
+          <div className="text-sm text-neutral-300 mt-0.5">
             {[data.customer, data.location].filter(Boolean).join(" · ")}
-            {data.job_type ? <span className="text-neutral-500"> · {data.job_type}</span> : null}
+            {data.job_type ? <span className="text-neutral-400"> · {data.job_type}</span> : null}
           </div>
         </div>
       </div>
 
       {data.has_pdf ? (
         <button onClick={openPdf} disabled={pdfBusy}
-          className="mt-4 w-full flex items-center justify-between border-2 border-black px-4 py-3 text-left disabled:opacity-60">
+          className="mt-4 w-full flex items-center justify-between border-2 border-white/25 px-4 py-3 text-left disabled:opacity-60">
           <span>
-            <span className="block text-sm font-bold text-black">📄 Read the full {docWord}</span>
-            <span className="block text-[11px] text-neutral-600">{data.pdf_title || "PDF"} — opens in a new tab</span>
+            <span className="block text-sm font-bold text-white">📄 Read the full {docWord}</span>
+            <span className="block text-[11px] text-neutral-300">{data.pdf_title || "PDF"} — opens in a new tab</span>
           </span>
-          <span className="text-sm font-bold text-black">{pdfBusy ? "…" : "Open →"}</span>
+          <span className="text-sm font-bold text-white">{pdfBusy ? "…" : "Open →"}</span>
         </button>
       ) : null}
 
-      {data.intro ? <p className="mt-4 text-sm leading-relaxed text-neutral-800 whitespace-pre-wrap">{data.intro}</p> : null}
+      {data.intro ? <p className="mt-4 text-sm leading-relaxed text-neutral-200 whitespace-pre-wrap">{data.intro}</p> : null}
 
       {data.scope ? (
         <div className="mt-5">
-          <div className="bg-black text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]">{isCO ? "Change in Work" : "Work Included"}</div>
-          <div className="border border-t-0 border-neutral-300">
+          <div className="border-b border-white/[0.08] bg-white/[0.04] text-brand px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]">{isCO ? "Change in Work" : "Work Included"}</div>
+          <div className="border border-t-0 border-white/15">
             {String(data.scope).split("\n").filter((l: string) => l.trim()).map((line: string, i: number) => (
-              <div key={i} className={`px-3 py-2 text-sm text-neutral-800 leading-relaxed ${i % 2 ? "bg-neutral-50" : "bg-white"}`}>
+              <div key={i} className={`px-3 py-2 text-sm text-neutral-200 leading-relaxed ${i % 2 ? "bg-white/[0.03]" : ""}`}>
                 {line.replace(/^[-•*]\s*/, "")}
               </div>
             ))}
@@ -207,28 +207,28 @@ export default function PublicProposal({ token }: { token: string }) {
       ) : null}
 
       {total ? (
-        <div className="mt-5 bg-black text-white px-4 py-3 flex items-center justify-between">
+        <div className="mt-5 border border-brand/40 bg-brand/10 text-white px-4 py-3 flex items-center justify-between">
           <span className="text-[11px] font-bold uppercase tracking-[0.18em]">{isCO ? "Change Order Amount" : "Total Contract Price"}</span>
           <span className="text-2xl font-extrabold tabular-nums">{total}</span>
         </div>
       ) : null}
       {deposit && open ? (
-        <div className="border border-t-0 border-neutral-300 px-4 py-2 flex items-center justify-between text-sm">
-          <span className="text-neutral-600">Deposit to schedule ({data.deposit_pct ?? 33}%)</span>
-          <span className="font-bold tabular-nums text-black">{deposit}</span>
+        <div className="border border-t-0 border-white/15 px-4 py-2 flex items-center justify-between text-sm">
+          <span className="text-neutral-300">Deposit to schedule ({data.deposit_pct ?? 33}%)</span>
+          <span className="font-bold tabular-nums text-white">{deposit}</span>
         </div>
       ) : null}
-      {!isCO ? <p className="mt-2 text-[11px] text-neutral-500">Permits are not included in the price above.</p> : null}
+      {!isCO ? <p className="mt-2 text-[11px] text-neutral-400">Permits are not included in the price above.</p> : null}
 
       {/* terms before signing */}
       {!data.has_pdf || data.terms ? (
         <div className="mt-7">
-          <div className="bg-black text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]">Terms</div>
-          <div className="border border-t-0 border-neutral-300 px-4 py-3 space-y-3">
+          <div className="border-b border-white/[0.08] bg-white/[0.04] text-brand px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]">Terms</div>
+          <div className="border border-t-0 border-white/15 px-4 py-3 space-y-3">
             {(data.terms ? [{ h: "", b: String(data.terms) }] : CORE_TERMS).map((t, i) => (
               <div key={i}>
-                {t.h ? <div className="text-[11px] font-bold uppercase tracking-wide text-black">{t.h}</div> : null}
-                <p className="text-[12px] leading-relaxed text-neutral-700 whitespace-pre-wrap">{t.b}</p>
+                {t.h ? <div className="text-[11px] font-bold uppercase tracking-wide text-white">{t.h}</div> : null}
+                <p className="text-[12px] leading-relaxed text-neutral-300 whitespace-pre-wrap">{t.b}</p>
               </div>
             ))}
           </div>
@@ -236,62 +236,62 @@ export default function PublicProposal({ token }: { token: string }) {
       ) : null}
 
       {open ? (
-        <div className="mt-7 border-2 border-black">
-          <div className="bg-black text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]">Sign</div>
+        <div className="mt-7 border-2 border-brand">
+          <div className="border-b border-white/[0.08] bg-white/[0.04] text-brand px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]">Sign</div>
           <div className="px-4 py-4 space-y-3">
-            <p className="text-sm text-neutral-700">
+            <p className="text-sm text-neutral-300">
               By signing below, you agree to the scope of work and price in this {docWord}
               {data.has_pdf ? <>, including the full PDF linked above</> : null}.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="block text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Full name</span>
+                <span className="block text-[11px] font-semibold uppercase tracking-wide text-neutral-400 mb-1">Full name</span>
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="First and last name" autoComplete="name"
-                  className="w-full border border-neutral-400 px-3 py-2 text-base text-black bg-white focus:outline-none focus:border-black" />
+                  className="w-full border border-white/20 px-3 py-2 text-base text-white bg-neutral-950 placeholder:text-neutral-400 focus:outline-none focus:border-brand" />
               </label>
               <label className="block">
-                <span className="block text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Email (for your records)</span>
+                <span className="block text-[11px] font-semibold uppercase tracking-wide text-neutral-400 mb-1">Email (for your records)</span>
                 <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" type="email" autoComplete="email" inputMode="email"
-                  className="w-full border border-neutral-400 px-3 py-2 text-base text-black bg-white focus:outline-none focus:border-black" />
+                  className="w-full border border-white/20 px-3 py-2 text-base text-white bg-neutral-950 placeholder:text-neutral-400 focus:outline-none focus:border-brand" />
               </label>
             </div>
 
             <div>
               <div className="flex items-end justify-between mb-1">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Draw your signature</span>
-                <button type="button" onClick={() => { padRef.current?.clear(); setHasInk(false); }} className="text-[11px] text-neutral-600 underline">Clear</button>
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Draw your signature</span>
+                <button type="button" onClick={() => { padRef.current?.clear(); setHasInk(false); }} className="text-[11px] text-neutral-300 underline">Clear</button>
               </div>
               <SigPad ref={padRef} onInk={() => setHasInk(true)} />
-              <div className="text-[10px] text-neutral-500 mt-1">Use your finger or mouse.</div>
+              <div className="text-[10px] text-neutral-400 mt-1">Use your finger or mouse.</div>
             </div>
 
-            <label className="flex items-start gap-2.5 text-[12px] text-neutral-700 leading-snug">
-              <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-black" />
+            <label className="flex items-start gap-2.5 text-[12px] text-neutral-300 leading-snug">
+              <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[#F2C230]" />
               <span>I have reviewed this {docWord}, I agree to sign it electronically, and I understand my electronic signature is legally binding, the same as signing on paper.</span>
             </label>
 
-            {err ? <p className="text-sm text-red-700">{err}</p> : null}
+            {err ? <p className="text-sm text-red-300">{err}</p> : null}
             <button onClick={approve} disabled={busy}
-              className="w-full bg-black text-white py-3 text-sm font-bold uppercase tracking-[0.14em] disabled:opacity-50">
+              className="w-full bg-brand text-neutral-950 py-3 text-sm font-bold uppercase tracking-[0.14em] disabled:opacity-50">
               {busy ? "Recording…" : `Sign & accept ${docWord}`}
             </button>
             {data.pay_url && deposit ? (
               <a href={data.pay_url} target="_blank" rel="noopener noreferrer"
-                className="block w-full text-center border-2 border-black py-3 text-sm font-bold uppercase tracking-[0.14em] text-black">
+                className="block w-full text-center border-2 border-white/25 py-3 text-sm font-bold uppercase tracking-[0.14em] text-white">
                 Pay {deposit} deposit
               </a>
             ) : null}
             {!declineOpen ? (
-              <button onClick={() => setDeclineOpen(true)} className="w-full text-xs text-neutral-500 underline pt-1">
+              <button onClick={() => setDeclineOpen(true)} className="w-full text-xs text-neutral-400 underline pt-1">
                 Not moving forward
               </button>
             ) : (
-              <div className="border border-neutral-300 p-3 space-y-2">
+              <div className="border border-white/15 p-3 space-y-2">
                 <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} placeholder="Anything we should know? (optional)"
-                  className="w-full border border-neutral-300 px-2 py-1.5 text-sm text-black bg-white" />
+                  className="w-full border border-white/20 px-2 py-1.5 text-sm text-white bg-neutral-950 placeholder:text-neutral-400" />
                 <div className="flex gap-2">
-                  <button onClick={decline} disabled={busy} className="flex-1 border border-neutral-400 py-2 text-xs font-semibold text-neutral-700">Send</button>
-                  <button onClick={() => setDeclineOpen(false)} className="flex-1 py-2 text-xs text-neutral-500">Cancel</button>
+                  <button onClick={decline} disabled={busy} className="flex-1 border border-white/20 py-2 text-xs font-semibold text-neutral-300">Send</button>
+                  <button onClick={() => setDeclineOpen(false)} className="flex-1 py-2 text-xs text-neutral-400">Cancel</button>
                 </div>
               </div>
             )}
@@ -301,38 +301,38 @@ export default function PublicProposal({ token }: { token: string }) {
 
       {approved && data.pay_url && deposit ? (
         <a href={data.pay_url} target="_blank" rel="noopener noreferrer"
-          className="mt-6 block w-full text-center bg-black text-white py-3 text-sm font-bold uppercase tracking-[0.14em]">
+          className="mt-6 block w-full text-center bg-brand text-neutral-950 py-3 text-sm font-bold uppercase tracking-[0.14em]">
           Pay {deposit} deposit
         </a>
       ) : null}
 
       {approved ? (
-        <div className="mt-6 border border-neutral-300 px-4 py-3">
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-500">Accepted by</div>
+        <div className="mt-6 border border-white/15 px-4 py-3">
+          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">Accepted by</div>
           {data.signature_png
-            ? <img src={data.signature_png} alt="Signature" className="mt-1 h-16 w-auto max-w-full object-contain" />
-            : <div className="mt-1 text-2xl text-black" style={{ fontFamily: "'Segoe Script','Brush Script MT',cursive" }}>{data.signature}</div>}
-          <div className="text-[11px] text-neutral-600 mt-1">
+            ? <img src={data.signature_png} alt="Signature" className="mt-1 h-16 w-auto max-w-full rounded bg-white px-2 object-contain" />
+            : <div className="mt-1 text-2xl text-white" style={{ fontFamily: "'Segoe Script','Brush Script MT',cursive" }}>{data.signature}</div>}
+          <div className="text-[11px] text-neutral-300 mt-1">
             {data.approved_by} · {data.approved_at ? new Date(data.approved_at).toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" }) : ""}
           </div>
           {data.signature_png ? (
             <button onClick={downloadSigned} disabled={dlBusy}
-              className="mt-3 w-full border-2 border-black py-2.5 text-sm font-bold uppercase tracking-[0.12em] text-black disabled:opacity-50">
+              className="mt-3 w-full border-2 border-white/25 py-2.5 text-sm font-bold uppercase tracking-[0.12em] text-white disabled:opacity-50">
               {dlBusy ? "Preparing…" : "⬇ Download signed copy (PDF)"}
             </button>
           ) : null}
-          {err ? <p className="mt-2 text-sm text-red-700">{err}</p> : null}
+          {err ? <p className="mt-2 text-sm text-red-300">{err}</p> : null}
         </div>
       ) : null}
 
       {data.siteline_token ? (
         <a href={`/site/${data.siteline_token}`}
-          className="mt-8 block w-full border-2 border-black py-3 text-center text-sm font-bold uppercase tracking-[0.12em] text-black">
+          className="mt-8 block w-full border-2 border-white/25 py-3 text-center text-sm font-bold uppercase tracking-[0.12em] text-white">
           ← Your project page: schedule &amp; updates
         </a>
       ) : null}
 
-      <div className="mt-8 border-t border-neutral-300 pt-3 text-center text-[11px] text-neutral-500">
+      <div className="mt-8 border-t border-white/15 pt-3 text-center text-[11px] text-neutral-400">
         Questions? Call Mike at <a className="underline" href="tel:5089332661">508-933-2661</a> or email <a className="underline" href="mailto:mcalise@isola-ri.com">mcalise@isola-ri.com</a>
       </div>
     </Shell>
@@ -420,23 +420,23 @@ const SigPad = forwardRef<SigPadHandle, { onInk: () => void }>(function SigPad({
   return (
     <canvas ref={cv}
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up}
-      className="block w-full h-40 border border-neutral-400 bg-white cursor-crosshair"
+      className="block w-full h-40 rounded border border-white/20 bg-white cursor-crosshair"
       style={{ touchAction: "none" }} />
   );
 });
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-neutral-200 py-6 px-3 print:bg-white print:py-0">
-      <div className="mx-auto max-w-2xl bg-white shadow-xl px-5 py-6 sm:px-8 sm:py-8 print:shadow-none">{children}</div>
+    <div className="min-h-screen bg-black text-neutral-100 py-6 px-3 print:bg-white print:py-0">
+      <div className="mx-auto max-w-2xl border border-white/[0.07] bg-neutral-900 shadow-xl px-5 py-6 sm:px-8 sm:py-8 print:shadow-none print:border-0 print:bg-white print:text-black">{children}</div>
     </div>
   );
 }
 
 function Banner({ tone, title, children }: { tone: "ok" | "warn" | "off"; title: string; children: React.ReactNode }) {
-  const cls = tone === "ok" ? "border-emerald-700 bg-emerald-50 text-emerald-900"
-    : tone === "warn" ? "border-amber-700 bg-amber-50 text-amber-900"
-    : "border-neutral-500 bg-neutral-100 text-neutral-800";
+  const cls = tone === "ok" ? "border-emerald-500 bg-emerald-500/10 text-emerald-200"
+    : tone === "warn" ? "border-amber-500 bg-amber-500/10 text-amber-200"
+    : "border-neutral-500 bg-white/[0.05] text-neutral-200";
   return (
     <div className={`mt-5 border-l-4 px-4 py-3 ${cls}`}>
       <div className="text-sm font-bold">{title}</div>
