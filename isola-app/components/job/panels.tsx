@@ -473,7 +473,27 @@ export function JobbookCard({ jobId }: { jobId: string }) {
   const [jb, setJb] = useState<any | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const load = () => sb.from("jobbooks").select("job_id,updated_at,summary,file_name").eq("job_id", jobId).maybeSingle().then(({ data }) => setJb(data ?? null));
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [jobId]);
+  // The jobbook summary is recalculated in the database whenever a cost, labor entry or price
+  // changes, so the card just has to re-read it: after any change on the page (again a few
+  // seconds later, since deletes commit after the undo window), when the tab comes back into
+  // view, and once a minute while it's open (covers crew clock-outs from other phones).
+  useEffect(() => {
+    load();
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const onChanged = () => { load(); timers.push(setTimeout(load, 1500), setTimeout(load, 6500)); };
+    const onVisible = () => { if (document.visibilityState === "visible") load(); };
+    window.addEventListener("isola:changed", onChanged);
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    const poll = setInterval(() => { if (document.visibilityState === "visible") load(); }, 60000);
+    return () => {
+      window.removeEventListener("isola:changed", onChanged);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(poll); timers.forEach(clearTimeout);
+    };
+    // eslint-disable-next-line
+  }, [jobId]);
   async function download() {
     const { data } = await sb.from("jobbooks").select("file_name,file_b64").eq("job_id", jobId).maybeSingle();
     if (!data?.file_b64) { showError("No file stored for this jobbook yet."); return; }
