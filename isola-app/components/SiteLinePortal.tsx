@@ -37,6 +37,22 @@ function Row({ p }: { p: P }) {
   );
 }
 
+/** big yellow card for anything waiting on the client's signature */
+function SignCard({ p }: { p: P }) {
+  return (
+    <a href={`/site/${p.token}`} className="mb-3 block p-5 text-[#111] shadow-[0_8px_20px_rgba(242,197,0,0.35)] transition-transform hover:-translate-y-0.5" style={{ background: Y }}>
+      <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em]">
+        <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#111]" /> Action needed · Signature
+      </div>
+      <div className="mt-2 text-[18px] font-extrabold leading-snug" style={HEAD}>{p.job_name}</div>
+      {p.location && p.location !== p.job_name ? <div className="mt-0.5 text-[13px] opacity-75">{p.location}</div> : null}
+      <div className="mt-4 flex h-12 items-center justify-center bg-[#111] text-[12px] font-extrabold uppercase tracking-[0.1em] text-white">
+        Review &amp; sign ↗
+      </div>
+    </a>
+  );
+}
+
 export default function SiteLinePortal({ token }: { token: string }) {
   const supabase = useMemo(() => createClient(), []);
   const [d, setD] = useState<any>(null);
@@ -52,7 +68,8 @@ export default function SiteLinePortal({ token }: { token: string }) {
   }, [supabase, token]);
 
   const projects: P[] = d?.projects ?? [];
-  const active = projects.filter((p) => p.phase !== "Complete");
+  const toSign = projects.filter((p) => p.needs_signature);
+  const active = projects.filter((p) => p.phase !== "Complete" && !p.needs_signature);
   const done = projects.filter((p) => p.phase === "Complete")
     .sort((a, b) => String(b.completed_date ?? "").localeCompare(String(a.completed_date ?? "")));
   const shownDone = showDone || !active.length ? done : done.slice(0, 3);
@@ -88,9 +105,16 @@ export default function SiteLinePortal({ token }: { token: string }) {
         <p className="mt-4 text-[14px] text-[#555]">No projects to show right now. Call Mike at {PHONE} with any questions.</p>
       ) : null}
 
+      {toSign.length ? (
+        <section className="mt-5">
+          <Label className="mb-3 !text-[10px] !text-[#111]">Waiting on you</Label>
+          {toSign.map((p) => <SignCard key={p.token} p={p} />)}
+        </section>
+      ) : null}
+
       {active.length ? (
         <section className="mt-5">
-          {done.length ? <Label className="mb-3 !text-[10px] !text-[#111]">Current</Label> : null}
+          {done.length || toSign.length ? <Label className="mb-3 !text-[10px] !text-[#111]">Current</Label> : null}
           {active.map((p) => <Row key={p.token} p={p} />)}
         </section>
       ) : null}
