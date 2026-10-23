@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { SignBar } from "@/components/siteline/SignBar";
+import { SignBar, signNeed } from "@/components/siteline/SignBar";
 import { Shell, Label, Pill, YellowButton, PHONE, TEL, Y, HEAD, midDate, isToday, money } from "@/components/siteline/ui";
 
 /* /siteline/<token> — every project for one client, each opening its own SiteLine page.
@@ -42,11 +42,12 @@ function Row({ p }: { p: P }) {
 function SignCard({ p, n, of }: { p: P; n: number; of: number }) {
   const word = p.sign_kind === "change_order" ? "change order" : "proposal";
   const href = p.sign_token ? `/p/${p.sign_token}` : `/site/${p.token}`;
+  const need = signNeed(p.sign_kind, p.phase);
   return (
     <div className="mb-3 p-5 text-[#111] shadow-[0_10px_24px_rgba(242,197,0,0.4)]" style={{ background: Y }}>
       <div className="flex items-center justify-between gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em]">
-        <span className="flex items-center gap-2"><span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#111]" /> Signature needed</span>
-        {of > 1 ? <span className="opacity-70">{n} of {of}</span> : null}
+        <span className="flex items-center gap-2"><span aria-hidden className="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full bg-[#111]" /> {need.label}</span>
+        {of > 1 ? <span className="shrink-0 whitespace-nowrap opacity-70">{n} of {of}</span> : null}
       </div>
       <div className="mt-2 text-[19px] font-extrabold leading-snug" style={HEAD}>{p.job_name}</div>
       <div className="mt-1 flex items-baseline justify-between gap-3 text-[14px]">
@@ -56,9 +57,9 @@ function SignCard({ p, n, of }: { p: P; n: number; of: number }) {
       <a href={href} className="mt-4 flex h-14 items-center justify-center gap-2 bg-[#111] text-[13px] font-extrabold uppercase tracking-[0.1em] text-white transition-transform active:scale-[0.99]">
         Review &amp; sign <span aria-hidden className="text-[18px] leading-none" style={{ color: Y }}>→</span>
       </a>
-      <div className="mt-2.5 flex items-center justify-between text-[12px]">
-        <span className="opacity-75">Takes about a minute on your phone.</span>
-        <a href={`/site/${p.token}`} className="font-bold underline underline-offset-4">View project</a>
+      <div className="mt-2.5 flex items-start justify-between gap-3 text-[12px] leading-snug">
+        <span className="opacity-80">{need.why}</span>
+        <a href={`/site/${p.token}`} className="shrink-0 font-bold underline underline-offset-4">View project</a>
       </div>
     </div>
   );

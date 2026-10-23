@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { SignBar } from "@/components/siteline/SignBar";
+import { SignBar, signNeed } from "@/components/siteline/SignBar";
 import { Shell, Label, Pill, PhaseTrack, DataCard, YellowButton, Section, PHONE, TEL, Y, YD, HEAD, dayDate, midDate, isToday, money } from "@/components/siteline/ui";
 
 /* Isola SiteLine — the client's no-login project page (/site/<token>). Every job has one.
@@ -120,10 +120,11 @@ export default function PublicSiteLine({ token }: { token: string }) {
       {waiting.map((doc) => {
         const isCO = doc.kind === "change_order";
         const word = isCO ? "change order" : "proposal";
+        const need = signNeed(doc.kind, phase);
         return (
           <div key={doc.token} className="mt-5 p-5 text-[#111] shadow-[0_10px_24px_rgba(242,197,0,0.4)]" style={{ background: Y }}>
             <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em]">
-              <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#111]" /> Signature needed
+              <span aria-hidden className="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full bg-[#111]" /> {need.label}
             </div>
             <div className="mt-1.5 flex items-baseline justify-between gap-3">
               <div className="text-[17px] font-extrabold leading-snug" style={HEAD}><span className="capitalize">{word}</span>: {doc.title}</div>
@@ -132,7 +133,7 @@ export default function PublicSiteLine({ token }: { token: string }) {
             <a href={`/p/${doc.token}`} className="mt-4 flex h-14 items-center justify-center gap-2 bg-[#111] text-[13px] font-extrabold uppercase tracking-[0.1em] text-white">
               Review &amp; sign <span aria-hidden className="text-[18px] leading-none" style={{ color: Y }}>→</span>
             </a>
-            <div className="mt-2.5 text-[12px] opacity-75">Takes about a minute on your phone.</div>
+            <div className="mt-2.5 text-[12px] leading-snug opacity-80">{need.why} Takes about a minute.</div>
           </div>
         );
       })}
