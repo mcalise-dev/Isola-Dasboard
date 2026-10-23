@@ -234,7 +234,8 @@ const money$ = (n: number) => "$" + Math.round(n).toLocaleString();
 function TileList({ kind, a, onClose }: { kind: "owed" | "pipeline" | "booked" | "invoice"; a: NonNullable<ReturnType<typeof useAttention>>; onClose: () => void }) {
   type Row = { key: string; title: string; sub: string; amount: number; href: string; tone?: "bad" | "warn" };
   const jobs = a.jobs;
-  const byRef = (ref: string) => jobs.find((j) => String(j.qbo_invoice_ref ?? "").replace(/\s/g, "").split(",").includes(String(ref)));
+  const norm = (x: string) => x.replace(/\s/g, "").toLowerCase();
+  const byRef = (ref: string) => jobs.find((j) => String(j.qbo_invoice_ref ?? "").split(",").map(norm).includes(norm(String(ref))));
   let title = ""; let rows: Row[] = []; let all = { href: "/", label: "All jobs" };
   if (kind === "owed") {
     title = "Owed to me — open QuickBooks invoices";
