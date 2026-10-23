@@ -4,8 +4,9 @@
 -- listing all of their projects, each opening its normal SiteLine page (/site/<token>).
 -- No passwords. The page never says whether an email matched.
 --
--- Security: issuing a link needs PUSH_SERVER_SECRET (same shared secret + sha256 in
--- push_config as v49), so only the Next.js server can mint one — never the browser.
+-- Applied 10/23/26 in small parts (v73a-v73f). push_config (v49) was never applied, so the
+-- portal has its own one-row siteline_portal_config holding the sha256 of PUSH_SERVER_SECRET.
+-- Security: issuing a link needs that server secret, so only the Next.js server can mint one.
 -- Reading a portal needs its long random token, like every other SiteLine link.
 -- Rate limits: 3 requests per email per hour, 10 per IP per hour.
 -- Shows only what SiteLine already shows: never costs, crew pay or notes.
@@ -52,6 +53,16 @@ returns setof uuid language sql stable security definer set search_path = public
 $$;
 revoke all on function public.siteline_portal_job_ids(text) from public, anon, authenticated;
 
+create table if not exists public.siteline_portal_config (
+  id int primary key default 1 check (id = 1),
+  secret_sha256 text not null
+);
+alter table public.siteline_portal_config enable row level security;
+revoke all on public.siteline_portal_config from anon, authenticated;
+insert into public.siteline_portal_config (id, secret_sha256)
+values (1, '9908245d12e0b1e47009076eaefd8c94821e8f93846f49e9256acd6b8bd3fd36')
+on conflict (id) do update set secret_sha256 = excluded.secret_sha256;
+
 -- server only: mint a portal link for an email (or say nothing matched)
 create or replace function public.siteline_portal_issue(p_secret text, p_email text, p_ip text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
@@ -59,7 +70,7 @@ declare e text := lower(btrim(coalesce(p_email, ''))); n int; tok text; who text
 begin
   if p_secret is null
      or encode(extensions.digest(p_secret, 'sha256'), 'hex')
-        is distinct from (select secret_sha256 from push_config where id = 1) then
+        is distinct from (select secret_sha256 from siteline_portal_config where id = 1) then
     return jsonb_build_object('ok', false, 'error', 'forbidden');
   end if;
   if e !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
@@ -84,10 +95,6 @@ begin
      where lower(btrim(pl.signer_email)) = e order by pl.approved_at desc nulls last limit 1;
   end if;
 
-  insert into notifications (kind, title, body, url, dedupe_key)
-  values ('siteline_portal', 'SiteLine link requested',
-          coalesce(who, e) || ' asked for their project link (' || e || ')',
-          '/siteline/' || tok, 'siteline_portal:' || tok);
 
   return jsonb_build_object('ok', true, 'matched', true, 'token', tok, 'count', n,
                             'name', split_part(coalesce(first, ''), ' ', 1), 'customer', who);
