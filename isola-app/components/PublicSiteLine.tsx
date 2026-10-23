@@ -154,7 +154,7 @@ export default function PublicSiteLine({ token }: { token: string }) {
         <DataCard icon="$" label="Contract price" value={money(total)}
           note={Number(d.co_total) ? `Includes ${money(d.co_total)} in change orders` : null} />
       ) : null}
-      <DataCard icon="☎" label="Your direct line" value="Mike Calise" note="Your project lead. One tap to call." />
+      <DataCard label="Your direct line" value="Mike Calise" note="Your project lead. One tap to call." />
       <div className="mt-4">
         <YellowButton href={`tel:${TEL}`}>Contact project lead ↗</YellowButton>
         <a href={`sms:${TEL}`} className="mt-3 block text-center text-[12px] font-bold text-[#555] underline decoration-[#CCC] underline-offset-4">or send a text</a>
@@ -194,14 +194,30 @@ export default function PublicSiteLine({ token }: { token: string }) {
 
       {filed.length ? (
         <Section title="Your documents">
-          {filed.map((doc) => (
-            <a key={doc.token} href={`/p/${doc.token}`} className="flex items-center justify-between gap-3 border-b border-[#EEE] py-2.5 text-[14px] last:border-0">
-              <span className="min-w-0 truncate text-[#333]">{doc.kind === "change_order" ? "Change order" : "Proposal"}: {doc.title}</span>
-              <span className="shrink-0 text-[12px] text-[#777]">
-                {doc.status === "approved" ? `Signed ${midDate(doc.approved_at)}` : doc.status === "declined" ? "Declined" : doc.status === "expired" ? "Expired" : "View"}
-              </span>
-            </a>
-          ))}
+          <p className="-mt-1 mb-3 text-[13px] text-[#666]">Tap a document to open it.</p>
+          <div className="space-y-2.5">
+            {filed.map((doc) => {
+              const signed = doc.status === "approved";
+              const status = signed ? `Signed ${midDate(doc.approved_at)}` : doc.status === "declined" ? "Declined" : doc.status === "expired" ? "Expired" : "Not signed";
+              return (
+                <a key={doc.token} href={`/p/${doc.token}`}
+                  className="flex items-center gap-3 border border-[#E2E2E2] bg-white px-3.5 py-3 transition-colors hover:border-[#111] active:bg-[#F7F7F7]">
+                  <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center bg-[#F3F3F3]">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h5" />
+                    </svg>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14px] font-bold leading-snug text-[#111]">{doc.kind === "change_order" ? "Change order" : "Proposal"}: {doc.title}</span>
+                    <span className={`block text-[12px] ${signed ? "text-[#2E7D32]" : "text-[#777]"}`}>{signed ? "✓ " : ""}{status}</span>
+                  </span>
+                  <span className="flex h-9 shrink-0 items-center gap-1 px-3 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#111]" style={{ background: Y }}>
+                    View <span aria-hidden>→</span>
+                  </span>
+                </a>
+              );
+            })}
+          </div>
         </Section>
       ) : null}
 
