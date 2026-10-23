@@ -18,7 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import JobChecklist from "@/components/JobChecklist";
 import CrewSetup from "@/components/job/CrewSetup";
 import MyClock from "@/components/MyClock";
-import { TmJobBill } from "@/components/TmBilling";
+import { TmJobBill, computeBill } from "@/components/TmBilling";
 import { CostsPanel, LaborPanel, TasksPanel, PhotosPanel, SchedulePanel, JobbookCard, ActivityPanel } from "@/components/job/panels";
 import { MoneyPanel, ProposalPanel, DocsPanel } from "@/components/job/hub";
 import ThmPanel from "@/components/job/ThmPanel";
@@ -98,6 +98,8 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
   const [visits, setVisits] = useState<any[]>([]);
   const [sched, setSched] = useState<any[]>([]);
   const [drafting, setDrafting] = useState(false);
+  // T&M jobs have no fixed price: the Money box measures against what has been billed so far
+  const [tmBilled, setTmBilled] = useState<number | null>(null);
   const [crew, setCrew] = useState<string[]>([]);
   const [customer, setCustomer] = useState<any | null>(null);
   const [property, setProperty] = useState<any | null>(null);
@@ -139,6 +141,14 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
     setCosts(c.data ?? []); setVisits(v.data ?? []); setSched(s.data ?? []);
     setDrafting((e.data ?? []).some((x: any) => !x.sent_at));
     const jd: any = j.data;
+    if (jd?.billing_type === "tm") {
+      const [tc, tr, tw] = await Promise.all([
+        sb.from("job_costs").select("id,entry_date,category,worker,vendor,hours,rate,amount,notes").eq("job_id", id),
+        sb.from("job_pay_rates").select("*").eq("job_id", id),
+        sb.from("workers").select("id,name,rate,rate_type,is_owner"),
+      ]);
+      setTmBilled(computeBill({ job: jd, costs: tc.data ?? [], rates: tr.data ?? [], workers: tw.data ?? [] }).total);
+    } else setTmBilled(null);
     if (jd?.customer_id) sb.from("customers").select("id,name,contact_name,phone,email,client_type,kind").eq("id", jd.customer_id).maybeSingle().then(({ data }) => setCustomer(data ?? null));
     if (jd?.property_id) sb.from("properties").select("id,label,address,city,access_notes").eq("id", jd.property_id).maybeSingle().then(({ data }) => setProperty(data ?? null));
   }, [id, sb]);
@@ -159,7 +169,8 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
 
   const ctx = { walked: visits.length > 0, drafting, scheduled: sched.length > 0 || !!job.start_date };
   const step = nextStep(job, ctx);
-  const priceN = Number(job.price_amount) || parsePrice(job.price);
+  const isTm = job.billing_type === "tm";
+  const priceN = isTm ? (tmBilled ?? 0) : (Number(job.price_amount) || parsePrice(job.price));
   const spent = costs.reduce((a, c) => a + Number(c.amount ?? 0), 0);
   const margin = priceN ? priceN - spent : null;
   const mPct = priceN ? Math.round(((priceN - spent) / priceN) * 100) : null;
@@ -402,12 +413,12 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
           <Card className="p-4">
             <h3 className="mb-2 text-[15px] font-semibold text-white">Money</h3>
             <div className="grid grid-cols-3 gap-2">
-              <div><div className="text-xs text-neutral-500">Contract</div><div className="truncate text-lg font-semibold tabular-nums text-white">{fmtPrice(job.price) || "—"}</div></div>
+              <div><div className="text-xs text-neutral-500">{isTm ? "Billed (T&M)" : "Contract"}</div><div className="truncate text-lg font-semibold tabular-nums text-white">{isTm ? (tmBilled == null ? "—" : `$${Math.round(tmBilled).toLocaleString()}`) : fmtPrice(job.price) || "—"}</div></div>
               <div><div className="text-xs text-neutral-500">Spent</div><div className="text-lg font-semibold tabular-nums text-white">${Math.round(spent).toLocaleString()}</div></div>
               <div><div className="text-xs text-neutral-500">Margin</div>
                 <div className={cn("text-lg font-semibold tabular-nums", mPct == null ? "text-neutral-500" : mPct < 10 ? "text-red-300" : mPct < 30 ? "text-amber-300" : "text-emerald-300")}>{margin == null ? "—" : `${mPct}%`}</div></div>
             </div>
-            {priceN ? <><Progress className="mt-3" value={usedPct} tone={usedPct >= 90 ? "bad" : usedPct >= 70 ? "warn" : "ok"} /><p className="mt-1 text-xs text-neutral-500">{usedPct}% of the price spent{margin != null ? ` · $${Math.round(margin).toLocaleString()} left` : ""}</p></> : null}
+            {priceN ? <><Progress className="mt-3" value={usedPct} tone={usedPct >= 90 ? "bad" : usedPct >= 70 ? "warn" : "ok"} /><p className="mt-1 text-xs text-neutral-500">{usedPct}% of {isTm ? "the billing" : "the price"} spent{margin != null ? ` · $${Math.round(margin).toLocaleString()} left` : ""}</p></> : null}
             <div className="mt-3 flex gap-2">
               <Button size="sm" variant={job.invoiced_date ? "secondary" : "outline"} className="flex-1" onClick={() => pickStep("invoiced")}>{job.invoiced_date ? `Invoiced ${fmtDate(job.invoiced_date).replace(/^\w+, /, "")}` : "Mark invoiced"}</Button>
               <Button size="sm" variant={job.paid_date ? "success" : "outline"} className="flex-1" onClick={() => pickStep("paid")}>{job.paid_date ? `Paid ${fmtDate(job.paid_date).replace(/^\w+, /, "")}` : "Mark paid"}</Button>
