@@ -1,0 +1,5 @@
+-- v75 (10/23/26): Client Login is instant and every client keeps one permanent link.
+-- v75b: siteline_portal_issue reuses the client's first portal link (makes one only if none
+--       exists, with expires_at = infinity); rate limit raised to 30/hour per email and per IP.
+-- v75c: public_siteline_portal no longer checks expires_at, so every existing link is permanent.
+-- The API route now returns the link to the browser, which goes straight to /siteline/<token>.

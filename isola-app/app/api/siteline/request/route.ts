@@ -1,11 +1,9 @@
 // POST /api/siteline/request  { email }
-// A client asks for their SiteLine projects link. The server mints a portal link (needs the
-// server secret, so the browser can never get a token for someone else's email) and emails it.
-// The answer is the same whether or not the email matched, so nobody can fish for clients.
+// Client Login. A known client email goes straight to that client's permanent portal link
+// (instant access, Mike's choice 10/23/26). Unknown emails get "not found".
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_KEY } from "@/lib/supabase/client";
-import { sendPortalEmail } from "@/lib/siteline-mail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +19,7 @@ export async function POST(req: Request) {
   const secret = process.env.PUSH_SERVER_SECRET;
   if (!secret) {
     console.error("[siteline] PUSH_SERVER_SECRET not set");
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: false, error: "server" }, { status: 500 });
   }
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
   const supabase = createClient(
@@ -32,16 +30,12 @@ export async function POST(req: Request) {
   const { data, error } = await supabase.rpc("siteline_portal_issue", { p_secret: secret, p_email: email, p_ip: ip });
   if (error) {
     console.error("[siteline] issue failed:", error.message);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: false, error: "server" }, { status: 500 });
   }
   if (data?.error === "rate_limited") return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
-  if (data?.ok && data.matched && data.token) {
-    try {
-      const r = await sendPortalEmail({ to: email, token: data.token, name: data.name || null, count: data.count ?? 1 });
-      if (!r.sent) console.warn("[siteline] email not sent:", r.reason);
-    } catch (e: any) {
-      console.error("[siteline] email failed:", e?.message ?? e);
-    }
-  }
-  return NextResponse.json({ ok: true });
+  // v7.6 (10/23/26, Mike's call): instant access — a known email goes straight to its portal.
+  // Each client keeps one permanent link (siteline_portal_issue reuses it).
+  if (data?.ok && data.matched && data.token) return NextResponse.json({ ok: true, matched: true, url: `/siteline/${data.token}` });
+  if (data?.ok) return NextResponse.json({ ok: true, matched: false });
+  return NextResponse.json({ ok: false, error: data?.error ?? "server" }, { status: 400 });
 }
