@@ -16,7 +16,7 @@ const BODY = { fontFamily: '"DM Sans", var(--font-geist-sans), Arial, sans-serif
 
 export function Shell({ children, tag }: { children: React.ReactNode; tag?: string }) {
   return (
-    <div className="min-h-screen bg-[#F1F1F1] text-[#171717] antialiased" style={BODY}>
+    <div className="min-h-screen bg-[#F1F1F1] text-[#171717] antialiased" style={{ ...BODY, colorScheme: "light" }}>
       <div className="mx-auto max-w-[520px] px-3 py-4 sm:py-8">
         <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_18px_40px_rgba(0,0,0,0.08)]">
           <header className="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
