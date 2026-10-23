@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAttention, type AttnItem, type Level } from "@/lib/attention";
-import { STATUS_META, PIPELINE, fmtDate, todayISO } from "@/lib/format";
+import { STATUS_META, PIPELINE, fmtDate, todayISO, revenueOf, jobLabel, daysSince } from "@/lib/format";
 import { openNew } from "@/components/SearchPalette";
 import PayHeadline from "@/components/home/PayHeadline";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { Segmented } from "@/components/ui/tabs";
 import { Tip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { typeOf, timeWindow, isOutside } from "@/lib/schedule";
-import { Check, Clock, Navigation, Camera, UserPlus, ListChecks, Plus, ChevronRight, CalendarDays, Sparkles } from "lucide-react";
+import { Check, Clock, Navigation, Camera, UserPlus, ListChecks, Plus, ChevronRight, CalendarDays, Sparkles, X } from "lucide-react";
 
 const DOT: Record<Level, string> = { high: "bg-red-400", mid: "bg-amber-400", low: "bg-neutral-500" };
 const KIND_DOT: Record<string, string> = { work: "bg-brand", visit: "bg-emerald-400", task: "bg-neutral-500", start: "bg-brand", invoice: "bg-amber-400" };
@@ -36,6 +36,9 @@ export default function HomeScreen() {
   const sb = useMemo(() => createClient(), []);
   const { d, snooze, clear } = useDismissed();
   const [filter, setFilter] = useState<"all" | "money" | "jobs" | "marketing">("all");
+  // which money tile is open: tapping a tile lists what makes up its number
+  const [tile, setTile] = useState<null | "owed" | "pipeline" | "booked" | "invoice">(null);
+  const pick = (k: NonNullable<typeof tile>) => setTile((cur) => (cur === k ? null : k));
   const [today, setToday] = useState<any[] | null>(null);
   const t = todayISO();
 
@@ -101,12 +104,13 @@ export default function HomeScreen() {
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {a ? <>
-          <Stat label="Owed to me" value={k$(a.money.totalAr)} hint={a.money.overdue ? <span className="text-red-300">{k$(a.money.overdue)} overdue</span> : a.money.asOf ? `QuickBooks as of ${fmtDate(a.money.asOf).replace(/^\w+, /, "")}` : undefined} onClick={() => router.push("/money")} />
-          <Stat label="Waiting on approval" value={k$(a.money.pipeline)} hint={`${a.counts.awaiting ?? 0} proposals out`} onClick={() => router.push("/proposals")} />
-          <Stat label="Booked work" value={k$(a.money.booked)} hint={`${(a.counts.booked ?? 0) + (a.counts.progress ?? 0)} jobs booked or running`} onClick={() => router.push("/")} />
-          <Stat label="Ready to invoice" value={k$(a.money.toInvoice)} tone={a.money.toInvoice ? "warn" : undefined} hint={a.badges.jobs ? `${a.badges.jobs} finished, not invoiced` : "All caught up"} onClick={() => router.push("/")} />
+          <Stat label="Owed to me" value={k$(a.money.totalAr)} hint={a.money.overdue ? <span className="text-red-300">{k$(a.money.overdue)} overdue</span> : a.money.asOf ? `QuickBooks as of ${fmtDate(a.money.asOf).replace(/^\w+, /, "")}` : undefined} onClick={() => pick("owed")} className={cn(tile === "owed" && "border-white/30")} />
+          <Stat label="Waiting on approval" value={k$(a.money.pipeline)} hint={`${a.counts.awaiting ?? 0} proposals out`} onClick={() => pick("pipeline")} className={cn(tile === "pipeline" && "border-white/30")} />
+          <Stat label="Booked work" value={k$(a.money.booked)} hint={`${(a.counts.booked ?? 0) + (a.counts.progress ?? 0)} jobs booked or running`} onClick={() => pick("booked")} className={cn(tile === "booked" && "border-white/30")} />
+          <Stat label="Ready to invoice" value={k$(a.money.toInvoice)} tone={a.money.toInvoice ? "warn" : undefined} hint={a.badges.jobs ? `${a.badges.jobs} finished, not invoiced` : "All caught up"} onClick={() => pick("invoice")} className={cn(tile === "invoice" && "border-white/30")} />
         </> : [0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-[86px]" />)}
       </div>
+      {a && tile ? <TileList kind={tile} a={a} onClose={() => setTile(null)} /> : null}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-7">
@@ -222,5 +226,66 @@ export default function HomeScreen() {
         </aside>
       </div>
     </div>
+  );
+}
+
+// ---------------- what's behind each money tile ----------------
+const money$ = (n: number) => "$" + Math.round(n).toLocaleString();
+function TileList({ kind, a, onClose }: { kind: "owed" | "pipeline" | "booked" | "invoice"; a: NonNullable<ReturnType<typeof useAttention>>; onClose: () => void }) {
+  type Row = { key: string; title: string; sub: string; amount: number; href: string; tone?: "bad" | "warn" };
+  const jobs = a.jobs;
+  const byRef = (ref: string) => jobs.find((j) => String(j.qbo_invoice_ref ?? "").replace(/\s/g, "").split(",").includes(String(ref)));
+  let title = ""; let rows: Row[] = []; let all = { href: "/", label: "All jobs" };
+  if (kind === "owed") {
+    title = "Owed to me — open QuickBooks invoices";
+    all = { href: "/money", label: "Money tab" };
+    rows = [...a.invoices].sort((x, y) => (y.days_overdue ?? 0) - (x.days_overdue ?? 0) || y.amount - x.amount).map((i: any) => {
+      const j = byRef(i.ref);
+      const late = Number(i.days_overdue ?? 0);
+      return {
+        key: "inv" + i.ref, title: j ? jobLabel(j) : i.customer,
+        sub: `Invoice #${i.ref}${j ? " · " + i.customer : ""} · ${late > 0 ? `${late} days overdue` : `due ${fmtDate(i.due).replace(/^\w+, /, "")}`}`,
+        amount: Number(i.amount ?? 0), href: j ? `/jobs/${j.id}?tab=money` : "/money", tone: late > 30 ? "bad" : late > 0 ? "warn" : undefined,
+      };
+    });
+  } else {
+    const pickJobs = kind === "pipeline" ? jobs.filter((x) => x.status === "awaiting")
+      : kind === "booked" ? jobs.filter((x) => x.status === "booked" || x.status === "progress")
+      : jobs.filter((x) => x.status === "complete" && !x.invoiced_date && !x.paid_date);
+    title = kind === "pipeline" ? "Waiting on approval — proposals out" : kind === "booked" ? "Booked work — booked or running" : "Ready to invoice — finished, not invoiced";
+    if (kind === "pipeline") all = { href: "/proposals", label: "Proposals" };
+    rows = pickJobs.map((j) => {
+      const d = kind === "pipeline" && j.quoted_date ? daysSince(j.quoted_date) : null;
+      const sub = kind === "pipeline" ? (j.quoted_date ? `Sent ${fmtDate(j.quoted_date).replace(/^\w+, /, "")} · ${d} days out` : "Sent, no date")
+        : kind === "booked" ? `${STATUS_META[j.status]?.label ?? j.status}${j.start_date ? " · starts " + fmtDate(j.start_date).replace(/^\w+, /, "") : ""}`
+        : `Finished ${j.completed_date ? fmtDate(j.completed_date).replace(/^\w+, /, "") : ""}`;
+      return { key: j.id, title: jobLabel(j), sub, amount: revenueOf(j), href: `/jobs/${j.id}`, tone: d != null && d > 30 ? "bad" : d != null && d > 14 ? "warn" : undefined } as Row;
+    }).sort((x, y) => y.amount - x.amount);
+  }
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  return (
+    <Card className="-mt-3 mb-6 p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <h3 className="text-[15px] font-semibold text-white">{title}</h3>
+        <span className="text-sm tabular-nums text-neutral-400">{rows.length} · {money$(total)}</span>
+        <Link href={all.href} className="ml-auto text-xs font-semibold text-neutral-500 hover:text-white">{all.label}</Link>
+        <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-neutral-500 hover:bg-white/5 hover:text-white"><X size={16} /></button>
+      </div>
+      {rows.length ? (
+        <div className="divide-y divide-white/[0.06]">
+          {rows.map((r) => (
+            <Link key={r.key} href={r.href} className="flex items-center gap-3 py-2.5 hover:opacity-80">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-white">{r.title}</span>
+                <span className={cn("block truncate text-xs", r.tone === "bad" ? "text-red-300" : r.tone === "warn" ? "text-amber-300" : "text-neutral-500")}>{r.sub}</span>
+              </span>
+              <span className="shrink-0 text-sm font-semibold tabular-nums text-white">{money$(r.amount)}</span>
+              <ChevronRight size={15} className="shrink-0 text-neutral-600" />
+            </Link>
+          ))}
+        </div>
+      ) : <p className="text-sm text-neutral-500">Nothing here right now.</p>}
+      {kind === "owed" && a.money.asOf ? <p className="mt-2 text-xs text-neutral-500">From QuickBooks as of {fmtDate(a.money.asOf).replace(/^\w+, /, "")}. Tap one to open its job.</p> : null}
+    </Card>
   );
 }

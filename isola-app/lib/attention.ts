@@ -16,6 +16,7 @@ export type Attention = {
   money: { totalAr: number; overdue: number; asOf: string | null; pipeline: number; booked: number; toInvoice: number };
   counts: Record<string, number>;
   jobs: any[];
+  invoices: any[];
   loadedAt: number;
 };
 
@@ -37,7 +38,7 @@ async function compute(): Promise<Attention> {
   const today = todayISO();
   const in7 = addDays(today, 7);
   const [j, t, se, sv, ms, ct, mt, jc, ap, vo] = await Promise.all([
-    sb.from("jobs").select("id,job_name,customer,location,job,status,price,price_amount,contract_holder,isola_cut,quoted_date,start_date,completed_date,invoiced_date,paid_date,created_at,review_requested_at,priority,due_date"),
+    sb.from("jobs").select("id,job_name,customer,location,job,status,price,price_amount,contract_holder,isola_cut,qbo_invoice_ref,quoted_date,start_date,completed_date,invoiced_date,paid_date,created_at,review_requested_at,priority,due_date"),
     sb.from("tasks").select("id,title,job_id,due_date,priority").eq("done", false),
     sb.from("schedule_entries").select("id,entry_date,job_id,label,assignee").gte("entry_date", addDays(today, -60)),
     sb.from("site_visits").select("id,job_id,visit_date,property_address,client_company"),
@@ -152,6 +153,7 @@ async function compute(): Promise<Attention> {
   const sum = (f: (x: any) => boolean) => jobs.filter(f).reduce((a, x) => a + revenueOf(x), 0);
   return {
     items, horizon, badges, counts, jobs,
+    invoices: snap?.invoices ?? [],
     money: {
       totalAr: Number(snap?.total_ar ?? 0), overdue: Number(snap?.overdue ?? 0), asOf: snap?.as_of ?? null,
       pipeline: sum((x) => x.status === "awaiting"), booked: sum((x) => x.status === "booked" || x.status === "progress"),
