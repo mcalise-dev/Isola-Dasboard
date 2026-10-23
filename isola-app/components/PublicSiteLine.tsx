@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { SignBar } from "@/components/siteline/SignBar";
 import { Shell, Label, Pill, PhaseTrack, DataCard, YellowButton, Section, PHONE, TEL, Y, YD, HEAD, dayDate, midDate, isToday, money } from "@/components/siteline/ui";
 
 /* Isola SiteLine — the client's no-login project page (/site/<token>). Every job has one.
@@ -118,15 +119,21 @@ export default function PublicSiteLine({ token }: { token: string }) {
       {/* anything waiting on the client comes first */}
       {waiting.map((doc) => {
         const isCO = doc.kind === "change_order";
+        const word = isCO ? "change order" : "proposal";
         return (
-          <a key={doc.token} href={`/p/${doc.token}`} className="mt-5 block p-4 text-[#111] transition-opacity hover:opacity-90" style={{ background: Y }}>
-            <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] opacity-70">Needs your signature</div>
-            <div className="mt-1 flex items-baseline justify-between gap-3">
-              <div className="text-[16px] font-bold leading-snug">{isCO ? "Change order" : "Proposal"}: {doc.title}</div>
+          <div key={doc.token} className="mt-5 p-5 text-[#111] shadow-[0_10px_24px_rgba(242,197,0,0.4)]" style={{ background: Y }}>
+            <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em]">
+              <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#111]" /> Signature needed
+            </div>
+            <div className="mt-1.5 flex items-baseline justify-between gap-3">
+              <div className="text-[17px] font-extrabold leading-snug" style={HEAD}><span className="capitalize">{word}</span>: {doc.title}</div>
               {doc.price != null ? <div className="shrink-0 text-[20px] font-extrabold tabular-nums" style={HEAD}>{money(doc.price)}</div> : null}
             </div>
-            <div className="mt-2 text-[12px] font-extrabold uppercase tracking-[0.08em]">Review and sign ↗</div>
-          </a>
+            <a href={`/p/${doc.token}`} className="mt-4 flex h-14 items-center justify-center gap-2 bg-[#111] text-[13px] font-extrabold uppercase tracking-[0.1em] text-white">
+              Review &amp; sign <span aria-hidden className="text-[18px] leading-none" style={{ color: Y }}>→</span>
+            </a>
+            <div className="mt-2.5 text-[12px] opacity-75">Takes about a minute on your phone.</div>
+          </div>
         );
       })}
 
@@ -198,6 +205,7 @@ export default function PublicSiteLine({ token }: { token: string }) {
       ) : null}
 
       <a href="/siteline" className="mt-7 block text-center text-[12px] font-bold text-[#777]">See all your projects →</a>
+      {waiting.length ? <SignBar href={`/p/${waiting[0].token}`} label={waiting.length > 1 ? `${waiting.length} to sign · Start now` : `Review & sign the ${waiting[0].kind === "change_order" ? "change order" : "proposal"}`} /> : null}
     </Shell>
   );
 }

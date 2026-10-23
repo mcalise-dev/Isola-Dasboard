@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Shell, Label, Pill, YellowButton, PHONE, TEL, Y, HEAD, midDate, isToday } from "@/components/siteline/ui";
+import { SignBar } from "@/components/siteline/SignBar";
+import { Shell, Label, Pill, YellowButton, PHONE, TEL, Y, HEAD, midDate, isToday, money } from "@/components/siteline/ui";
 
 /* /siteline/<token> — every project for one client, each opening its own SiteLine page.
    Data comes from public_siteline_portal(token): status and dates only, never money or notes.
    v7.5: website SiteLine look. */
 
-type P = { token: string; job_name: string; location?: string; phase: string; start_date?: string; completed_date?: string; next_day?: string; needs_signature?: boolean };
+type P = { token: string; job_name: string; location?: string; phase: string; start_date?: string; completed_date?: string; next_day?: string; needs_signature?: boolean; sign_token?: string; sign_kind?: string; sign_title?: string; sign_price?: number };
 
 function line(p: P) {
   if (p.needs_signature) return "Waiting on your signature";
@@ -37,19 +38,29 @@ function Row({ p }: { p: P }) {
   );
 }
 
-/** big yellow card for anything waiting on the client's signature */
-function SignCard({ p }: { p: P }) {
+/** big yellow card for anything waiting on the client's signature — goes straight to the signing page */
+function SignCard({ p, n, of }: { p: P; n: number; of: number }) {
+  const word = p.sign_kind === "change_order" ? "change order" : "proposal";
+  const href = p.sign_token ? `/p/${p.sign_token}` : `/site/${p.token}`;
   return (
-    <a href={`/site/${p.token}`} className="mb-3 block p-5 text-[#111] shadow-[0_8px_20px_rgba(242,197,0,0.35)] transition-transform hover:-translate-y-0.5" style={{ background: Y }}>
-      <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em]">
-        <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#111]" /> Action needed · Signature
+    <div className="mb-3 p-5 text-[#111] shadow-[0_10px_24px_rgba(242,197,0,0.4)]" style={{ background: Y }}>
+      <div className="flex items-center justify-between gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em]">
+        <span className="flex items-center gap-2"><span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#111]" /> Signature needed</span>
+        {of > 1 ? <span className="opacity-70">{n} of {of}</span> : null}
       </div>
-      <div className="mt-2 text-[18px] font-extrabold leading-snug" style={HEAD}>{p.job_name}</div>
-      {p.location && p.location !== p.job_name ? <div className="mt-0.5 text-[13px] opacity-75">{p.location}</div> : null}
-      <div className="mt-4 flex h-12 items-center justify-center bg-[#111] text-[12px] font-extrabold uppercase tracking-[0.1em] text-white">
-        Review &amp; sign ↗
+      <div className="mt-2 text-[19px] font-extrabold leading-snug" style={HEAD}>{p.job_name}</div>
+      <div className="mt-1 flex items-baseline justify-between gap-3 text-[14px]">
+        <span className="font-semibold">{word.charAt(0).toUpperCase() + word.slice(1)}{p.sign_title ? `: ${p.sign_title}` : ""}</span>
+        {p.sign_price != null ? <span className="shrink-0 text-[18px] font-extrabold tabular-nums" style={HEAD}>{money(p.sign_price)}</span> : null}
       </div>
-    </a>
+      <a href={href} className="mt-4 flex h-14 items-center justify-center gap-2 bg-[#111] text-[13px] font-extrabold uppercase tracking-[0.1em] text-white transition-transform active:scale-[0.99]">
+        Review &amp; sign <span aria-hidden className="text-[18px] leading-none" style={{ color: Y }}>→</span>
+      </a>
+      <div className="mt-2.5 flex items-center justify-between text-[12px]">
+        <span className="opacity-75">Takes about a minute on your phone.</span>
+        <a href={`/site/${p.token}`} className="font-bold underline underline-offset-4">View project</a>
+      </div>
+    </div>
   );
 }
 
@@ -107,8 +118,14 @@ export default function SiteLinePortal({ token }: { token: string }) {
 
       {toSign.length ? (
         <section className="mt-5">
-          <Label className="mb-3 !text-[10px] !text-[#111]">Waiting on you</Label>
-          {toSign.map((p) => <SignCard key={p.token} p={p} />)}
+          <div className="mb-3 flex items-center gap-3 bg-[#111] px-4 py-3 text-white">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[15px] font-black text-[#111]" style={{ background: Y }}>{toSign.length}</span>
+            <span className="text-[14px] font-bold leading-snug">
+              {toSign.length === 1 ? "1 item is waiting for your signature." : `${toSign.length} items are waiting for your signature.`}
+              <span className="block text-[12px] font-normal text-[#CFCFCF]">Start below. Each one takes about a minute.</span>
+            </span>
+          </div>
+          {toSign.map((p, i) => <SignCard key={p.token} p={p} n={i + 1} of={toSign.length} />)}
         </section>
       ) : null}
 
@@ -135,6 +152,7 @@ export default function SiteLinePortal({ token }: { token: string }) {
         <YellowButton href={`tel:${TEL}`}>Contact project lead ↗</YellowButton>
         <a href={`sms:${TEL}`} className="mt-3 block text-center text-[12px] font-bold text-[#555] underline decoration-[#CCC] underline-offset-4">or send a text</a>
       </div>
+      {toSign.length ? <SignBar href={toSign[0].sign_token ? `/p/${toSign[0].sign_token}` : `/site/${toSign[0].token}`} count={toSign.length} /> : null}
     </Shell>
   );
 }

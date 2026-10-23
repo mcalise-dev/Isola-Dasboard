@@ -1,0 +1,4 @@
+-- v74 (10/23/26): the client's projects page links straight to the document to sign.
+-- public_siteline_portal now returns, per project, the first open proposal / change order:
+-- sign_token, sign_kind, sign_title, sign_price (needs_signature = one exists).
+-- Applied 10/23/26 as v74_portal_sign_link (full function body lives in the database).
