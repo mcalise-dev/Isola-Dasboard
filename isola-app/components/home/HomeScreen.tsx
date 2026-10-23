@@ -104,7 +104,7 @@ export default function HomeScreen() {
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {a ? <>
-          <Stat label="Owed to me" value={k$(a.money.totalAr)} hint={a.money.overdue ? <span className="text-red-300">{k$(a.money.overdue)} overdue</span> : a.money.asOf ? `QuickBooks as of ${fmtDate(a.money.asOf).replace(/^\w+, /, "")}` : undefined} onClick={() => pick("owed")} className={cn(tile === "owed" && "border-white/30")} />
+          <Stat label="Owed to me" value={k$(a.money.totalAr)} hint={a.money.overdue ? <span className="text-red-300">{k$(a.money.overdue)} overdue</span> : `${a.money.owedCount} job${a.money.owedCount === 1 ? "" : "s"} not paid yet`} onClick={() => pick("owed")} className={cn(tile === "owed" && "border-white/30")} />
           <Stat label="Waiting on approval" value={k$(a.money.pipeline)} hint={`${a.counts.awaiting ?? 0} proposals out`} onClick={() => pick("pipeline")} className={cn(tile === "pipeline" && "border-white/30")} />
           <Stat label="Booked work" value={k$(a.money.booked)} hint={`${(a.counts.booked ?? 0) + (a.counts.progress ?? 0)} jobs booked or running`} onClick={() => pick("booked")} className={cn(tile === "booked" && "border-white/30")} />
           <Stat label="Ready to invoice" value={k$(a.money.toInvoice)} tone={a.money.toInvoice ? "warn" : undefined} hint={a.badges.jobs ? `${a.badges.jobs} finished, not invoiced` : "All caught up"} onClick={() => pick("invoice")} className={cn(tile === "invoice" && "border-white/30")} />
@@ -234,20 +234,19 @@ const money$ = (n: number) => "$" + Math.round(n).toLocaleString();
 function TileList({ kind, a, onClose }: { kind: "owed" | "pipeline" | "booked" | "invoice"; a: NonNullable<ReturnType<typeof useAttention>>; onClose: () => void }) {
   type Row = { key: string; title: string; sub: string; amount: number; href: string; tone?: "bad" | "warn" };
   const jobs = a.jobs;
-  const norm = (x: string) => x.replace(/\s/g, "").toLowerCase();
-  const byRef = (ref: string) => jobs.find((j) => String(j.qbo_invoice_ref ?? "").split(",").map(norm).includes(norm(String(ref))));
   let title = ""; let rows: Row[] = []; let all = { href: "/", label: "All jobs" };
   if (kind === "owed") {
-    title = "Owed to me — open QuickBooks invoices";
+    title = "Owed to me — work done, not paid yet";
     all = { href: "/money", label: "Money tab" };
-    rows = [...a.invoices].sort((x, y) => (y.days_overdue ?? 0) - (x.days_overdue ?? 0) || y.amount - x.amount).map((i: any) => {
-      const j = byRef(i.ref);
-      const late = Number(i.days_overdue ?? 0);
-      return {
-        key: "inv" + i.ref, title: j ? jobLabel(j) : i.customer,
-        sub: `Invoice #${i.ref}${j ? " · " + i.customer : ""} · ${late > 0 ? `${late} days overdue` : `due ${fmtDate(i.due).replace(/^\w+, /, "")}`}`,
-        amount: Number(i.amount ?? 0), href: j ? `/jobs/${j.id}?tab=money` : "/money", tone: late > 30 ? "bad" : late > 0 ? "warn" : undefined,
-      };
+    rows = a.owed.map((r) => {
+      const j = r.job;
+      const parts = [
+        j.status === "progress" ? "In progress" : j.invoiced_date ? `Invoiced ${fmtDate(j.invoiced_date).replace(/^\w+, /, "")}` : "Finished, not invoiced",
+        j.billing_type === "tm" ? "T&M billed to date" : null,
+        r.paid > 0 ? `${money$(r.billed)} less ${money$(r.paid)} paid` : null,
+        r.overdueDays > 0 ? `${r.overdueDays} days overdue` : null,
+      ].filter(Boolean);
+      return { key: j.id, title: jobLabel(j), sub: parts.join(" · "), amount: r.owed, href: `/jobs/${j.id}?tab=money`, tone: r.overdueDays > 30 ? "bad" : r.overdueDays > 0 ? "warn" : undefined } as Row;
     });
   } else {
     const pickJobs = kind === "pipeline" ? jobs.filter((x) => x.status === "awaiting")
@@ -286,7 +285,7 @@ function TileList({ kind, a, onClose }: { kind: "owed" | "pipeline" | "booked" |
           ))}
         </div>
       ) : <p className="text-sm text-neutral-500">Nothing here right now.</p>}
-      {kind === "owed" && a.money.asOf ? <p className="mt-2 text-xs text-neutral-500">From QuickBooks as of {fmtDate(a.money.asOf).replace(/^\w+, /, "")}. Tap one to open its job.</p> : null}
+      {kind === "owed" ? <p className="mt-2 text-xs text-neutral-500">From your jobs in the app: price (or T&M billed to date) minus payments recorded. Mark a job paid and it drops off.</p> : null}
     </Card>
   );
 }

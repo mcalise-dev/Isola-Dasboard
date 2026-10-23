@@ -3,7 +3,7 @@
 // sidebar badges, so the three never disagree and the database is read once a minute.
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { daysSince, fmtDate, parsePrice, revenueOf, todayISO } from "@/lib/format";
+import { daysSince, fmtDate, parsePrice, revenueOf, isThmContract, todayISO } from "@/lib/format";
 
 export type Level = "high" | "mid" | "low";
 export type AttnItem = { id: string; level: Level; kind: string; title: string; sub: string; href: string; amount?: number };
@@ -13,10 +13,11 @@ export type Attention = {
   items: AttnItem[];
   horizon: HorizonEvent[];
   badges: Record<string, number>;
-  money: { totalAr: number; overdue: number; asOf: string | null; pipeline: number; booked: number; toInvoice: number };
+  money: { totalAr: number; overdue: number; asOf: string | null; pipeline: number; booked: number; toInvoice: number; owedCount: number };
   counts: Record<string, number>;
   jobs: any[];
   invoices: any[];
+  owed: { job: any; billed: number; paid: number; owed: number; overdueDays: number }[];
   loadedAt: number;
 };
 
@@ -37,8 +38,8 @@ async function compute(): Promise<Attention> {
   const sb = createClient();
   const today = todayISO();
   const in7 = addDays(today, 7);
-  const [j, t, se, sv, ms, ct, mt, jc, ap, vo] = await Promise.all([
-    sb.from("jobs").select("id,job_name,customer,location,job,status,price,price_amount,contract_holder,isola_cut,qbo_invoice_ref,quoted_date,start_date,completed_date,invoiced_date,paid_date,created_at,review_requested_at,priority,due_date"),
+  const [j, t, se, sv, ms, ct, mt, jc, ap, vo, fin] = await Promise.all([
+    sb.from("jobs").select("id,job_name,customer,location,job,status,price,price_amount,contract_holder,isola_cut,qbo_invoice_ref,billing_type,tm_invoice_total,paid_amount,quoted_date,start_date,completed_date,invoiced_date,paid_date,created_at,review_requested_at,priority,due_date"),
     sb.from("tasks").select("id,title,job_id,due_date,priority").eq("done", false),
     sb.from("schedule_entries").select("id,entry_date,job_id,label,assignee").gte("entry_date", addDays(today, -60)),
     sb.from("site_visits").select("id,job_id,visit_date,property_address,client_company"),
@@ -49,7 +50,9 @@ async function compute(): Promise<Attention> {
     sb.from("mkt_action_proposals").select("id,title,action_type,recipients,created_at").eq("status", "proposed"),
     // subs whose COI is expired or runs out within 30 days (same rule as the push alert)
     sb.from("vendor_overview").select("coi_expires,status").not("coi_id", "is", null).lte("coi_expires", in30(today)),
+    sb.from("job_financials").select("job_id,paid_to_date"),
   ]);
+  const paidByJob = new Map<string, number>(((fin as any).data ?? []).map((r: any) => [r.job_id, Number(r.paid_to_date) || 0]));
   const jobs: any[] = j.data ?? [];
   const tasks: any[] = t.data ?? [];
   const sched: any[] = se.data ?? [];
@@ -151,11 +154,27 @@ async function compute(): Promise<Attention> {
   };
 
   const sum = (f: (x: any) => boolean) => jobs.filter(f).reduce((a, x) => a + revenueOf(x), 0);
+
+  // Owed to me, from the app itself (not QuickBooks): every job where work has been done
+  // (in progress or complete) and isn't marked paid. Billed = contract price, or billed-to-date
+  // on T&M jobs, or Mike's cut on THM-held jobs. Owed = billed minus payments recorded.
+  const owed = jobs
+    .filter((x) => (x.status === "complete" || x.status === "progress") && !x.paid_date)
+    .map((x) => {
+      const billed = x.billing_type === "tm" && !isThmContract(x) ? Number(x.tm_invoice_total) || 0 : revenueOf(x);
+      const paid = Math.max(paidByJob.get(x.id) ?? 0, Number(x.paid_amount) || 0);
+      const overdueDays = x.due_date && x.due_date < today ? daysSince(x.due_date) : 0;
+      return { job: x, billed, paid, owed: Math.round((billed - paid) * 100) / 100, overdueDays };
+    })
+    .filter((r) => r.owed > 0.005)
+    .sort((a, b) => b.overdueDays - a.overdueDays || b.owed - a.owed);
   return {
     items, horizon, badges, counts, jobs,
     invoices: snap?.invoices ?? [],
+    owed,
     money: {
-      totalAr: Number(snap?.total_ar ?? 0), overdue: Number(snap?.overdue ?? 0), asOf: snap?.as_of ?? null,
+      totalAr: owed.reduce((a, r) => a + r.owed, 0), overdue: owed.filter((r) => r.overdueDays > 0).reduce((a, r) => a + r.owed, 0), asOf: snap?.as_of ?? null,
+      owedCount: owed.length,
       pipeline: sum((x) => x.status === "awaiting"), booked: sum((x) => x.status === "booked" || x.status === "progress"),
       toInvoice: sum((x) => x.status === "complete" && !x.invoiced_date && !x.paid_date),
     },
