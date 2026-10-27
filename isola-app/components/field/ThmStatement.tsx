@@ -16,7 +16,7 @@ type Data = { jobs: Job[]; owed_to_thm: number; owed_to_isola: number; net: numb
 const usd = (n: number) => (n < 0 ? "-$" : "$") + Math.abs(Number(n || 0)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const STAGE: Record<string, string> = { progress: "In progress", booked: "Booked", future: "Future", awaiting: "Quoted", lead: "Lead", complete: "Complete" };
 
-export default function ThmStatement() {
+export default function ThmStatement({ owner = false }: { owner?: boolean }) {
   const sb = useMemo(() => createClient(), []);
   const [d, setD] = useState<Data | null>(null);
   const [err, setErr] = useState(false);
@@ -35,7 +35,7 @@ export default function ThmStatement() {
   return (
     <section>
       <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-        <div className="text-[11px] font-bold uppercase tracking-widest text-neutral-400">{d.net >= 0 ? "Isola owes THM" : "THM owes Isola"}</div>
+        <div className="text-[11px] font-bold uppercase tracking-widest text-neutral-400">{owner ? (d.net >= 0 ? "Running tab: you owe THM" : "Running tab: THM owes you") : (d.net >= 0 ? "Isola owes THM" : "THM owes Isola")}</div>
         <div className="mt-1 text-4xl font-extrabold tabular-nums text-white">{usd(Math.abs(d.net))}</div>
         <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-lg border border-white/10 px-3 py-2">
@@ -48,13 +48,13 @@ export default function ThmStatement() {
           </div>
         </div>
         {anyEstimate ? <p className="mt-2 text-xs text-amber-300">Jobs still going are estimates — the split is final at closeout.</p> : null}
-        {d.waiting > 0 ? <p className="mt-1 text-xs text-amber-300">{usd(d.waiting)} in receipts waiting for Mike's OK — not counted yet.</p> : null}
+        {d.waiting > 0 ? <p className="mt-1 text-xs text-amber-300">{usd(d.waiting)} in receipts waiting for {owner ? "your" : "Mike's"} OK — not counted yet.</p> : null}
       </div>
 
       <h2 className="mt-5 text-[11px] font-bold uppercase tracking-widest text-neutral-400">By job</h2>
       <div className="mt-2 space-y-3">
         {open.length === 0 ? <div className="rounded-xl border border-white/10 p-4 text-sm text-neutral-400">Nothing open right now.</div>
-          : open.map((j) => <JobCard key={j.id} j={j} />)}
+          : open.map((j) => <JobCard key={j.id} j={j} owner={owner} />)}
       </div>
 
       {settled.length ? (
@@ -63,18 +63,18 @@ export default function ThmStatement() {
             <span>Settled — Invoice #94 ({settled.length})</span>
             <ChevronDown size={16} className={showSettled ? "rotate-180" : ""} />
           </button>
-          {showSettled ? <div className="mt-2 space-y-3">{settled.map((j) => <JobCard key={j.id} j={j} />)}</div> : null}
+          {showSettled ? <div className="mt-2 space-y-3">{settled.map((j) => <JobCard key={j.id} j={j} owner={owner} />)}</div> : null}
         </div>
       ) : null}
     </section>
   );
 }
 
-function JobCard({ j }: { j: Job }) {
+function JobCard({ j, owner }: { j: Job; owner?: boolean }) {
   const toThm = j.direction === "isola_owes_thm";
   return (
     <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
-      <Link href={`/field/thm/${j.id}`} className="flex items-start gap-3 border-b border-white/10 px-4 py-3 hover:bg-white/[0.05]">
+      <Link href={owner ? `/jobs/${j.id}?tab=thm` : `/field/thm/${j.id}`} className="flex items-start gap-3 border-b border-white/10 px-4 py-3 hover:bg-white/[0.05]">
         <div className="min-w-0 flex-1">
           <div className="truncate text-[15px] font-semibold text-white">{j.name}</div>
           <div className="truncate text-xs text-neutral-400">

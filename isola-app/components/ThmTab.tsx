@@ -10,6 +10,7 @@ import { copyText } from "@/components/Dialogs";
 import { PageHeader, SectionTitle, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import ThmStatement from "@/components/field/ThmStatement";
 import { AlertTriangle, BookOpen, Check, Copy, Link2, Receipt, Trash2, Truck } from "lucide-react";
 
 type Entry = {
@@ -149,18 +150,13 @@ export default function ThmTab() {
     <div className="space-y-5">
       {header}
 
+      <ThmStatement owner />
+
       <div className="grid gap-3 sm:grid-cols-2">
-        <Stat
-          label={tab >= 0 ? "Running tab: THM owes you" : "Running tab: you owe THM"}
-          value={money(Math.abs(tab))}
-          hint={pending ? `${money(Math.abs(pending))} of it is from jobs still in progress` : jobRows.length ? "All from finished jobs" : "No job lines yet"}
-          tone={tab >= 0 ? "ok" : "warn"}
-        />
         <Stat
           label="THM owes ISOLA — Invoice #94"
           value={money(inv94Balance)}
           hint={`$40,155.50 opening · ${money(sum(inv94, "owes_thm"))} applied`}
-          className="sm:col-span-1"
         />
         {standalone.length ? (
           <Stat label="Standalone (not part of #94)" value={money(standaloneBal)} hint="owed to ISOLA" />
@@ -213,31 +209,6 @@ export default function ThmTab() {
         </div>
       ) : null}
 
-      <section>
-        <SectionTitle>Jobs with THM</SectionTitle>
-        {jobRows.length ? (
-          <Card className="overflow-hidden">
-            {jobRows.map((j) => (
-              <Link key={j.id} href={`/jobs/${j.id}?tab=thm`} className={cn("flex items-start gap-3 border-b border-border px-4 py-3 last:border-0 hover:bg-white/[0.03]", j.status !== "complete" && "bg-amber-500/[0.04]")}>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-white">{j.name}</div>
-                  <div className="text-xs text-neutral-400">
-                    {j.holder === "thm" ? "THM's contract · THM owes you" : "Your contract · you owe THM"}
-                    {" · "}{j.deal === "split" ? "50/50 + reimbursements" : "time + equipment"}
-                    {" · "}{j.lines} line{j.lines === 1 ? "" : "s"}
-                    {j.status !== "complete" ? <span className="text-amber-300">{" · in progress"}</span> : ""}
-                  </div>
-                </div>
-                <div className={cn("shrink-0 text-sm font-bold tabular-nums", j.holder === "thm" ? "text-white" : "text-emerald-300")}>
-                  {(j.holder === "thm" ? "" : "−") + money(j.total)}
-                </div>
-              </Link>
-            ))}
-          </Card>
-        ) : (
-          <Empty icon={<Truck size={24} />} title="No THM job lines yet" body="On a job THM is on, open its THM tab and add the truck, machine and labor time." />
-        )}
-      </section>
 
       <section>
         <SectionTitle>Applied against Invoice #94</SectionTitle>
