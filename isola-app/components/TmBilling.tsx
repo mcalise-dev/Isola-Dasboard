@@ -5,6 +5,8 @@
 //   Materials   = every non-labor cost × (1 + jobs.materials_markup%). Markup is 5/10/15/20/25.
 //   Trucking    = optional; job_costs category "Trucking", billed like materials (cost + markup)
 //                 but shown as its own section so it reads as a separate line on the bill.
+//   Own equipment = any line with job_costs.bill_amount set (e.g. Isola's own truck): billed at
+//                 bill_amount, no markup, and amount = 0 so it never shows as money Mike spent.
 //   Cost side   = what's actually paid out (job_costs.amount), so margin is real.
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -22,6 +24,11 @@ export const MARKUPS = [5, 10, 15, 20, 25];
 const num = (v: any) => (v == null || v === "" ? null : Number(v));
 
 type Data = { job: any; costs: any[]; rates: any[]; workers: any[] };
+
+// What one non-labor line bills: own-equipment lines bill their bill_amount flat; everything else is cost + markup.
+export const billedOf = (c: any, markup: number | null) =>
+  num(c.bill_amount) != null ? Number(c.bill_amount) : Math.round(Number(c.amount || 0) * (1 + (markup ?? 0) / 100) * 100) / 100;
+const sumBilled = (items: any[], markup: number | null) => Math.round(items.reduce((a, c) => a + billedOf(c, markup), 0) * 100) / 100;
 
 export function computeBill({ job, costs, rates, workers }: Data) {
   const wByName = (n: string | null) => workers.find((w) => w.name.toLowerCase() === String(n ?? "").trim().toLowerCase());
@@ -50,9 +57,9 @@ export function computeBill({ job, costs, rates, workers }: Data) {
   const laborCost = labor.reduce((a, c) => a + Number(c.amount || 0), 0);
   const laborBill = [...people.values()].reduce((a, p) => a + p.bill, 0);
   const matCost = other.reduce((a, c) => a + Number(c.amount || 0), 0);
-  const matBill = Math.round(matCost * (1 + (markup ?? 0) / 100) * 100) / 100;
+  const matBill = sumBilled(other, markup);
   const truckCost = trucking.reduce((a, c) => a + Number(c.amount || 0), 0);
-  const truckBill = Math.round(truckCost * (1 + (markup ?? 0) / 100) * 100) / 100;
+  const truckBill = sumBilled(trucking, markup);
   const total = laborBill + matBill + truckBill;
   const cost = laborCost + matCost + truckCost;
   return { people: [...people.values()], laborCost, laborBill, matCost, matBill, truckCost, truckBill, trucking, markup, total, cost, margin: total - cost, missingRate, other };
@@ -66,7 +73,8 @@ function CostSection({ title, empty, items, cost, bill, markup }: { title: strin
         <div className="space-y-1">
           {items.map((c: any) => {
             const amt = Number(c.amount || 0);
-            const billed = Math.round(amt * (1 + (markup ?? 0) / 100) * 100) / 100;
+            const own = num(c.bill_amount) != null;
+            const billed = billedOf(c, markup);
             return (
               <div key={c.id} className="flex items-start gap-3 text-sm">
                 <span className="w-14 shrink-0 pt-0.5 text-xs tabular-nums text-neutral-500">{c.entry_date ? fmtDate(c.entry_date) : "—"}</span>
@@ -74,7 +82,7 @@ function CostSection({ title, empty, items, cost, bill, markup }: { title: strin
                   <div className="truncate font-medium text-white">{c.vendor || c.category || "Item"}</div>
                   {c.notes ? <div className="truncate text-xs text-neutral-500">{c.notes}</div> : null}
                 </div>
-                <span className="shrink-0 pt-0.5 text-xs tabular-nums text-neutral-500">cost {money(amt)}</span>
+                <span className="shrink-0 pt-0.5 text-xs tabular-nums text-neutral-500">{own ? "your truck · no cost" : `cost ${money(amt)}`}</span>
                 <span className="w-24 shrink-0 text-right tabular-nums text-neutral-200">{money(billed)}</span>
               </div>
             );
@@ -99,7 +107,7 @@ export function TmJobBill({ jobId, compact, onChanged }: { jobId: string; compac
   async function load() {
     const [j, c, r, w] = await Promise.all([
       sb.from("jobs").select("id,job_name,customer,location,job,status,billing_type,tm_bill_rate,materials_markup").eq("id", jobId).single(),
-      sb.from("job_costs").select("id,entry_date,category,worker,vendor,hours,rate,amount,notes").eq("job_id", jobId).order("entry_date"),
+      sb.from("job_costs").select("id,entry_date,category,worker,vendor,hours,rate,amount,bill_amount,notes").eq("job_id", jobId).order("entry_date"),
       sb.from("job_pay_rates").select("*").eq("job_id", jobId),
       sb.from("workers").select("id,name,rate,rate_type,is_owner"),
     ]);
@@ -236,7 +244,7 @@ export default function TmBillingTab() {
     setOthers((j.data ?? []).filter((x: any) => x.billing_type !== "tm" && ["progress", "booked", "awaiting", "complete"].includes(x.status)));
     const ids = tm.map((x: any) => x.id);
     const [c, r] = ids.length ? await Promise.all([
-      sb.from("job_costs").select("id,job_id,entry_date,category,worker,vendor,hours,rate,amount,notes").in("job_id", ids),
+      sb.from("job_costs").select("id,job_id,entry_date,category,worker,vendor,hours,rate,amount,bill_amount,notes").in("job_id", ids),
       sb.from("job_pay_rates").select("*").in("job_id", ids),
     ]) : [{ data: [] }, { data: [] }] as any;
     setRows(tm.map((job: any) => ({

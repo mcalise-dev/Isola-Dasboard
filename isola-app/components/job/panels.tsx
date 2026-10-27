@@ -16,6 +16,9 @@ import { stampSafe } from "@/lib/stamp";
 import ScheduleItemDialog from "@/components/schedule/ScheduleItemDialog";
 import { ITEM_TYPES, NEXT_STATUS, SCHED_STATUS, byTime, detailLine, isOutside, timeWindow, typeOf, whoOn, type SchedItem } from "@/lib/schedule";
 
+// Isola's own truck/equipment time: billed to the customer, never a cost (job_costs.bill_amount, amount = 0).
+export const OWN_TRUCK_LABEL = "Isola's truck: bill it to the customer, not a cost to me";
+export const looksOwn = (vendor: string) => /^\s*isola\b/i.test(vendor ?? "");
 export const COST_CATEGORIES = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Trucking", "Subcontractor", "Permits", "Other"];
 const changed = () => window.dispatchEvent(new Event("isola:changed"));
 const usd = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -45,14 +48,14 @@ function Row({ children, className }: { children: React.ReactNode; className?: s
 export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () => void }) {
   const sb = useMemo(() => createClient(), []);
   const [rows, setRows] = useState<any[] | null>(null);
-  const [f, setF] = useState({ vendor: "", category: "Materials", amount: "", entry_date: todayISO(), notes: "" });
+  const [f, setF] = useState({ vendor: "", category: "Materials", amount: "", entry_date: todayISO(), notes: "", own: false });
   const [receipt, setReceipt] = useState("");
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState("");
   const load = async () => {
-    const { data } = await sb.from("job_costs").select("id,entry_date,vendor,category,amount,notes,status,receipt_b64").eq("job_id", jobId).neq("category", "Labor").order("entry_date", { ascending: false });
+    const { data } = await sb.from("job_costs").select("id,entry_date,vendor,category,amount,bill_amount,notes,status,receipt_b64").eq("job_id", jobId).neq("category", "Labor").order("entry_date", { ascending: false });
     // receipts saved without a category are pending rows from the camera
-    const { data: pend } = await sb.from("job_costs").select("id,entry_date,vendor,category,amount,notes,status,receipt_b64").eq("job_id", jobId).is("category", null);
+    const { data: pend } = await sb.from("job_costs").select("id,entry_date,vendor,category,amount,bill_amount,notes,status,receipt_b64").eq("job_id", jobId).is("category", null);
     const all = [...(data ?? []), ...(pend ?? []).filter((p: any) => !(data ?? []).some((d: any) => d.id === p.id))];
     setRows(all);
   };
@@ -75,11 +78,12 @@ export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () =
     if (!receipt && (!f.vendor.trim() || !amt)) { showError("Add a receipt photo, or fill in vendor and amount."); return; }
     setBusy(true);
     const pending = !f.vendor.trim() || !amt;
-    const { error } = await sb.from("job_costs").insert({ job_id: jobId, entry_date: f.entry_date, vendor: f.vendor.trim() || null, category: f.category || null, amount: amt || null, notes: f.notes.trim() || null, receipt_b64: receipt || null, status: pending ? "pending" : "ok" });
+    const own = f.own && f.category === "Trucking" && !!amt;
+    const { error } = await sb.from("job_costs").insert({ job_id: jobId, entry_date: f.entry_date, vendor: f.vendor.trim() || null, category: f.category || null, amount: own ? 0 : (amt || null), bill_amount: own ? amt : null, notes: f.notes.trim() || null, receipt_b64: receipt || null, status: pending ? "pending" : "ok" });
     setBusy(false);
     if (error) { showError("Save failed: " + error.message); return; }
-    setF({ vendor: "", category: f.category, amount: "", entry_date: todayISO(), notes: "" }); setReceipt("");
-    showToast("Cost logged");
+    setF({ vendor: "", category: f.category, amount: "", entry_date: todayISO(), notes: "", own: f.own }); setReceipt("");
+    showToast(own ? "Trucking logged: billed to the customer, not a cost" : "Cost logged");
     load(); onChange?.(); changed();
   }
   function remove(c: any) {
@@ -102,7 +106,9 @@ export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () =
                   <div className="truncate text-xs text-neutral-400">{fmtDate(c.entry_date)} · {c.category ?? "—"}{c.notes ? ` · ${c.notes}` : ""}</div>
                 </div>
                 {c.status === "pending" ? <Badge variant="warning">Claude</Badge> : null}
-                <div className="shrink-0 text-sm font-semibold tabular-nums text-white">{usd(Number(c.amount ?? 0))}</div>
+                {c.bill_amount != null
+                  ? <div className="shrink-0 text-right"><div className="text-sm font-semibold tabular-nums text-emerald-300">bill {usd(Number(c.bill_amount))}</div><div className="text-[11px] text-neutral-500">no cost</div></div>
+                  : <div className="shrink-0 text-sm font-semibold tabular-nums text-white">{usd(Number(c.amount ?? 0))}</div>}
                 <button onClick={() => remove(c)} aria-label="Delete cost" className="shrink-0 rounded p-1 text-neutral-500 hover:text-red-400"><Trash2 size={15} /></button>
               </Row>
             ))}
@@ -110,11 +116,16 @@ export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () =
         ) : <p className="mb-3 text-sm text-neutral-500">No material or other costs logged yet.</p>}
       <div className="rounded-xl border border-border p-3">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Input placeholder="Vendor" value={f.vendor} onChange={(e) => setF({ ...f, vendor: e.target.value })} />
-          <NativeSelect value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>{COST_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</NativeSelect>
-          <Input type="number" inputMode="decimal" placeholder="$ total (tax in)" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
+          <Input placeholder="Vendor" value={f.vendor} onChange={(e) => setF({ ...f, vendor: e.target.value, own: f.category === "Trucking" && looksOwn(e.target.value) ? true : f.own })} />
+          <NativeSelect value={f.category} onChange={(e) => setF({ ...f, category: e.target.value, own: e.target.value === "Trucking" && looksOwn(f.vendor) ? true : f.own })}>{COST_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</NativeSelect>
+          <Input type="number" inputMode="decimal" placeholder={f.own && f.category === "Trucking" ? "$ to bill the customer" : "$ total (tax in)"} value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
           <Input type="date" value={f.entry_date} onChange={(e) => setF({ ...f, entry_date: e.target.value })} />
         </div>
+        {f.category === "Trucking" ? (
+          <label className="mt-2 flex items-center gap-2 text-sm text-neutral-300">
+            <input type="checkbox" checked={f.own} onChange={(e) => setF({ ...f, own: e.target.checked })} /> {OWN_TRUCK_LABEL}
+          </label>
+        ) : null}
         <Input className="mt-2" placeholder="Notes (optional)" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
         <div className="mt-2 flex flex-wrap gap-2">
           <label className={cn("inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-[13px] font-semibold", receipt ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-input text-white hover:bg-accent")}>

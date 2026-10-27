@@ -143,7 +143,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
     const jd: any = j.data;
     if (jd?.billing_type === "tm") {
       const [tc, tr, tw] = await Promise.all([
-        sb.from("job_costs").select("id,entry_date,category,worker,vendor,hours,rate,amount,notes").eq("job_id", id),
+        sb.from("job_costs").select("id,entry_date,category,worker,vendor,hours,rate,amount,bill_amount,notes").eq("job_id", id),
         sb.from("job_pay_rates").select("*").eq("job_id", id),
         sb.from("workers").select("id,name,rate,rate_type,is_owner"),
       ]);

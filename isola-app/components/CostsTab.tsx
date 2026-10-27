@@ -1,4 +1,5 @@
 "use client";
+import { OWN_TRUCK_LABEL } from "@/components/job/panels";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { undoable, showError, showToast } from "@/components/Toaster";
 import { ask } from "@/components/Dialogs";
@@ -46,6 +47,7 @@ type Cost = {
   vendor: string | null;
   category: string | null;
   amount: number | null;
+  bill_amount?: number | null;
   notes: string | null;
   status: "ok" | "pending";
   by_claude: boolean;
@@ -151,8 +153,8 @@ export default function CostsTab() {
   function openSheet(c: Cost | "new", kind: "receipt" | "labor" = "receipt") {
     setSheet(c);
     setForm(c === "new"
-      ? { kind, job_id: filter !== "all" && filter !== OVERHEAD ? filter : (activeJobs[0]?.id ?? OVERHEAD), entry_date: todayISO(), vendor: "", category: kind === "labor" ? "Labor" : "", amount: "", notes: "", receipt_b64: null, worker: "", hours: "", days: "1", rate: "", rate_type: "hourly", paid: true }
-      : { kind: c.hours != null || c.worker ? "labor" : "receipt", job_id: c.job_id ?? OVERHEAD, entry_date: c.entry_date, vendor: c.vendor ?? "", category: c.category ?? "", amount: c.amount ?? "", notes: c.notes ?? "", receipt_b64: c.receipt_b64, worker: c.worker ?? "", hours: c.hours ?? "", days: c.days ?? "1", rate: c.rate ?? "", rate_type: c.rate_type ?? "hourly", paid: c.paid !== false });
+      ? { kind, job_id: filter !== "all" && filter !== OVERHEAD ? filter : (activeJobs[0]?.id ?? OVERHEAD), entry_date: todayISO(), vendor: "", category: kind === "labor" ? "Labor" : "", amount: "", notes: "", receipt_b64: null, worker: "", hours: "", days: "1", rate: "", rate_type: "hourly", paid: true, own: false }
+      : { kind: c.hours != null || c.worker ? "labor" : "receipt", job_id: c.job_id ?? OVERHEAD, entry_date: c.entry_date, vendor: c.vendor ?? "", category: c.category ?? "", amount: (c.bill_amount != null ? c.bill_amount : c.amount) ?? "", own: c.bill_amount != null, notes: c.notes ?? "", receipt_b64: c.receipt_b64, worker: c.worker ?? "", hours: c.hours ?? "", days: c.days ?? "1", rate: c.rate ?? "", rate_type: c.rate_type ?? "hourly", paid: c.paid !== false });
   }
 
   // One handler for both inputs. One photo fills the open form; several from the
@@ -215,6 +217,10 @@ export default function CostsTab() {
       updated_at: new Date().toISOString(),
     };
     if (isLabor) { payload.category = "Labor"; payload.vendor = payload.vendor || String(form.worker).trim(); }
+    // Isola's own truck: billed to the customer, not money spent
+    const own = !isLabor && !!form.own && payload.category === "Trucking" && amount != null;
+    payload.bill_amount = own ? amount : null;
+    if (own) payload.amount = 0;
     payload.status = !isLabor && payload.receipt_b64 && (amount == null || !payload.vendor || !payload.category) ? "pending" : "ok";
     if (!isLabor && !payload.receipt_b64 && amount == null) { showError("Add a receipt photo or an amount."); return; }
     setBusy(true);
@@ -411,7 +417,7 @@ export default function CostsTab() {
                       </span>
                     </span>
                     <span className="flex shrink-0 flex-col items-end gap-1">
-                      <span className={cn("font-semibold tabular-nums", c.paid === false ? "text-red-300" : "text-white")}>{c.amount != null ? money(Number(c.amount)) : "—"}</span>
+                      {c.bill_amount != null ? <span className="font-semibold tabular-nums text-emerald-300">bill {money(Number(c.bill_amount))}</span> : <span className={cn("font-semibold tabular-nums", c.paid === false ? "text-red-300" : "text-white")}>{c.amount != null ? money(Number(c.amount)) : "—"}</span>}
                       {statusBadge(c)}
                     </span>
                   </button>
@@ -442,7 +448,7 @@ export default function CostsTab() {
                     <TD className="max-w-[200px]"><div className="truncate font-semibold text-white">{c.vendor ?? "(vendor pending)"}</div>{c.notes ? <div className="truncate text-xs text-neutral-500">{c.notes}</div> : null}</TD>
                     {filter === "all" ? <TD className="max-w-[200px] truncate text-neutral-300">{labelFor(c.job_id)}</TD> : null}
                     <TD className="whitespace-nowrap text-neutral-400">{detail(c)}</TD>
-                    <TD className={cn("whitespace-nowrap text-right font-semibold tabular-nums", c.paid === false ? "text-red-300" : "text-white")}>{c.amount != null ? money(Number(c.amount)) : "—"}</TD>
+                    <TD className={cn("whitespace-nowrap text-right font-semibold tabular-nums", c.bill_amount != null ? "text-emerald-300" : c.paid === false ? "text-red-300" : "text-white")}>{c.bill_amount != null ? `bill ${money(Number(c.bill_amount))}` : c.amount != null ? money(Number(c.amount)) : "—"}</TD>
                     <TD>{statusBadge(c)}</TD>
                   </TR>
                 ))}
@@ -543,6 +549,11 @@ export default function CostsTab() {
                     {CATS.map((c) => <option key={c} value={c}>{c}</option>)}
                   </NativeSelect>
                 </Field>
+                {form.category === "Trucking" ? (
+                  <label className="flex items-center gap-2 text-sm text-neutral-300">
+                    <input type="checkbox" checked={!!form.own} onChange={(e) => setForm({ ...form, own: e.target.checked })} /> {OWN_TRUCK_LABEL}
+                  </label>
+                ) : null}
                 <Field label="Paid yet?">{paidToggle("Still owe it")}</Field>
               </>) : null}
               <Field label="Notes"><div className="flex items-start gap-2"><Textarea rows={2} className="min-h-0 flex-1" placeholder="optional" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /><Dictate hasText={!!form.notes} onText={(t) => setForm((p: any) => ({ ...p, notes: (p.notes ?? "") + t }))} /></div></Field>
