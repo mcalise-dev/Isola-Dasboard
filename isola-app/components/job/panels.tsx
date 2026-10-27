@@ -16,7 +16,7 @@ import { stampSafe } from "@/lib/stamp";
 import ScheduleItemDialog from "@/components/schedule/ScheduleItemDialog";
 import { ITEM_TYPES, NEXT_STATUS, SCHED_STATUS, byTime, detailLine, isOutside, timeWindow, typeOf, whoOn, type SchedItem } from "@/lib/schedule";
 
-export const COST_CATEGORIES = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Subcontractor", "Permits", "Other"];
+export const COST_CATEGORIES = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Trucking", "Subcontractor", "Permits", "Other"];
 const changed = () => window.dispatchEvent(new Event("isola:changed"));
 const usd = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 

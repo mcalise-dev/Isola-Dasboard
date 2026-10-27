@@ -3,6 +3,8 @@
 //   Labor bill  = hours × bill rate (job_pay_rates.bill_rate for that person on that job,
 //                 else the job's default jobs.tm_bill_rate). Lines with no hours bill at cost.
 //   Materials   = every non-labor cost × (1 + jobs.materials_markup%). Markup is 5/10/15/20/25.
+//   Trucking    = optional; job_costs category "Trucking", billed like materials (cost + markup)
+//                 but shown as its own section so it reads as a separate line on the bill.
 //   Cost side   = what's actually paid out (job_costs.amount), so margin is real.
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -27,7 +29,8 @@ export function computeBill({ job, costs, rates, workers }: Data) {
   const markup = num(job.materials_markup);
   const labor = costs.filter((c) => c.category === "Labor");
   // THM reimbursement lines are what Isola owes Tyler, not a material to bill the customer
-  const other = costs.filter((c) => c.category !== "Labor" && c.category !== "THM");
+  const other = costs.filter((c) => c.category !== "Labor" && c.category !== "THM" && c.category !== "Trucking");
+  const trucking = costs.filter((c) => c.category === "Trucking");
   const people = new Map<string, { name: string; worker: any; hours: number; cost: number; bill: number; billRate: number | null; payRate: number | null; lump: number }>();
   let missingRate = false;
   for (const c of labor) {
@@ -48,9 +51,42 @@ export function computeBill({ job, costs, rates, workers }: Data) {
   const laborBill = [...people.values()].reduce((a, p) => a + p.bill, 0);
   const matCost = other.reduce((a, c) => a + Number(c.amount || 0), 0);
   const matBill = Math.round(matCost * (1 + (markup ?? 0) / 100) * 100) / 100;
-  const total = laborBill + matBill;
-  const cost = laborCost + matCost;
-  return { people: [...people.values()], laborCost, laborBill, matCost, matBill, markup, total, cost, margin: total - cost, missingRate, other };
+  const truckCost = trucking.reduce((a, c) => a + Number(c.amount || 0), 0);
+  const truckBill = Math.round(truckCost * (1 + (markup ?? 0) / 100) * 100) / 100;
+  const total = laborBill + matBill + truckBill;
+  const cost = laborCost + matCost + truckCost;
+  return { people: [...people.values()], laborCost, laborBill, matCost, matBill, truckCost, truckBill, trucking, markup, total, cost, margin: total - cost, missingRate, other };
+}
+
+function CostSection({ title, empty, items, cost, bill, markup }: { title: string; empty: string; items: any[]; cost: number; bill: number; markup: number | null }) {
+  return (
+    <div>
+      <div className="mb-1 text-[11px] font-bold uppercase tracking-widest text-neutral-500">{title}</div>
+      {items.length === 0 ? <p className="text-xs text-neutral-500">{empty}</p> : (
+        <div className="space-y-1">
+          {items.map((c: any) => {
+            const amt = Number(c.amount || 0);
+            const billed = Math.round(amt * (1 + (markup ?? 0) / 100) * 100) / 100;
+            return (
+              <div key={c.id} className="flex items-start gap-3 text-sm">
+                <span className="w-14 shrink-0 pt-0.5 text-xs tabular-nums text-neutral-500">{c.entry_date ? fmtDate(c.entry_date) : "—"}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium text-white">{c.vendor || c.category || "Item"}</div>
+                  {c.notes ? <div className="truncate text-xs text-neutral-500">{c.notes}</div> : null}
+                </div>
+                <span className="shrink-0 pt-0.5 text-xs tabular-nums text-neutral-500">cost {money(amt)}</span>
+                <span className="w-24 shrink-0 text-right tabular-nums text-neutral-200">{money(billed)}</span>
+              </div>
+            );
+          })}
+          <div className="flex items-center border-t border-border/60 pt-1.5 text-sm">
+            <span className="text-neutral-400">{items.length} item{items.length === 1 ? "" : "s"} · cost {money(cost)}{markup ? ` + ${markup}%` : ""}</span>
+            <span className="ml-auto font-medium tabular-nums text-white">{money(bill)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // One job's T&M bill. Used on the job page Money tab and inside the T&M Billing tab.
@@ -159,32 +195,12 @@ export function TmJobBill({ jobId, compact, onChanged }: { jobId: string; compac
         </div>
 
         {/* materials */}
-        <div>
-          <div className="mb-1 text-[11px] font-bold uppercase tracking-widest text-neutral-500">Materials &amp; other costs</div>
-          {b.other.length === 0 ? <p className="text-xs text-neutral-500">None logged yet.</p> : (
-            <div className="space-y-1">
-              {b.other.map((c: any) => {
-                const amt = Number(c.amount || 0);
-                const billed = Math.round(amt * (1 + (b.markup ?? 0) / 100) * 100) / 100;
-                return (
-                  <div key={c.id} className="flex items-start gap-3 text-sm">
-                    <span className="w-14 shrink-0 pt-0.5 text-xs tabular-nums text-neutral-500">{c.entry_date ? fmtDate(c.entry_date) : "—"}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium text-white">{c.vendor || c.category || "Item"}</div>
-                      {c.notes ? <div className="truncate text-xs text-neutral-500">{c.notes}</div> : null}
-                    </div>
-                    <span className="shrink-0 pt-0.5 text-xs tabular-nums text-neutral-500">cost {money(amt)}</span>
-                    <span className="w-24 shrink-0 text-right tabular-nums text-neutral-200">{money(billed)}</span>
-                  </div>
-                );
-              })}
-              <div className="flex items-center border-t border-border/60 pt-1.5 text-sm">
-                <span className="text-neutral-400">{b.other.length} item{b.other.length === 1 ? "" : "s"} · cost {money(b.matCost)}{b.markup ? ` + ${b.markup}%` : ""}</span>
-                <span className="ml-auto font-medium tabular-nums text-white">{money(b.matBill)}</span>
-              </div>
-            </div>
-          )}
-        </div>
+        <CostSection title="Materials & other costs" empty="None logged yet." items={b.other} cost={b.matCost} bill={b.matBill} markup={b.markup} />
+
+        {/* trucking: optional, only shows once a Trucking cost is logged */}
+        {b.trucking.length ? (
+          <CostSection title="Trucking" empty="" items={b.trucking} cost={b.truckCost} bill={b.truckBill} markup={b.markup} />
+        ) : null}
 
         {/* totals */}
         <div className="border-t border-border pt-3">

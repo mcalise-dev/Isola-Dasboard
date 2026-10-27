@@ -16,7 +16,7 @@ import { Plus, HardHat, Camera, Images, Download, Check, Receipt, X, User } from
 import { createClient } from "@/lib/supabase/client";
 import { Job, jobLabel, money, fmtDate, todayISO } from "@/lib/format";
 
-const CATS = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Subcontractor", "Labor", "Permits", "Other"];
+const CATS = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Trucking", "Subcontractor", "Labor", "Permits", "Other"];
 const OVERHEAD = "__overhead__";
 
 // Downscale + JPEG-compress a picked image so a receipt stays well under the row limit.
