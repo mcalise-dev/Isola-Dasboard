@@ -339,32 +339,8 @@ export function ProposalPanel({ jobId }: { jobId: string }) {
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
       ) : null}
     </Dialog>
-    <div className="grid gap-4 md:grid-cols-2">
-      <section>
-        <SectionTitle right={<Button asChild variant="ghost" size="sm" className="h-9"><Link href="/build">Open Build</Link></Button>}>Builds ({ests.length})</SectionTitle>
-        <div className="space-y-2">
-          {ests.map((e) => {
-            const sell = Number(e.sell_price || 0), cost = Number(e.cost_total || 0);
-            const m = sell > 0 && cost > 0 ? Math.round(((sell - cost) / sell) * 100) : null;
-            return (
-              <Link key={e.id} href="/build" className="block rounded-xl border border-border bg-card px-4 py-3 hover:border-white/20">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 truncate font-semibold text-white">{e.title || "Untitled build"}</div>
-                  <div className="shrink-0">{estBadge(e)}</div>
-                </div>
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-neutral-400">
-                  <span>Sell <span className="tabular-nums text-neutral-200">{sell ? fmt0(sell) : "—"}</span></span>
-                  <span>Cost <span className="tabular-nums text-neutral-200">{cost ? fmt0(cost) : "—"}</span></span>
-                  {m != null ? <span className={cn(m < 10 ? "text-red-300" : m < 30 ? "text-amber-300" : "text-emerald-300")}>{m}% margin</span> : null}
-                  <span>{e.sent_at ? `Sent ${shortDate(e.sent_at)}` : "Not sent"}</span>
-                </div>
-              </Link>
-            );
-          })}
-          {ests.length === 0 ? <p className="text-sm text-neutral-500">No build linked to this job. <Link href="/build" className="underline hover:text-white">Start one</Link></p> : null}
-        </div>
-      </section>
-
+    {/* v7.2: builds now live in the job's Proposal tab (JobBuild) — only the client links show here */}
+    <div>
       <section>
         <SectionTitle right={<Button asChild variant="ghost" size="sm" className="h-9"><Link href="/proposals">All proposals</Link></Button>}>Client links ({links.length})</SectionTitle>
         <div className="space-y-2">
@@ -395,7 +371,7 @@ export function ProposalPanel({ jobId }: { jobId: string }) {
               ) : null}
             </Card>
           ))}
-          {links.length === 0 ? <p className="text-sm text-neutral-500">Nothing out for signature yet. Use &ldquo;Proposal for signature&rdquo; above, or send it from Build.</p> : null}
+          {links.length === 0 ? <p className="text-sm text-neutral-500">Nothing out for signature yet. Build one above, or use &ldquo;Proposal for signature&rdquo;.</p> : null}
         </div>
       </section>
     </div>

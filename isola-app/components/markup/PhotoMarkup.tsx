@@ -312,10 +312,13 @@ function loadImg(src: string): Promise<HTMLImageElement> {
 }
 
 // ---------- screen ----------
-export default function PhotoMarkup() {
+// v7.2: also runs INSIDE a job (CompanyCam-style). Pass lockJobId and it is pinned to that job —
+// no job pickers, Close hands back to the job page, the address bar is left alone.
+export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId?: string; photoId?: string; onClose?: () => void } = {}) {
   const sb = useMemo(() => createClient(), []);
+  const embedded = !!lockJobId;
   const [jobs, setJobs] = useState<any[]>([]);
-  const [jobId, setJobId] = useState("");
+  const [jobId, setJobId] = useState(lockJobId ?? "");
   const [jobPhotos, setJobPhotos] = useState<any[] | null>(null);
 
   const [img, setImg] = useState<HTMLImageElement | null>(null);
@@ -361,9 +364,9 @@ export default function PhotoMarkup() {
       .then(({ data }) => setJobs((data ?? []).filter((j: any) => j.job_name)));
   }, [sb]);
 
-  // ?photo=<id> opens straight into the editor (from a job's Photos panel)
+  // ?photo=<id> (or the photoId prop inside a job) opens straight into the editor
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("photo");
+    const id = photoId ?? (embedded ? null : new URLSearchParams(window.location.search).get("photo"));
     if (id) openJobPhoto(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -380,7 +383,7 @@ export default function PhotoMarkup() {
     try {
       const { data: row, error } = await sb.from("job_photos").select("id,job_id,phase,caption,photo_b64,markup,source_photo_id").eq("id", id).maybeSingle();
       if (error || !row) throw new Error(error?.message || "Photo not found");
-      setJobId(row.job_id);
+      if (!embedded) setJobId(row.job_id);
       if (row.markup && row.source_photo_id) {
         // re-edit: draw over the untouched original
         const { data: orig } = await sb.from("job_photos").select("id,job_id,phase,photo_b64").eq("id", row.source_photo_id).maybeSingle();
@@ -405,6 +408,7 @@ export default function PhotoMarkup() {
   async function startOver() {
     if ((shapes.length || draft) && !(await ask({ title: "Close this photo?", body: "Anything not saved will be lost.", confirm: "Close", danger: true }))) return;
     setImg(null); setSrcPhoto(null); setEditRow(null); reset([]);
+    if (embedded) { onClose?.(); return; }
     if (window.location.search) window.history.replaceState(null, "", "/markup");
   }
 
@@ -703,21 +707,26 @@ export default function PhotoMarkup() {
   if (!img) {
     return (
       <div>
-        <PageHeader title="Photo markup" sub="Draw on a photo — points, arrows, measurements, boxes and notes — then save it to the job." />
-        <div className="grid gap-3 md:grid-cols-2">
+        {embedded ? (
+          <div className="mb-3 flex items-center gap-2">
+            <h1 className="mr-auto text-xl font-semibold text-white">Mark up a photo</h1>
+            <Button variant="ghost" size="sm" onClick={() => onClose?.()}><X size={16} /> Close</Button>
+          </div>
+        ) : <PageHeader title="Photo markup" sub="Draw on a photo — points, arrows, measurements, boxes and notes — then save it to the job." />}
+        <div className={cn("grid gap-3", embedded ? "" : "md:grid-cols-2")}>
           <label className="flex min-h-[120px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 bg-card p-5 text-center hover:border-brand">
             <Upload size={26} className="text-brand" />
             <span className="text-[15px] font-semibold text-white">{busy ? "Opening…" : "Upload or take a photo"}</span>
             <span className="text-sm text-neutral-400">From your camera roll, a text, or the camera</span>
             <input type="file" accept="image/*" className="hidden" onChange={(e) => { openFile(e.target.files?.[0]); e.target.value = ""; }} />
           </label>
-          <div className="rounded-xl border border-white/[0.09] bg-card p-4">
+          {embedded ? null : <div className="rounded-xl border border-white/[0.09] bg-card p-4">
             <div className="mb-2 flex items-center gap-2 text-[15px] font-semibold text-white"><Camera size={18} className="text-brand" /> From a job</div>
             <NativeSelect value={jobId} onChange={(e) => setJobId(e.target.value)} className="w-full">
               <option value="">Pick a job…</option>
               {jobs.map((j) => <option key={j.id} value={j.id}>{j.job_name}{j.customer ? ` — ${j.customer}` : ""}</option>)}
             </NativeSelect>
-          </div>
+          </div>}
         </div>
         {jobId ? (
           <div className="mt-5">
@@ -851,10 +860,10 @@ export default function PhotoMarkup() {
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <NativeSelect value={jobId} onChange={(e) => setJobId(e.target.value)} className="w-full sm:w-auto sm:min-w-0 sm:flex-1 sm:max-w-sm">
+        {embedded ? null : <NativeSelect value={jobId} onChange={(e) => setJobId(e.target.value)} className="w-full sm:w-auto sm:min-w-0 sm:flex-1 sm:max-w-sm">
           <option value="">Save to which job?</option>
           {jobs.map((j) => <option key={j.id} value={j.id}>{j.job_name}</option>)}
-        </NativeSelect>
+        </NativeSelect>}
         <Button onClick={() => save(false)} disabled={busy || !jobId}><Save size={16} /> {busy ? "Saving…" : editRow && editRow.job_id === jobId ? "Save changes" : "Save to job"}</Button>
         {editRow && editRow.job_id === jobId ? <Button variant="outline" onClick={() => save(true)} disabled={busy}>Save as new</Button> : null}
         <Button variant="outline" onClick={download}><Download size={16} /> Download</Button>

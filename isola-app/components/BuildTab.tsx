@@ -263,7 +263,129 @@ export default function BuildTab() {
 
 /* ============================ DETAIL ============================ */
 
-function BuildDetail({ est, customers, props, workers, book, templates, onBack, onChanged, reloadRefs }: any) {
+/* ============================================================
+   JOB BUILD (v7.2) — the proposal builder inside a job's Proposal tab.
+   Same Walk -> Price -> Send screens as /build, but every build here is tied
+   to this job (estimates.job_id), starts with the job's name and customer,
+   and sending updates this job instead of creating a new one.
+   ============================================================ */
+export function JobBuild({ jobId }: { jobId: string }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [err, setErr] = useState<string | null>(null);
+  const [job, setJob] = useState<any>(null);
+  const [ests, setEsts] = useState<Est[] | null>(null);
+  const [refs, setRefs] = useState<{ customers: any[]; props: any[]; workers: any[]; book: any[]; templates: any[] } | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+
+  async function load() {
+    setErr(null);
+    try {
+      const [j, e, c, p, w, b, t] = await withTimeout(Promise.all([
+        supabase.from("jobs").select("id,job_name,customer,customer_id,property_id,location,job,status,notes").eq("id", jobId).maybeSingle(),
+        supabase.from("estimates").select("*").eq("job_id", jobId).order("created_at", { ascending: false }),
+        supabase.from("customers").select("id,name,client_type,contact_name,phone,email,payment_terms").eq("archived", false).order("name"),
+        supabase.from("properties").select("id,customer_id,label,address,city,state,access_notes").order("address"),
+        supabase.from("workers").select("id,name,rate,rate_type,active,is_owner").order("name"),
+        supabase.from("price_items").select("*").eq("active", true).order("name"),
+        supabase.from("scope_templates").select("*").order("name"),
+      ]));
+      const fe = firstError(j, e, c, p, w, b, t);
+      if (fe) throw new Error(fe);
+      setJob(j.data ?? null);
+      setEsts(e.data ?? []);
+      setRefs({ customers: c.data ?? [], props: p.data ?? [], workers: (w.data ?? []).filter((x: any) => x.active !== false), book: b.data ?? [], templates: t.data ?? [] });
+    } catch (e: any) { setErr(timeoutMsg(e)); }
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [jobId]);
+
+  async function start() {
+    if (!job) return;
+    setStarting(true);
+    const { data, error } = await supabase.from("estimates").insert({
+      title: job.job_name || "",
+      customer_id: job.customer_id ?? null,
+      customer: job.customer ?? null,
+      property_id: job.property_id ?? null,
+      location: job.location ?? null,
+      job_type: job.job ?? null,
+      observed_conditions: job.notes ?? null,
+      job_id: jobId,
+      step: "walk",
+      status: "draft",
+      visit_date: todayISO(),
+    }).select().single();
+    setStarting(false);
+    if (error) return showError("Could not start the proposal: " + error.message);
+    setEsts((x) => [data, ...(x ?? [])]);
+    setOpenId(data.id);
+  }
+  function remove(e: Est) {
+    const prev = ests ?? [];
+    undoable({
+      text: `Deleted "${e.title || "Untitled"}" — the job stays`,
+      hide: () => setEsts(prev.filter((x) => x.id !== e.id)),
+      restore: () => setEsts(prev),
+      commit: () => supabase.from("estimates").delete().eq("id", e.id),
+    });
+  }
+
+  if (err) return <LoadError message={err} onRetry={load} />;
+  if (!ests || !refs) return <ListSkeleton rows={2} />;
+
+  const open = ests.find((e) => e.id === openId) || null;
+  if (open) {
+    return (
+      <Card className="p-3 sm:p-5">
+        <BuildDetail est={open} {...refs} jobCtx={job ?? { id: jobId }}
+          onBack={() => { setOpenId(null); load(); }}
+          onChanged={(p: any) => setEsts((xs) => (xs ?? []).map((x) => (x.id === open.id ? { ...x, ...p } : x)))}
+          reloadRefs={load} />
+      </Card>
+    );
+  }
+
+  return (
+    <section>
+      <SectionTitle right={<Button size="sm" className="h-9" onClick={start} disabled={starting || !job}><Plus size={15} /> {starting ? "Starting…" : "New proposal"}</Button>}>
+        Proposal builder
+      </SectionTitle>
+      {ests.length ? (
+        <div className="grid gap-2 md:grid-cols-2">
+          {ests.map((e) => {
+            const sell = Number(e.sell_price || 0), cost = Number(e.cost_total || 0);
+            const m = sell > 0 && cost > 0 ? Math.round(((sell - cost) / sell) * 100) : null;
+            return (
+              <Card key={e.id} role="button" tabIndex={0} onClick={() => setOpenId(e.id)}
+                onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") setOpenId(e.id); }}
+                className="flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:border-white/20">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-white">{e.title || "Untitled proposal"}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-400">
+                    {stageBadge(e)}
+                    <span>Sell <span className="tabular-nums text-neutral-200">{sell ? fmt$(sell) : "—"}</span></span>
+                    <span>Cost <span className="tabular-nums text-neutral-200">{cost ? fmt$(cost) : "—"}</span></span>
+                    {m != null ? <span className={cn(m < 10 ? "text-red-300" : m < 30 ? "text-amber-300" : "text-emerald-300")}>{m}%</span> : null}
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" aria-label="Delete proposal" className="-my-1 -mr-2 shrink-0 text-neutral-500 hover:text-red-300"
+                  onClick={(ev) => { ev.stopPropagation(); remove(e); }}><Trash2 size={16} /></Button>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        <Empty icon={<ClipboardList size={26} />} title="No proposal built yet"
+          body="Walk it, price it off the price book, set your number, then make the client link — all on this job. Nothing goes to the client until you send it."
+          action={<Button onClick={start} disabled={starting || !job}><Plus size={16} /> {starting ? "Starting…" : "Build the proposal"}</Button>} />
+      )}
+    </section>
+  );
+}
+
+// jobCtx (v7.2): the build lives INSIDE an existing job. The job owns the name and customer,
+// and sending updates that job — it never creates a second one.
+function BuildDetail({ est, customers, props, workers, book, templates, onBack, onChanged, reloadRefs, jobCtx }: any) {
   const supabase = useMemo(() => createClient(), []);
   const [e, setE] = useState<Est>(est);
   const [lines, setLines] = useState<Line[] | null>(null);
@@ -465,8 +587,32 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
       const [validDays, defaultTerms] = await Promise.all([getProposalValidDays(), getPaymentTerms()]);
       const terms = c.payment_terms?.trim() || defaultTerms;
 
-      // 1. the job — job_name is the build's title, verbatim
-      const { data: job, error: je } = await supabase.from("jobs").insert({
+      // 1. the job — job_name is the build's title, verbatim.
+      //    Inside a job (jobCtx) the existing row is updated instead. Status and
+      //    proposal status are left alone: Mike marks it Sent once HE sends the link.
+      let job: any;
+      if (jobCtx) {
+        const { data: cur, error: ce } = await supabase.from("jobs").select("id,notes,contact_name,contact_phone,location,job,property_id").eq("id", jobCtx.id).single();
+        if (ce) throw ce;
+        const up: any = {
+          billing_type: isTM ? "tm" : "fixed",
+          tm_bill_rate: tmLaborRate,
+          price: fmt2(sell),
+          scope_of_work: scopeText,
+          terms,
+          updated_at: new Date().toISOString(),
+        };
+        if (location && !cur.location) up.location = location;
+        if (e.property_id && !cur.property_id) up.property_id = e.property_id;
+        if (e.job_type && !cur.job) up.job = e.job_type;
+        if (!cur.contact_name && c.contact_name) up.contact_name = c.contact_name;
+        if (!cur.contact_phone && c.phone) up.contact_phone = c.phone;
+        if (!cur.notes && e.observed_conditions) up.notes = e.observed_conditions;
+        const { data: uj, error: ue } = await supabase.from("jobs").update(up).eq("id", jobCtx.id).select().single();
+        if (ue) throw ue;
+        job = uj;
+      } else {
+      const { data: nj, error: je } = await supabase.from("jobs").insert({
         job_name: e.title.trim(),
         customer: c.name,               // exact stored spelling, never a new variant
         customer_id: c.id,
@@ -486,6 +632,8 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
         notes: e.observed_conditions,
       }).select().single();
       if (je) throw je;
+      job = nj;
+      }
 
       // 2. the site visit — observed conditions only, no pricing
       const { data: sv } = await supabase.from("site_visits").insert({
@@ -535,7 +683,8 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
 
       await patch({ status: "sent", step: "send", job_id: job.id, site_visit_id: sv?.id ?? null, proposal_link_id: pl.id, sent_at: new Date().toISOString() });
       setLink(pl);
-      showToast("Job created — client link is live");
+      window.dispatchEvent(new Event("isola:changed"));
+      showToast(jobCtx ? "Saved to the job — client link is ready (nothing was sent)" : "Job created — client link is live");
     } catch (err: any) {
       showError("Could not send: " + (err?.message ?? String(err)));
     } finally {
@@ -554,7 +703,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
 
   const header = (
     <PageHeader
-      crumb={<button onClick={onBack} className="inline-flex min-h-[32px] items-center gap-1 font-semibold text-neutral-400 hover:text-white"><ArrowLeft size={14} /> Builds</button>}
+      crumb={<button onClick={onBack} className="inline-flex min-h-[32px] items-center gap-1 font-semibold text-neutral-400 hover:text-white"><ArrowLeft size={14} /> {jobCtx ? "Proposals" : "Builds"}</button>}
       title={e.title || "Untitled build"}
       sub={[e.customer, e.location].filter(Boolean).join(" — ") || "No customer yet"}
       actions={<div className="flex items-center gap-2">{stageBadge(e)}{sell > 0 ? <span className="text-lg font-semibold tabular-nums text-white">{fmt$(sell)}</span> : null}</div>}
@@ -578,12 +727,25 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
             <Card>
               <CardHeader><CardTitle>The job</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                <div>
+                {jobCtx ? (
+                  <div className="rounded-lg border border-border bg-neutral-950 px-3 py-2.5">
+                    <KV k="Job name">{e.title || jobCtx.job_name || "—"}</KV>
+                    <KV k="Customer">{e.customer || "—"}</KV>
+                    {cust ? <div className="mt-1 text-xs text-neutral-400"><span className="font-semibold text-neutral-300">{tier.label}</span> · {tier.hint}</div> : null}
+                    <p className="mt-1.5 text-xs text-neutral-500">These come from the job. Change them with Edit on the job.</p>
+                  </div>
+                ) : null}
+                {jobCtx && e.customer_id ? null : <div>
                   <Field label="Customer — pick one or type a new one">
                     <CustomerPicker customers={customers} autoFocus={!e.customer_id && !e.title}
                       value={{ id: e.customer_id ?? null, name: e.customer ?? null }}
                       onCreated={() => reloadRefs()}
-                      onPick={(c) => patch({ customer_id: c?.id ?? null, customer: c?.name ?? null, property_id: null, location: null })} />
+                      onPick={(c) => {
+                        patch({ customer_id: c?.id ?? null, customer: c?.name ?? null, property_id: null, location: null });
+                        // inside a job with no customer yet: the pick goes on the job too, exact stored spelling
+                        if (jobCtx && c?.id) supabase.from("jobs").update({ customer_id: c.id, customer: c.name, updated_at: new Date().toISOString() }).eq("id", jobCtx.id)
+                          .then(({ error }: any) => { if (error) showError("Couldn't set the job's customer: " + error.message); else window.dispatchEvent(new Event("isola:changed")); });
+                      }} />
                   </Field>
                   {cust ? (
                     <div className="mt-1.5 rounded-lg border border-border bg-neutral-950 px-3 py-2">
@@ -595,13 +757,13 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
                       Not on the list? Type the name and tap &ldquo;Add as a new customer&rdquo;.
                     </p>
                   )}
-                </div>
+                </div>}
 
-                <Field label="Job name — this becomes the job name everywhere">
+                {jobCtx ? null : <Field label="Job name — this becomes the job name everywhere">
                   <Input value={e.title ?? ""} placeholder="e.g. 407 East Ave — Sidewalk Replacement"
                     onChange={(ev) => setE({ ...e, title: ev.target.value })}
                     onBlur={(ev) => patch({ title: ev.target.value })} />
-                </Field>
+                </Field>}
 
                 {e.customer_id ? (
                   <Field label="Property">
@@ -914,13 +1076,13 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 md:items-start">
             <Card>
-              <CardHeader><CardTitle>What gets created</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{jobCtx ? "What goes on the job" : "What gets created"}</CardTitle></CardHeader>
               <CardContent>
                 <KV k="Job name">{e.title || "—"}</KV>
                 <KV k="Customer">{e.customer || "—"}</KV>
                 <KV k="Property">{e.location || "—"}</KV>
                 <KV k="Work type">{e.job_type || "—"}</KV>
-                <KV k="Status">Sent — proposal is with the customer</KV>
+                <KV k="Status">{jobCtx ? "Unchanged — mark it Sent once you send the link" : "Sent — proposal is with the customer"}</KV>
                 <KV k="Billing">{isTM ? "Time & material" : "Fixed price"}</KV>
                 <KV k={isTM ? "Est. T&M total" : "Contract price"}><span className="tabular-nums">{sell ? fmt2(sell) : "—"}</span></KV>
                 <KV k="Cost basis"><span className="tabular-nums">{fmt2(totalCost)}</span></KV>
@@ -951,7 +1113,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
             <Card>
               <CardContent className="space-y-3 pt-4">
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-300">
-                  <CircleCheck size={16} /> Job created and the client link is live.
+                  <CircleCheck size={16} /> {jobCtx ? "Saved to the job. The client link is ready — nothing has gone to the client." : "Job created and the client link is live."}
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <Button asChild variant="outline">
@@ -960,9 +1122,22 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
                   <Button variant="outline" onClick={() => copyText(`${window.location.origin}/p/${link.token}`, "Link copied")}>
                     <Copy size={15} /> Copy link
                   </Button>
+                  {jobCtx ? (
+                    <Button variant="outline" onClick={async () => {
+                      const { data: cur } = await supabase.from("jobs").select("status,quoted_date").eq("id", jobCtx.id).single();
+                      const up: any = { proposal_status: "sent", updated_at: new Date().toISOString() };
+                      if (!cur?.quoted_date) up.quoted_date = todayISO();
+                      if (cur?.status === "lead") up.status = "awaiting";
+                      const { error } = await supabase.from("jobs").update(up).eq("id", jobCtx.id);
+                      if (error) return showError("Save failed: " + error.message);
+                      window.dispatchEvent(new Event("isola:changed"));
+                      showToast("Marked Sent");
+                    }}><CircleCheck size={15} /> I sent it — mark Sent</Button>
+                  ) : (
                   <Button asChild variant="outline">
                     <a href={`/?job=${e.job_id}`}><ExternalLink size={15} /> Open job file</a>
                   </Button>
+                  )}
                 </div>
                 <p className="text-xs text-neutral-400">
                   Email the link or read it out on the phone. The daily sweep will nudge you at day 3, 7 and 14 if it goes quiet.
@@ -976,7 +1151,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
           ) : (
             <div className="flex justify-end">
               <Button size="lg" className="w-full md:w-auto" onClick={sendIt} disabled={saving || !sell || !e.customer_id || !e.title?.trim()}>
-                {saving ? "Creating…" : "Create job + client link"}
+                {saving ? (jobCtx ? "Saving…" : "Creating…") : jobCtx ? "Save to job + make client link" : "Create job + client link"}
               </Button>
             </div>
           )}

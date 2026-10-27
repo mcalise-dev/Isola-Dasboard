@@ -21,6 +21,7 @@ import MyClock from "@/components/MyClock";
 import { TmJobBill, computeBill } from "@/components/TmBilling";
 import { CostsPanel, LaborPanel, TasksPanel, PhotosPanel, SchedulePanel, JobbookCard, ActivityPanel } from "@/components/job/panels";
 import { MoneyPanel, ProposalPanel, DocsPanel } from "@/components/job/hub";
+import { JobBuild } from "@/components/BuildTab";
 import ThmPanel from "@/components/job/ThmPanel";
 import SiteLinePanel from "@/components/job/SiteLinePanel";
 import JobTimeline from "@/components/job/JobTimeline";
@@ -34,7 +35,7 @@ const addDaysISO = (s: string, n: number) => {
 };
 import {
   Phone, Navigation, Pencil, MoreHorizontal, Star, Trash2, XCircle, ChevronLeft, MapPin, Hammer, ThumbsUp,
-  CalendarPlus, Play, CheckCircle2, PauseCircle, FileText, Banknote, ArrowRight, ListChecks, Briefcase, Building2,
+  CalendarPlus, Play, CheckCircle2, PauseCircle, FileText, Banknote, ArrowRight, ListChecks, Briefcase, Building2, Camera,
 } from "lucide-react";
 
 const STEPS = [
@@ -44,15 +45,16 @@ const STEPS = [
 ];
 const ORDER = ["lead", "awaiting", "booked", "progress", "complete"];
 
-// v6.9: four tabs on the job record — Overview · Schedule · Money · Files.
-// Deep link with /jobs/<id>?tab=<key>. The old twelve tab names (and the aliases other
-// screens use: billing, build, punch…) still work: they open the tab that now holds that
-// section and scroll to it.
-const TABS = ["overview", "schedule", "money", "files"] as const;
+// v7.2 (CompanyCam-style): the whole job lives on its record — Overview · Photos · Proposal ·
+// Schedule · Money. Photos mark up in place; the proposal is built in place.
+// Deep link with /jobs/<id>?tab=<key>. Old tab names (files, build, punch, billing…) still work:
+// they open the tab that now holds that section and scroll to it.
+const TABS = ["overview", "photos", "proposal", "schedule", "money"] as const;
 const TAB_ALIAS: Record<string, string> = {
   partner: "thm", tyler: "thm",
   billing: "money", payments: "money", "change-orders": "money",
-  build: "proposal", proposals: "proposal", estimate: "proposal",
+  build: "proposal", proposals: "proposal", estimate: "proposal", builder: "proposal",
+  files: "photos", markup: "photos", pictures: "photos",
   documents: "docs", log: "docs", logs: "docs", "daily-log": "docs",
   punch: "tasks", labor: "costs",
   plan: "crew", checklist: "crew", materials: "crew", tools: "crew", field: "crew",
@@ -60,10 +62,10 @@ const TAB_ALIAS: Record<string, string> = {
 };
 // which of the four tabs each section lives in now
 const SECTION_TAB: Record<string, (typeof TABS)[number]> = {
-  tasks: "overview",
+  tasks: "overview", activity: "overview",
   crew: "schedule",
-  costs: "money", proposal: "money", thm: "money",
-  docs: "files", photos: "files", siteline: "files", activity: "files",
+  costs: "money", thm: "money",
+  docs: "proposal", siteline: "proposal",
 };
 const resolve = (t: string | null | undefined): { tab: string; section: string | null } | null => {
   const k = String(t ?? "").toLowerCase();
@@ -77,7 +79,7 @@ export const resolveTab = (t: string | null | undefined) => resolve(t)?.tab ?? n
 export function nextStep(j: any, ctx: { walked: boolean; drafting: boolean; scheduled: boolean }) {
   const today = todayISO();
   if (j.status === "lead") return !ctx.walked ? { label: "Log the site visit", icon: MapPin, href: "/visits" }
-    : ctx.drafting ? { label: "Finish the proposal", icon: Hammer, href: "/build" } : { label: "Price it, start a build", icon: Hammer, href: "/build" };
+    : ctx.drafting ? { label: "Finish the proposal", icon: Hammer, tab: "proposal" } : { label: "Price it, build the proposal", icon: Hammer, tab: "proposal" };
   if (j.status === "future") return { label: "Ready to go, mark Booked", icon: ThumbsUp, patch: { status: "booked", won_date: j.won_date ?? today }, toast: "Moved to Booked" };
   if (j.status === "awaiting") return { label: "They said yes, mark Booked", icon: ThumbsUp, patch: { status: "booked", won_date: j.won_date ?? today }, toast: "Moved to Booked" };
   if (j.status === "booked") return !ctx.scheduled ? { label: "Put it on the schedule", icon: CalendarPlus, tab: "schedule" }
@@ -106,7 +108,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
   const searchParams = useSearchParams();
   const urlKey = searchParams?.get("tab") ?? null;
   const urlTab = resolveTab(urlKey);
-  const [tab, setTabState] = useState<string>(urlTab ?? "overview");
+  const [tab, setTabState] = useState<string>(partner && urlTab === "proposal" ? "overview" : urlTab ?? "overview");
   const [scrollTo, setScrollTo] = useState<string | null>(resolve(urlKey)?.section ?? null);
   // follow ?tab= when it changes (links into this same job from elsewhere)
   useEffect(() => { const r = resolve(urlKey); if (r) { setTabState(r.tab); setScrollTo(r.section); } }, [urlKey]);
@@ -309,14 +311,29 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
         {/* main */}
         <div className="min-w-0">
           <Tabs value={tab} onValueChange={setTab}>
-            {/* v6.9: four tabs, fit on a phone without scrolling */}
-            <TabsList className="flex-nowrap gap-5 [&>*]:min-h-[40px]">
+            {/* v7.2: five tabs — scrolls sideways on a narrow phone */}
+            <TabsList className="flex-nowrap gap-4 sm:gap-5 [&>*]:min-h-[40px]">
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="photos">Photos</TabsTrigger>
+              {partner ? null : <TabsTrigger value="proposal">Proposal</TabsTrigger>}
               <TabsTrigger value="schedule">Schedule{schedOpen ? <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 text-[11px] font-bold text-amber-300">{schedOpen}</span> : null}</TabsTrigger>
               <TabsTrigger value="money">Money</TabsTrigger>
-              <TabsTrigger value="files">Files</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-6">
+              {/* CompanyCam-style quick actions: everything for the job starts right here */}
+              <div className={cn("grid gap-2", partner ? "grid-cols-2" : "grid-cols-3")}>
+                {[
+                  { k: "photos", label: "Photos", sub: "Take & mark up", icon: Camera },
+                  ...(partner ? [] : [{ k: "proposal", label: "Proposal", sub: "Build & price", icon: Hammer }]),
+                  { k: "schedule", label: "Schedule", sub: "Crew & deliveries", icon: CalendarPlus },
+                ].map(({ k, label, sub, icon: I }) => (
+                  <button key={k} onClick={() => setTab(k)} className="flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 text-left hover:border-white/20">
+                    <I size={18} className="text-white" />
+                    <span className="text-[14px] font-semibold text-white">{label}</span>
+                    <span className="hidden text-xs text-neutral-500 sm:block">{sub}</span>
+                  </button>
+                ))}
+              </div>
               <JobTimeline jobId={job.id} onEditPlan={() => setTab("crew")} />
               <section>
                 <h2 className="mb-2 text-[17px] font-semibold text-white">Scope of work</h2>
@@ -360,7 +377,26 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
                 </button>
               </section>
               <section id="sec-tasks" className="scroll-mt-24"><TasksPanel jobId={job.id} /></section>
+              <section id="sec-activity" className="scroll-mt-24"><ActivityPanel job={job} extra={{ costs, visits }} /></section>
             </TabsContent>
+
+            <TabsContent value="photos" className="space-y-8">
+              <section id="sec-photos" className="scroll-mt-24"><PhotosPanel jobId={job.id} /></section>
+            </TabsContent>
+
+            {/* Tyler (partner) never sees sell price or cost — no Proposal tab for him */}
+            {partner ? null : <TabsContent value="proposal" className="space-y-8">
+              <JobBuild jobId={job.id} />
+              <section id="sec-proposal-links" className="scroll-mt-24 space-y-3">
+                <h2 className="text-[17px] font-semibold text-white">Client link, signature & change orders</h2>
+                <ProposalPanel jobId={job.id} />
+              </section>
+              <section id="sec-siteline" className="scroll-mt-24 space-y-4">
+                <h2 className="text-[17px] font-semibold text-white">SiteLine</h2>
+                <SiteLinePanel jobId={job.id} />
+              </section>
+              <section id="sec-docs" className="scroll-mt-24"><DocsPanel jobId={job.id} /></section>
+            </TabsContent>}
 
             <TabsContent value="schedule" className="space-y-8">
               <SchedulePanel job={job} entries={sched} crew={crew} onChange={load} />
@@ -381,7 +417,6 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
                 <CostsPanel jobId={job.id} onChange={load} />
                 <LaborPanel jobId={job.id} onChange={load} />
               </section>
-              <section id="sec-proposal" className="scroll-mt-24"><ProposalPanel jobId={job.id} /></section>
               {withThm ? (
                 <section id="sec-thm" className="scroll-mt-24 space-y-4">
                   <h2 className="text-[17px] font-semibold text-white">THM</h2>
@@ -390,15 +425,6 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
               ) : null}
             </TabsContent>
 
-            <TabsContent value="files" className="space-y-8">
-              <section id="sec-photos" className="scroll-mt-24"><PhotosPanel jobId={job.id} /></section>
-              <section id="sec-docs" className="scroll-mt-24"><DocsPanel jobId={job.id} /></section>
-              <section id="sec-siteline" className="scroll-mt-24 space-y-4">
-                <h2 className="text-[17px] font-semibold text-white">SiteLine</h2>
-                <SiteLinePanel jobId={job.id} />
-              </section>
-              <section id="sec-activity" className="scroll-mt-24"><ActivityPanel job={job} extra={{ costs, visits }} /></section>
-            </TabsContent>
           </Tabs>
         </div>
 

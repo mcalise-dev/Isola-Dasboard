@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Camera, Images, HardHat, Trash2, Plus, Receipt, CalendarPlus, FileSpreadsheet, Upload, Download, X, PenTool, Check } from "lucide-react";
 import { stampSafe } from "@/lib/stamp";
 import ScheduleItemDialog from "@/components/schedule/ScheduleItemDialog";
+import PhotoMarkup from "@/components/markup/PhotoMarkup";
 import { ITEM_TYPES, NEXT_STATUS, SCHED_STATUS, byTime, detailLine, isOutside, timeWindow, typeOf, whoOn, type SchedItem } from "@/lib/schedule";
 
 // Isola's own truck/equipment time: billed to the customer, never a cost (job_costs.bill_amount, amount = 0).
@@ -332,11 +333,26 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState("during");
   const [big, setBig] = useState<any>(null);
+  // v7.2: markup runs right here on the job, full screen — { photoId } opens a photo, {} opens the upload picker
+  const [mark, setMark] = useState<{ photoId?: string } | null>(null);
   const load = async () => {
     const { data } = await sb.from("job_photos").select("id,phase,caption,photo_b64,source_photo_id,created_at").eq("job_id", jobId).order("created_at");
     setRows(data ?? []);
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [jobId]);
+  useEffect(() => {
+    load();
+    const on = () => load();
+    window.addEventListener("isola:changed", on);
+    return () => window.removeEventListener("isola:changed", on);
+    /* eslint-disable-next-line */
+  }, [jobId]);
+  // lock the page behind the full-screen markup so the canvas gets every touch
+  useEffect(() => {
+    if (!mark) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [mark]);
   async function add(files: File[]) {
     if (!files.length) return;
     setBusy(true);
@@ -362,6 +378,7 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
     <div>
       <SectionTitle right={
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8" onClick={() => setMark({})}><PenTool size={14} /> Mark up</Button>
           <NativeSelect value={phase} onChange={(e) => setPhase(e.target.value)} className="h-8 w-[110px] text-[13px]"><option value="before">Before</option><option value="during">During</option><option value="after">After</option></NativeSelect>
           <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-brand px-3 text-[13px] font-semibold text-neutral-950">
             <Camera size={15} /> {busy ? "Saving…" : "Add photos"}
@@ -382,14 +399,29 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
                     <button onClick={() => setBig(p)} className="block w-full"><img src={p.photo_b64} alt={p.phase} className="h-28 w-full rounded-lg border border-white/[0.08] object-cover" /></button>
                     <button onClick={() => remove(p)} aria-label="Delete photo" className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-neutral-300"><X size={13} /></button>
                     <button onClick={() => cycle(p)} className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 text-xs font-semibold capitalize text-neutral-200">{p.phase}</button>
-                    <a href={`/markup?photo=${p.id}`} aria-label="Mark up photo" className="absolute bottom-1 right-1 inline-flex items-center gap-1 rounded bg-brand px-1.5 text-xs font-bold text-neutral-950"><PenTool size={11} />{p.source_photo_id ? "Edit" : "Mark up"}</a>
+                    <button onClick={() => setMark({ photoId: p.id })} aria-label="Mark up photo" className="absolute bottom-1 right-1 inline-flex min-h-[24px] items-center gap-1 rounded bg-brand px-1.5 text-xs font-bold text-neutral-950"><PenTool size={11} />{p.source_photo_id ? "Edit" : "Mark up"}</button>
                   </div>
                 ))}
               </div>
             </div>
           );
         })}
-      {big ? <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 p-4 anim-fade" onClick={() => setBig(null)}><img src={big.photo_b64} alt={big.phase} className="max-h-full max-w-full rounded-lg" /></div> : null}
+      {big ? (
+        <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center gap-3 bg-black/90 p-4 anim-fade" onClick={() => setBig(null)}>
+          <img src={big.photo_b64} alt={big.phase} className="max-h-[80vh] max-w-full rounded-lg" />
+          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+            <Button onClick={() => { const id = big.id; setBig(null); setMark({ photoId: id }); }}><PenTool size={15} /> {big.source_photo_id ? "Edit markup" : "Mark up"}</Button>
+            <Button variant="outline" onClick={() => setBig(null)}><X size={15} /> Close</Button>
+          </div>
+        </div>
+      ) : null}
+      {mark ? (
+        <div className="fixed inset-0 z-[65] overflow-y-auto bg-background px-3 pb-6 pt-[max(12px,env(safe-area-inset-top))] anim-fade md:px-6">
+          <div className="mx-auto max-w-5xl">
+            <PhotoMarkup lockJobId={jobId} photoId={mark.photoId} onClose={() => { setMark(null); load(); }} />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

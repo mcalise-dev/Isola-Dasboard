@@ -368,7 +368,7 @@ function Peek({ j, ctx, onMove, onPatch }: { j: any; ctx: Ctx; onMove: (j: any, 
       </div>
       <div className="flex-1 space-y-5 overflow-y-auto scroll-thin px-5 py-4">
         {step && Icon ? (
-          <button onClick={() => { if ("href" in step && step.href) router.push(step.href); else if ("tab" in step) router.push(`/jobs/${j.id}`); else if ("patch" in step && step.patch) onPatch(j, step.patch, step.toast ?? "Saved"); }}
+          <button onClick={() => { if ("href" in step && step.href) router.push(step.href); else if ("tab" in step && step.tab) router.push(`/jobs/${j.id}?tab=${step.tab}`); else if ("patch" in step && step.patch) onPatch(j, step.patch, step.toast ?? "Saved"); }}
             className="flex w-full items-center gap-3 rounded-xl border border-white/15 px-4 py-3 text-left hover:bg-white/[0.04]">
             <Icon size={18} className="text-white" /><span className="flex-1 text-sm font-semibold text-white">{step.label}</span><ArrowRight size={16} className="text-neutral-500" />
           </button>
