@@ -190,6 +190,7 @@ export default function VendorsTab() {
       email: editing.email?.trim() || null,
       address: editing.address?.trim() || null,
       notes: editing.notes?.trim() || null,
+      tax_id: editing.tax_id?.trim() || null,
       paid_as: String(editing.paid_as_text ?? "").split(",").map((x: string) => x.trim()).filter(Boolean),
       status: editing.status || "approved",
       updated_at: new Date().toISOString(),
@@ -207,8 +208,8 @@ export default function VendorsTab() {
   async function openEdit(v: any) {
     setOpenId(null);
     setEditing({ ...v, paid_as_text: "" });
-    const { data } = await supabase.from("vendors").select("paid_as").eq("id", v.id).maybeSingle();
-    setEditing((e: any) => (e && e.id === v.id ? { ...e, paid_as_text: (data?.paid_as ?? []).join(", ") } : e));
+    const { data } = await supabase.from("vendors").select("paid_as,tax_id").eq("id", v.id).maybeSingle();
+    setEditing((e: any) => (e && e.id === v.id ? { ...e, paid_as_text: (data?.paid_as ?? []).join(", "), tax_id: data?.tax_id ?? "" } : e));
   }
 
   async function setStatus(v: any, status: string) {
@@ -492,6 +493,7 @@ export default function VendorsTab() {
                 <Field label="Email"><Input type="email" value={editing.email ?? ""} onChange={(e) => set("email", e.target.value)} /></Field>
               </div>
               <Field label="Address"><Input value={editing.address ?? ""} onChange={(e) => set("address", e.target.value)} /></Field>
+              <Field label="Tax ID (EIN or SSN from their W-9)"><Input value={editing.tax_id ?? ""} onChange={(e) => set("tax_id", e.target.value)} /></Field>
               <Field label="Paid as (crew names, comma-separated)"><Input value={editing.paid_as_text ?? ""} placeholder="e.g. Marco" onChange={(e) => set("paid_as_text", e.target.value)} /></Field>
               <Field label="Notes"><Textarea rows={2} value={editing.notes ?? ""} onChange={(e) => set("notes", e.target.value)} /></Field>
               <div>

@@ -23,6 +23,7 @@ type Row = {
   vendorId: string | null;
   w9Id: string | null;
   w9Date: string | null;
+  taxId: string | null;
   paid: number;
   count: number;
 };
@@ -38,7 +39,7 @@ export default function W9YearEnd() {
   async function load() {
     setRows(null);
     const [v, p, w] = await Promise.all([
-      supabase.from("vendors").select("id,company,status,paid_as"),
+      supabase.from("vendors").select("id,company,status,paid_as,tax_id"),
       supabase.from("crew_payments").select("worker,amount,paid_on").gte("paid_on", `${year}-01-01`).lte("paid_on", `${year}-12-31`),
       supabase.from("vendor_documents").select("id,vendor_id,submitted_at").eq("doc_type", "w9").order("submitted_at", { ascending: false }),
     ]);
@@ -68,15 +69,15 @@ export default function W9YearEnd() {
       }
       const w9 = latestW9.get(vd.id);
       // only vendors that matter for 1099s: paid this year, or holding a W-9
-      if (!w9 && paid === 0) continue;
-      out.push({ key: vd.id, name: vd.company, payees: names, vendorId: vd.id, w9Id: w9?.id ?? null, w9Date: w9?.at ?? null, paid, count });
+      if (!w9 && paid === 0 && !vd.tax_id) continue;
+      out.push({ key: vd.id, name: vd.company, payees: names, vendorId: vd.id, w9Id: w9?.id ?? null, w9Date: w9?.at ?? null, taxId: vd.tax_id ?? null, paid, count });
     }
     // payees with no vendor record at all
     for (const r of p.data ?? []) {
       const k = (r.worker ?? "").trim();
       if (!k || claimed.has(k.toLowerCase()) || out.some((o) => o.key === "p:" + k.toLowerCase())) continue;
       const hit = byPayee.get(k.toLowerCase())!;
-      out.push({ key: "p:" + k.toLowerCase(), name: k, payees: [k], vendorId: null, w9Id: null, w9Date: null, paid: hit.paid, count: hit.count });
+      out.push({ key: "p:" + k.toLowerCase(), name: k, payees: [k], vendorId: null, w9Id: null, w9Date: null, taxId: null, paid: hit.paid, count: hit.count });
     }
     // missing W-9s first (biggest paid first), then the ones on file
     out.sort((a, b) => (a.w9Id ? 1 : 0) - (b.w9Id ? 1 : 0) || b.paid - a.paid || a.name.localeCompare(b.name));
@@ -112,9 +113,9 @@ export default function W9YearEnd() {
       page.drawText(`Prepared ${new Date().toLocaleDateString("en-US")} · 77 Stella St, Providence RI 02909 · 508-933-2661`, { x: M + 74, y: y - 58, size: 8.5, font, color: grey });
       y -= 96;
 
-      const cols = [M, M + 210, M + 330, M + 430];
+      const cols = [M, M + 200, M + 300, M + 400];
       const head = (pg: typeof page, yy: number) => {
-        ["Payee / company", "Paid in " + year, "W-9", "Received"].forEach((t, i) => pg.drawText(t, { x: cols[i], y: yy, size: 9, font: bold, color: black }));
+        ["Payee / company", "Paid in " + year, "Tax ID", "W-9"].forEach((t, i) => pg.drawText(t, { x: cols[i], y: yy, size: 9, font: bold, color: black }));
         pg.drawLine({ start: { x: M, y: yy - 5 }, end: { x: W - M, y: yy - 5 }, thickness: 0.8, color: black });
       };
       head(page, y); y -= 20;
@@ -123,8 +124,8 @@ export default function W9YearEnd() {
         const label = r.payees.length && r.payees.join(", ").toLowerCase() !== r.name.toLowerCase() ? `${r.name} (${r.payees.join(", ")})` : r.name;
         page.drawText(label.slice(0, 42), { x: cols[0], y, size: 9.5, font, color: black });
         page.drawText(r.paid ? money(r.paid) : "—", { x: cols[1], y, size: 9.5, font, color: black });
-        page.drawText(r.w9Id ? "On file" : "MISSING", { x: cols[2], y, size: 9.5, font: r.w9Id ? font : bold, color: black });
-        page.drawText(r.w9Date ? new Date(r.w9Date).toLocaleDateString("en-US") : "", { x: cols[3], y, size: 9.5, font, color: black });
+        page.drawText(r.taxId ?? (r.w9Id ? "see W-9" : "—"), { x: cols[2], y, size: 9.5, font, color: black });
+        page.drawText(r.w9Id ? `On file ${new Date(r.w9Date!).toLocaleDateString("en-US")}` : "MISSING", { x: cols[3], y, size: 9.5, font: r.w9Id ? font : bold, color: black });
         y -= 16;
       }
       page.drawLine({ start: { x: M, y: y + 8 }, end: { x: W - M, y: y + 8 }, thickness: 0.5, color: grey });
@@ -210,13 +211,14 @@ export default function W9YearEnd() {
                   <div className="truncate text-xs text-neutral-500">
                     {r.payees.length && r.payees.join(", ").toLowerCase() !== r.name.toLowerCase() ? `Paid as ${r.payees.join(", ")} · ` : ""}
                     {r.count ? `${r.count} payment${r.count === 1 ? "" : "s"}` : "No payments logged"}
+                    {r.taxId ? ` · Tax ID ${r.taxId}` : ""}
                     {!r.vendorId ? " · no vendor record" : ""}
                   </div>
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="tabular-nums font-semibold text-white">{r.paid ? money(r.paid) : "—"}</div>
                   <div className={cn("text-xs font-semibold", r.w9Id ? "text-emerald-400" : "text-amber-300")}>
-                    {r.w9Id ? `W-9 ${fmtDate(r.w9Date?.slice(0, 10))}` : "No W-9"}
+                    {r.w9Id ? `W-9 ${fmtDate(r.w9Date?.slice(0, 10))}` : r.taxId ? "Tax ID only — no W-9" : "No W-9"}
                   </div>
                 </div>
               </div>
