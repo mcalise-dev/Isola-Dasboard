@@ -99,7 +99,7 @@ async function compute(): Promise<Attention> {
     id: "fu-" + c.id, level: c.tier === "A" ? "mid" : "low", kind: "Follow-up due", title: `${c.next_action || "Follow up"}: ${c.name}`,
     sub: `${c.company ?? ""}${c.company ? " · " : ""}due ${fmtDate(c.next_date)}`, href: `/marketing/targets?c=${c.id}`,
   }));
-  jobs.filter((x) => x.status === "lead" && !walked.has(x.id) && daysSince(String(x.created_at).slice(0, 10)) > 7).forEach((x) => items.push({
+  jobs.filter((x) => (x.status === "lead" || x.status === "quote") && !walked.has(x.id) && daysSince(String(x.created_at).slice(0, 10)) > 7).forEach((x) => items.push({
     id: "walk-" + x.id, level: "low", kind: "Not walked", title: `Walk ${name(x)}`,
     sub: `Lead for ${daysSince(String(x.created_at).slice(0, 10))} days`, href: `/jobs/${x.id}`,
   }));
@@ -139,7 +139,7 @@ async function compute(): Promise<Attention> {
 
   const badges: Record<string, number> = {
     home: items.filter((i) => i.level === "high").length,
-    leads: jobs.filter((x) => x.status === "lead" && !walked.has(x.id)).length,
+    leads: jobs.filter((x) => x.status === "lead" || (x.status === "quote" && !walked.has(x.id))).length,
     proposals: jobs.filter((x) => x.status === "awaiting" && x.quoted_date && daysSince(x.quoted_date) > 14).length,
     dispatch: jobs.filter((x) => x.status === "booked" && !x.start_date && !scheduled.has(x.id)).length,
     money: (snap?.invoices ?? []).filter((i: any) => i.days_overdue > 0).length,

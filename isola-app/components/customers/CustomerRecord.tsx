@@ -109,7 +109,7 @@ export default function CustomerRecord({ id }: { id: string }) {
   const owed = myInvoices.reduce((a: number, i: any) => a + Number(i.amount ?? 0), 0);
   const overdue = myInvoices.some((i: any) => (i.days_overdue ?? 0) > 0);
   const lifetime = jobs.filter((j) => j.status === "complete").reduce((a, j) => a + jobPrice(j), 0);
-  const openJobs = jobs.filter((j) => ["lead", "awaiting", "booked", "progress"].includes(j.status));
+  const openJobs = jobs.filter((j) => ["lead", "quote", "awaiting", "booked", "progress"].includes(j.status));
   const pipeline = openJobs.reduce((a, j) => a + jobPrice(j), 0);
   const billing = contacts.find((p) => p.is_billing);
 

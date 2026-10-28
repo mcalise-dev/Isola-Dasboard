@@ -219,7 +219,7 @@ export default function SearchPalette() {
       for (const k of NEW_KINDS) {
         if (want && !k.startsWith(want.split(/\s+/)[0])) continue;
         if (k === "job") out.push({ key: "new-job", icon: Plus, title: "New job", act: () => run(() => openNew("job")) });
-        if (k === "lead") out.push({ key: "new-lead", icon: UserPlus, title: "New lead", sub: "Goes on To quote", act: () => run(() => openNew("lead")) });
+        if (k === "lead") out.push({ key: "new-lead", icon: UserPlus, title: "New lead", sub: "Goes on Leads", act: () => run(() => openNew("lead")) });
         if (k === "task") out.push({ key: "new-task", icon: ListChecks, title: "New task", act: () => run(() => openNew("task")) });
         if (k === "customer") out.push({ key: "new-customer", icon: Building2, title: "New customer", sub: "Opens Customers — tap Add customer", act: () => go("/customers") });
         if (k === "target") out.push({ key: "new-target", icon: Target, title: "New marketing target", act: () => run(() => openNew("target")) });

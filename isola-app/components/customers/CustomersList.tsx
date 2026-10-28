@@ -68,7 +68,7 @@ export default function CustomersList() {
       const inv = invoicesFor(c, snap);
       out[c.id] = {
         lifetime: js.filter((j) => j.status === "complete").reduce((a, j) => a + jobPrice(j), 0),
-        open: js.filter((j) => ["lead", "awaiting", "booked", "progress"].includes(j.status)),
+        open: js.filter((j) => ["lead", "quote", "awaiting", "booked", "progress"].includes(j.status)),
         owed: inv.reduce((a: number, i: any) => a + Number(i.amount ?? 0), 0),
         overdue: inv.some((i: any) => (i.days_overdue ?? 0) > 0),
         last: js.map(jobDate).filter(Boolean).sort().pop() ?? "",
@@ -126,7 +126,7 @@ export default function CustomersList() {
 
   const header = (
     <PageHeader
-      title="Customers & properties"
+      title="Clients & properties"
       sub={loading ? " " : `${active.length} accounts · ${props.length} properties`}
       actions={
         <>

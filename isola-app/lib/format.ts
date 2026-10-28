@@ -19,7 +19,7 @@ export type Job = {
   customer: string;
   location: string | null;
   job: string | null;
-  status: "lead" | "booked" | "progress" | "complete" | "awaiting" | "future" | "lost";
+  status: "lead" | "quote" | "booked" | "progress" | "complete" | "awaiting" | "future" | "lost";
   price: string | null;
   contact_name: string | null;
   contact_phone: string | null;
@@ -38,10 +38,13 @@ export const jobLabel = (j: Partial<Pick<Job, "job_name" | "customer" | "locatio
 
 // Pipeline v4 (9/22/26). DB keys stay the same so nothing else breaks; the labels are what Mike reads.
 //   Selling: lead = TO QUOTE (not sent yet) · awaiting = SENT (with the customer)
+//   v8.0 (10/28/26): lead = LEADS (a call came in / something to chase) · quote = AWAITING QUOTE
+//   (worth pricing — needs a site visit and a number) · awaiting = SENT
 //   Doing:   booked · progress · complete        Archive: lost (declined / dead)
 //   Future (10/8/26): warm work that got pushed back or isn't ready yet — still live, follow up later
 export const STATUS_META: Record<string, { label: string; cls: string }> = {
-  lead: { label: "To Quote", cls: "bg-white/[0.06] text-neutral-300 border-white/10" },
+  lead: { label: "Leads", cls: "bg-white/[0.06] text-neutral-300 border-white/10" },
+  quote: { label: "Awaiting quote", cls: "bg-amber-500/10 text-amber-200 border-amber-500/30" },
   awaiting: { label: "Sent", cls: "bg-white/[0.06] text-neutral-200 border-white/15" },
   future: { label: "Future", cls: "bg-sky-500/10 text-sky-200 border-sky-500/30" },
   booked: { label: "Booked", cls: "bg-white/10 text-white border-white/20" },
@@ -49,7 +52,10 @@ export const STATUS_META: Record<string, { label: string; cls: string }> = {
   complete: { label: "Complete", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
   lost: { label: "Lost", cls: "bg-red-500/10 text-red-300/80 border-red-500/30" },
 };
-export const PIPELINE = ["lead", "awaiting", "future", "booked", "progress", "complete"] as const;
+export const PIPELINE = ["lead", "quote", "awaiting", "booked", "progress", "complete", "future"] as const;
+/** pre-sale: still being chased or priced */
+export const SELLING = ["lead", "quote"] as const;
+export const isPreSale = (s: string | null | undefined) => s === "lead" || s === "quote";
 export const FUTURE_HINT = "Warm work that got pushed back or isn't ready yet. Still live, follow up when the timing's right.";
 export const LOST_REASONS = ["Price", "Went with someone else", "No response", "Scope changed / cancelled", "Not our kind of work", "Other"];
 
@@ -60,7 +66,8 @@ export const isLiveJob = (j: any) =>
 // Sub-stage tag shown on a card, so each column reads at a glance.
 export function stageTag(j: any, ctx: { walked?: boolean; drafting?: boolean; scheduled?: boolean } = {}): { text: string; cls: string } | null {
   const warn = "text-amber-300", ok = "text-emerald-300", mute = "text-neutral-400", bad = "text-red-400";
-  if (j.status === "lead") {
+  if (j.status === "lead") return { text: daysSince(String(j.created_at ?? "").slice(0, 10)) > 7 ? "Chase it" : "New", cls: daysSince(String(j.created_at ?? "").slice(0, 10)) > 7 ? warn : mute };
+  if (j.status === "quote") {
     if (ctx.drafting) return { text: "Drafting", cls: ok };
     if (ctx.walked) return { text: "Walked", cls: ok };
     return { text: "Not walked", cls: mute };

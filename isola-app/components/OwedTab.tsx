@@ -123,7 +123,7 @@ export default function OwedTab() {
 
   return (
     <div>
-      <PageHeader title="Subs payroll" sub="What you still owe your crew and subs, by person and job"
+      <PageHeader title="Owed to crew" sub="What you still owe your crew and subs, by person and job"
         actions={<Button size="sm" onClick={() => setAdding((v) => !v)}><Plus size={15} /> Add what I owe</Button>} />
 
       <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3">

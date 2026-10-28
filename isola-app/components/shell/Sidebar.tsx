@@ -69,7 +69,8 @@ export function NavGroups({ onNavigate }: { onNavigate?: () => void }) {
     window.addEventListener(PIN_EVT, sync);
     return () => window.removeEventListener(PIN_EVT, sync);
   }, []);
-  const toggle = (k: string) => setShut((s) => { const n = { ...s, [k]: !s[k] }; try { localStorage.setItem("isola.nav.shut", JSON.stringify(n)); } catch {} return n; });
+  const isShut = (g: { key: string; collapsed?: boolean }) => shut[g.key] ?? !!g.collapsed;
+  const toggle = (g: { key: string; collapsed?: boolean }) => setShut((s) => { const n = { ...s, [g.key]: !(s[g.key] ?? !!g.collapsed) }; try { localStorage.setItem("isola.nav.shut", JSON.stringify(n)); } catch {} return n; });
   const togglePin = (href: string) => {
     const cur = readPins();
     const next = cur.includes(href) ? cur.filter((h) => h !== href) : [...cur, href];
@@ -120,11 +121,11 @@ export function NavGroups({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       ) : null}
       {GROUPS.map((g) => {
-        const closed = shut[g.key] && hit?.hub?.key !== g.key;
+        const closed = isShut(g) && hit?.hub?.key !== g.key;
         const total = g.items.reduce((s, e) => s + screensOf(e).reduce((t, i) => t + cnt(i), 0), 0);
         return (
           <div key={g.key}>
-            <button onClick={() => toggle(g.key)} className="mb-1 flex w-full items-center gap-1.5 px-2.5 text-xs font-semibold text-neutral-500 hover:text-neutral-300">
+            <button onClick={() => toggle(g)} className="mb-1 flex w-full items-center gap-1.5 px-2.5 text-xs font-semibold text-neutral-500 hover:text-neutral-300">
               {g.label}
               {closed && total ? <span className="rounded-full bg-white/10 px-1.5 text-[10px] text-neutral-300">{total}</span> : null}
               <ChevronDown size={13} className={cn("ml-auto transition-transform", closed && "-rotate-90")} />

@@ -38,7 +38,7 @@ export default function LeadsTab() {
     setErr(null);
     try {
       const [j, v] = await withTimeout(Promise.all([
-        supabase.from("jobs").select("*").eq("status", "lead").order("priority", { ascending: false }).order("created_at", { ascending: true }),
+        supabase.from("jobs").select("*").in("status", ["lead", "quote"]).order("priority", { ascending: false }).order("created_at", { ascending: true }),
         supabase.from("site_visits").select("job_id,visit_date"),
       ]));
       const e = firstError(j, v);
@@ -114,7 +114,7 @@ export default function LeadsTab() {
 
   const header = (
     <PageHeader
-      title="To quote"
+      title="Leads and quotes"
       sub="Work that hasn't gone out yet — go look, then send the proposal."
       actions={
         <Button onClick={() => setAdding(!adding)} variant={adding ? "outline" : "default"}>
@@ -137,7 +137,7 @@ export default function LeadsTab() {
 
       <div className="relative mb-4">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search To Quote…" className="pl-9" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search leads…" className="pl-9" />
       </div>
 
       {adding ? (
@@ -159,7 +159,7 @@ export default function LeadsTab() {
         <Empty
           icon={<UserPlus size={26} />}
           title={q ? "No matches" : "No leads"}
-          body={q ? "Nothing in To Quote matches that search." : "Anything you still need to go look at goes here."}
+          body={q ? "Nothing matches that search." : "Anything you still need to go look at goes here."}
           action={!q && !adding ? <Button variant="outline" size="sm" onClick={() => setAdding(true)}><Plus size={15} /> Add a lead</Button> : undefined}
         />
       ) : (

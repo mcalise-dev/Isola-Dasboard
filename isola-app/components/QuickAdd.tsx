@@ -146,7 +146,7 @@ export default function QuickAdd() {
     setBusy(false);
     if (error) { showError("Save failed: " + error.message); return; }
     close();
-    showToast("Lead added to To quote");
+    showToast("Lead added to Leads");
     window.dispatchEvent(new Event("isola:changed"));
   }
 

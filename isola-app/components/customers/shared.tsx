@@ -28,7 +28,7 @@ export const lower = (s: any) => String(s ?? "").trim().toLowerCase();
 // THM-held jobs count only Mike's cut
 export const jobPrice = (j: any) => revenueOf(j);
 export const jobName = (j: any) => j?.job_name || j?.location || j?.customer || "Job";
-export const OPEN = ["lead", "awaiting", "booked", "progress"] as const;
+export const OPEN = ["lead", "quote", "awaiting", "booked", "progress"] as const;
 export const changed = () => window.dispatchEvent(new Event("isola:changed"));
 
 // most recent meaningful date on a job

@@ -49,7 +49,7 @@ const STAGES = [
   { key: "other", label: "Other", pct: 0 },
 ];
 
-const STATUSES = ["lead", "awaiting", "booked", "progress", "complete"];
+const STATUSES = ["lead", "quote", "awaiting", "booked", "progress", "complete"];
 
 type Filter = "all" | "collected" | "outstanding";
 

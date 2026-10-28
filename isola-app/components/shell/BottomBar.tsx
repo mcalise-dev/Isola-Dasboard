@@ -8,7 +8,7 @@ import { NavGroups } from "@/components/shell/Sidebar";
 import { useAttention } from "@/lib/attention";
 import { cn } from "@/lib/utils";
 
-// Phone: Home · Jobs · Schedule · Money · Menu. Menu opens every screen, grouped.
+// Phone: Home · Pipeline · Projects · Accounting · Menu. Menu opens every screen, grouped.
 export default function BottomBar() {
   const path = usePathname();
   const router = useRouter();
@@ -29,7 +29,7 @@ export default function BottomBar() {
           {TABS.map((t) => {
             const on = t.match.includes(key);
             const Icon = t.icon;
-            const badge = t.key === "home" ? a?.badges.home : t.key === "money" ? a?.badges.money : 0;
+            const badge = t.key === "home" ? a?.badges.home : t.key === "accounting" ? a?.badges.money : t.key === "pipeline" ? a?.badges.leads : 0;
             return (
               <button key={t.key} onClick={() => router.push(t.href)} aria-current={on ? "page" : undefined}
                 className={cn("relative flex min-h-[60px] flex-col items-center justify-center gap-1 text-xs font-semibold", on ? "text-brand" : "text-neutral-500")}>

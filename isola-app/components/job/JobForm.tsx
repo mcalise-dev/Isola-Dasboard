@@ -13,7 +13,7 @@ import { showToast, showError } from "@/components/Toaster";
 //   window.dispatchEvent(new CustomEvent("isola:new-job", { detail: job })) → edit that job
 // Same rules as before: the customer is picked from the list (no new spellings) and the
 // address is tied to one of the customer's properties.
-const STATUSES = ["lead", "awaiting", "future", "booked", "progress", "complete", "lost"] as const;
+const STATUSES = ["lead", "quote", "awaiting", "future", "booked", "progress", "complete", "lost"] as const;
 export const LEAD_SOURCES = ["Referral", "Repeat customer", "Property manager", "Cold outreach", "LinkedIn", "Website", "Google", "Drive-by / sign", "THM", "Other"];
 const empty = { job_name: "", customer: "", customer_id: "", location: "", property_id: "", job: "", status: "lead", price: "", contact_name: "", contact_phone: "", notes: "", scope_of_work: "", lead_source: "", referred_by: "", contract_holder: "isola", partner: "", thm_deal: "" };
 
@@ -33,9 +33,10 @@ export default function JobForm() {
   useEffect(() => {
     const on = (e: Event) => {
       const j = (e as CustomEvent).detail;
-      setEditing(j ?? null);
+      // a detail with no id is a pre-filled NEW job (e.g. New project → status booked)
+      setEditing(j?.id ? j : null);
       setNewCustomer(false);
-      setForm(j ? Object.fromEntries(Object.keys(empty).map((k) => [k, j[k] ?? ""])) : { ...empty });
+      setForm(j ? { ...empty, ...Object.fromEntries(Object.keys(empty).filter((k) => j[k] != null).map((k) => [k, j[k]])) } : { ...empty });
       setOpen(true);
       supabase.from("customers").select("id,name,contact_name,phone,archived,lead_source").eq("archived", false).order("name").then(({ data }: any) => setCustomers(data ?? []));
       supabase.from("properties").select("id,customer_id,label,address").order("address").then(({ data }: any) => setProperties(data ?? []));
@@ -110,7 +111,7 @@ export default function JobForm() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent wide>
         <DialogHeader>
-          <DialogTitle>{editing ? "Edit job" : "New job"}</DialogTitle>
+          <DialogTitle>{editing ? "Edit job" : ["booked", "progress"].includes(form.status) ? "New project" : form.status === "lead" ? "New lead" : "New job"}</DialogTitle>
           <DialogDescription>The job name is used everywhere: dashboard, files, ledger and QuickBooks.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

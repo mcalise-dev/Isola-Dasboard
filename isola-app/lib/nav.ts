@@ -16,7 +16,7 @@ import {
 // A screen. A menu entry is a NavItem with `tabs` (its screens, first tab = the entry's
 // own page) or without (a single screen).
 export type NavItem = { href: string; label: string; icon: LucideIcon; badge?: string; key?: string; tabs?: NavItem[] };
-export type NavGroup = { key: string; label: string; icon: LucideIcon; home: string; items: NavItem[] };
+export type NavGroup = { key: string; label: string; icon: LucideIcon; home: string; items: NavItem[]; /** starts folded in the menu */ collapsed?: boolean };
 
 // v7.4 (10/22/26): Crew & subs gets its own entry (crew, vendors/COIs, subs payroll) and
 // Reports splits out of Money. The menu now lists every screen under its entry.
@@ -33,16 +33,22 @@ export const HOME: NavItem = { href: "/home", label: "Home", icon: Home, badge: 
 
 export const SETTINGS: NavItem = { href: "/settings", label: "Settings", icon: Settings, key: "settings" };
 
+// v8.0 (10/28/26): Mike's cleanup. Main list, in his order: Pipeline · Projects · Schedule ·
+// Crew & vendors · Clients · Accounting · Tasks. Marketing is tucked under its own collapsed
+// group at the bottom. Every old route still works.
 export const GROUPS: NavGroup[] = [
   {
-    key: "work", label: "Run the work", icon: Briefcase, home: "/",
+    key: "work", label: "Run the business", icon: Briefcase, home: "/",
     items: [
-      { key: "jobs", href: "/", label: "Jobs", icon: Briefcase, tabs: [
-        { href: "/", label: "Jobs", icon: Briefcase, badge: "jobs" },
-        { href: "/leads", label: "To quote", icon: Search, badge: "leads" },
-        { href: "/build", label: "Build & price", icon: Hammer },
-        { href: "/proposals", label: "Proposals sent", icon: Send, badge: "proposals" },
+      // Leads · Awaiting quote · Sent · Booked · In progress · Complete · Future (stage strip on the page)
+      { key: "pipeline", href: "/", label: "Pipeline", icon: Workflow, badge: "leads", tabs: [
+        { href: "/", label: "Pipeline", icon: Workflow, badge: "leads" },
         { href: "/visits", label: "Site visits", icon: MapPin },
+        { href: "/proposals", label: "Proposals sent", icon: Send, badge: "proposals" },
+      ] },
+      { key: "projects", href: "/projects", label: "Projects", icon: Briefcase, tabs: [
+        { href: "/projects", label: "Active projects", icon: Briefcase },
+        { href: "/build", label: "Build & price", icon: Hammer },
         { href: "/punchlist", label: "Punch list", icon: ClipboardCheck },
         { href: "/markup", label: "Photo markup", icon: PenTool },
       ] },
@@ -51,20 +57,22 @@ export const GROUPS: NavGroup[] = [
         { href: "/schedule", label: "Calendar", icon: CalendarDays },
         { href: "/snow", label: "Recurring", icon: Snowflake },
       ] },
-      // v7.4: everyone you pay or put on a site, in one place
-      { key: "crew", href: "/crew", label: "Crew & subs", icon: HardHat, tabs: [
+      { key: "crew", href: "/crew", label: "Crew & vendors", icon: HardHat, tabs: [
         { href: "/crew", label: "Crew & time", icon: HardHat },
-        { href: "/vendors", label: "Subs & vendors (COI, W-9)", icon: Truck, badge: "vendors" },
-        { href: "/payroll", label: "Subs payroll", icon: HandCoins },
+        { href: "/vendors", label: "Vendors (COI, W-9)", icon: Truck, badge: "vendors" },
       ] },
-      { key: "money", href: "/money", label: "Money", icon: Wallet, tabs: [
+      { key: "clients", href: "/customers", label: "Clients", icon: Building2, tabs: [
+        { href: "/customers", label: "Clients & properties", icon: Building2 },
+        { href: "/docs", label: "Documents", icon: ShieldCheck },
+      ] },
+      // who's owed what, from which job — both directions — plus THM, costs and the books
+      { key: "accounting", href: "/money", label: "Accounting", icon: Wallet, tabs: [
         { href: "/money", label: "Owed to me", icon: Wallet, badge: "money" },
-        { href: "/costs", label: "Costs", icon: Receipt, badge: "costs" },
-        { href: "/tm", label: "T&M billing", icon: Clock },
-        { href: "/billing", label: "Billing", icon: CreditCard },
+        { href: "/payroll", label: "Owed to crew", icon: HandCoins },
         { href: "/thm", label: "THM tab", icon: Handshake },
-      ] },
-      { key: "reports", href: "/reports", label: "Reports", icon: BarChart3, tabs: [
+        { href: "/costs", label: "Costs", icon: Receipt, badge: "costs" },
+        { href: "/billing", label: "Billing", icon: CreditCard },
+        { href: "/tm", label: "T&M billing", icon: Clock },
         { href: "/reports", label: "Reports", icon: BarChart3 },
         { href: "/money/cashflow", label: "Cash flow", icon: TrendingUp },
         { href: "/money/review", label: "Monthly review", icon: CalendarCheck },
@@ -77,12 +85,8 @@ export const GROUPS: NavGroup[] = [
     ],
   },
   {
-    key: "grow", label: "Grow the business", icon: Building2, home: "/customers",
+    key: "grow", label: "Marketing", icon: Megaphone, home: "/marketing", collapsed: true,
     items: [
-      { key: "customers", href: "/customers", label: "Customers", icon: Building2, tabs: [
-        { href: "/customers", label: "Customers & properties", icon: Building2 },
-        { href: "/docs", label: "Documents", icon: ShieldCheck },
-      ] },
       { key: "marketing", href: "/marketing", label: "Marketing", icon: Megaphone, tabs: [
         { href: "/marketing", label: "Overview", icon: Gauge },
         { href: "/marketing/approvals", label: "Approvals", icon: ShieldCheck, badge: "approvals" },
@@ -106,12 +110,12 @@ export const GROUPS: NavGroup[] = [
 // The screens under a menu entry (an entry without tabs is its own single screen).
 export const screensOf = (entry: NavItem): NavItem[] => entry.tabs ?? [entry];
 
-// Phone bottom bar — `match` lists menu-entry keys.
+// Phone bottom bar — `match` lists menu-entry keys. v8.0: Home · Pipeline · Projects · Accounting · Menu.
 export const TABS: { key: string; label: string; icon: LucideIcon; href: string; match: string[] }[] = [
   { key: "home", label: "Home", icon: Home, href: "/home", match: ["home"] },
-  { key: "work", label: "Jobs", icon: Briefcase, href: "/", match: ["jobs"] },
-  { key: "schedule", label: "Schedule", icon: CalendarDays, href: "/dispatch", match: ["schedule"] },
-  { key: "money", label: "Money", icon: Wallet, href: "/money", match: ["money", "reports"] },
+  { key: "pipeline", label: "Pipeline", icon: Workflow, href: "/", match: ["pipeline"] },
+  { key: "projects", label: "Projects", icon: Briefcase, href: "/projects", match: ["projects", "schedule"] },
+  { key: "accounting", label: "Accounting", icon: Wallet, href: "/money", match: ["accounting"] },
 ];
 
 // Old name kept so anything importing HUBS still compiles.

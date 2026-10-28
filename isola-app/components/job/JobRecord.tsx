@@ -39,11 +39,11 @@ import {
 } from "lucide-react";
 
 const STEPS = [
-  { key: "lead", label: "To quote" }, { key: "walked", label: "Walked" }, { key: "awaiting", label: "Sent" },
+  { key: "lead", label: "Lead" }, { key: "quote", label: "Awaiting quote" }, { key: "walked", label: "Walked" }, { key: "awaiting", label: "Sent" },
   { key: "booked", label: "Booked" }, { key: "scheduled", label: "Scheduled" }, { key: "progress", label: "In progress" },
   { key: "complete", label: "Complete" }, { key: "invoiced", label: "Invoiced" }, { key: "paid", label: "Paid" },
 ];
-const ORDER = ["lead", "awaiting", "booked", "progress", "complete"];
+const ORDER = ["lead", "quote", "awaiting", "booked", "progress", "complete"];
 
 // v7.2 (CompanyCam-style): the whole job lives on its record — Overview · Photos · Proposal ·
 // Schedule · Money. Photos mark up in place; the proposal is built in place.
@@ -78,7 +78,8 @@ export const resolveTab = (t: string | null | undefined) => resolve(t)?.tab ?? n
 
 export function nextStep(j: any, ctx: { walked: boolean; drafting: boolean; scheduled: boolean }) {
   const today = todayISO();
-  if (j.status === "lead") return !ctx.walked ? { label: "Log the site visit", icon: MapPin, href: "/visits" }
+  if (j.status === "lead") return { label: "Worth pricing, move to Awaiting quote", icon: ThumbsUp, patch: { status: "quote" }, toast: "Moved to Awaiting quote" };
+  if (j.status === "quote") return !ctx.walked ? { label: "Log the site visit", icon: MapPin, href: "/visits" }
     : ctx.drafting ? { label: "Finish the proposal", icon: Hammer, tab: "proposal" } : { label: "Price it, build the proposal", icon: Hammer, tab: "proposal" };
   if (j.status === "future") return { label: "Ready to go, mark Booked", icon: ThumbsUp, patch: { status: "booked", won_date: j.won_date ?? today }, toast: "Moved to Booked" };
   if (j.status === "awaiting") return { label: "They said yes, mark Booked", icon: ThumbsUp, patch: { status: "booked", won_date: j.won_date ?? today }, toast: "Moved to Booked" };
@@ -186,8 +187,8 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
   // where the job sits on the stepper
   const sIdx = ORDER.indexOf(job.status === "future" ? "awaiting" : job.status);
   const doneFlags = [
-    sIdx >= 0, ctx.walked || sIdx >= 1, sIdx >= 2 || !!job.quoted_date, sIdx >= 2, ctx.scheduled || sIdx >= 3,
-    sIdx >= 4, sIdx >= 4, !!job.invoiced_date, !!job.paid_date,
+    sIdx >= 0, sIdx >= 1, ctx.walked || sIdx >= 2, sIdx >= 3 || !!job.quoted_date, sIdx >= 3, ctx.scheduled || sIdx >= 4,
+    sIdx >= 5, sIdx >= 5, !!job.invoiced_date, !!job.paid_date,
   ];
   const current = job.status === "lost" ? -1 : doneFlags.findIndex((d) => !d) === -1 ? STEPS.length - 1 : doneFlags.findIndex((d) => !d);
 
@@ -240,7 +241,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
       {/* header */}
       <div className="mb-4">
         <div className="mb-2 flex items-center gap-1.5 text-[13px] text-neutral-500">
-          <Link href={home} className="inline-flex items-center gap-1 hover:text-white"><ChevronLeft size={15} /> {partner ? "THM jobs" : "Jobs"}</Link>
+          <Link href={home} className="inline-flex items-center gap-1 hover:text-white"><ChevronLeft size={15} /> {partner ? "THM jobs" : "Pipeline"}</Link>
           {job.customer ? <><span>/</span>{job.customer_id ? <Link href={`/customers/${job.customer_id}`} className="truncate hover:text-white">{job.customer}</Link> : <span className="truncate">{job.customer}</span>}</> : null}
         </div>
         <div className="flex flex-wrap items-start gap-3">
@@ -286,7 +287,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sky-500/25 bg-sky-500/[0.06] px-4 py-3">
           <PauseCircle size={18} className="text-sky-300" />
           <span className="text-sm text-sky-100">Future work: warm, pushed back or not ready yet. Follow up when the timing's right.</span>
-          <Button size="sm" variant="outline" className="ml-auto" onClick={() => patch({ status: job.quoted_date ? "awaiting" : "lead" }, "Back in the pipeline")}>Back to {job.quoted_date ? "Sent" : "To Quote"}</Button>
+          <Button size="sm" variant="outline" className="ml-auto" onClick={() => patch({ status: job.quoted_date ? "awaiting" : "quote" }, "Back in the pipeline")}>Back to {job.quoted_date ? "Sent" : "Awaiting quote"}</Button>
         </div>
       ) : null}
       {job.status === "lost" ? null : <Stepper className="mb-4" steps={STEPS} current={current} done={(i) => doneFlags[i]} onPick={pickStep} />}

@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { PageHeader, SectionTitle, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
 import { cn } from "@/lib/utils";
+import AccountingByJob from "@/components/AccountingByJob";
 import { Check, ChevronDown, ChevronRight, FileText, Link2, RotateCcw, Wallet, ArrowRight } from "lucide-react";
 
 type Inv = { customer: string; ref?: string; due: string; amount: number; days_overdue: number };
@@ -127,7 +128,7 @@ export default function MoneyTab() {
   }
 
   const header = (
-    <PageHeader title="Money" sub="What's owed to you, what's late, and what's come in"
+    <PageHeader title="Owed to me" sub="What's owed to you by job, what's late, and what's come in"
       actions={<Button variant="outline" asChild><Link href="/thm"><Wallet size={16} /> THM tab</Link></Button>} />
   );
   if (err) return <div>{header}<LoadError message={err} onRetry={() => { setLoading(true); load(); }} /></div>;
@@ -204,6 +205,7 @@ export default function MoneyTab() {
     <div className="space-y-6">
       <div>
         {header}
+        <AccountingByJob />
         <div className="grid grid-cols-3 gap-2">
           <Stat label="Owed to you" value={snap ? fmt$(openAR) : "—"} hint={`${invoices.length} open`} />
           <Stat label="Overdue" value={snap ? fmt$(openOverdue) : "—"} tone={openOverdue > 0 ? "warn" : undefined} hint={`${overdueList.length} late`} />

@@ -11,7 +11,7 @@ const dayDiff = (a: string, b: string) => Math.round((new Date(b + "T12:00:00").
 
 export function pipelineStats(jobs: any[]) {
   const sent = jobs.filter((j) => j.status === "awaiting");
-  const toQuote = jobs.filter((j) => j.status === "lead");
+  const toQuote = jobs.filter((j) => j.status === "lead" || j.status === "quote");
   const backlog = jobs.filter((j) => j.status === "booked" || j.status === "progress");
   const since = new Date(); since.setDate(since.getDate() - 180);
   const cut = since.toISOString().slice(0, 10);

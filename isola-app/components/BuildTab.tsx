@@ -1127,7 +1127,7 @@ function BuildDetail({ est, customers, props, workers, book, templates, onBack, 
                       const { data: cur } = await supabase.from("jobs").select("status,quoted_date").eq("id", jobCtx.id).single();
                       const up: any = { proposal_status: "sent", updated_at: new Date().toISOString() };
                       if (!cur?.quoted_date) up.quoted_date = todayISO();
-                      if (cur?.status === "lead") up.status = "awaiting";
+                      if (cur?.status === "lead" || cur?.status === "quote") up.status = "awaiting";
                       const { error } = await supabase.from("jobs").update(up).eq("id", jobCtx.id);
                       if (error) return showError("Save failed: " + error.message);
                       window.dispatchEvent(new Event("isola:changed"));

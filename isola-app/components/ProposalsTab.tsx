@@ -375,7 +375,7 @@ export function LinkEditor({ supabase, job, link, kind, onClose, onSaved }: any)
       if (!error && !link && !isCO && !["sent", "signed", "accepted"].includes(job.proposal_status)) {
         const jp: any = { proposal_status: "sent", updated_at: new Date().toISOString() };
         if (!job.quoted_date) jp.quoted_date = new Date().toISOString().slice(0, 10);
-        if (job.status === "lead") jp.status = "awaiting";
+        if (job.status === "lead" || job.status === "quote") jp.status = "awaiting";
         await supabase.from("jobs").update(jp).eq("id", job.id);
       }
     } catch (e: any) { error = e; }
