@@ -38,6 +38,7 @@ const addDaysISO = (s: string, n: number) => {
 import {
   Phone, Navigation, Pencil, MoreHorizontal, Star, Trash2, XCircle, ChevronLeft, MapPin, Hammer, ThumbsUp,
   CalendarPlus, Play, CheckCircle2, PauseCircle, FileText, Banknote, ArrowRight, ListChecks, Briefcase, Building2, Camera,
+  ClipboardList,
 } from "lucide-react";
 
 const STEPS = [
@@ -327,12 +328,13 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             </TabsList>
             <TabsContent value="overview" className="space-y-6">
               {/* CompanyCam-style quick actions: everything for the job starts right here */}
-              <div className={cn("grid gap-2", partner ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
+              <div className={cn("grid gap-2", partner ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-5")}>
                 {[
                   { k: "costs", label: "Costs", sub: "Log receipts & labor", icon: Banknote },
                   { k: "photos", label: "Photos", sub: "Take & mark up", icon: Camera },
                   ...(partner ? [] : [{ k: "proposal", label: "Proposal", sub: "Build & price", icon: Hammer }]),
                   { k: "schedule", label: "Schedule", sub: "Crew & deliveries", icon: CalendarPlus },
+                  { k: "field", label: "Field", sub: "Plans, RFIs, submittals", icon: ClipboardList },
                 ].map(({ k, label, sub, icon: I }) => (
                   <button key={k} onClick={() => setTab(k)} className="flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 text-left hover:border-white/20">
                     <I size={18} className="text-white" />
