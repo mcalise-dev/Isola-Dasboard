@@ -1,5 +1,5 @@
 "use client";
-// "Subs payroll" — every unpaid cost (crew labor, subs) grouped by person, then by job.
+// "Subs payroll" — every unpaid Labor cost (crew, subs) grouped by person, then by job.
 // Source of truth is job_costs.paid = false. Paying someone flips their lines to paid.
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -34,7 +34,8 @@ export default function OwedTab() {
   async function load() {
     const since = new Date(Date.now() - 14 * 86400000).toISOString();
     const [o, r, j, w] = await Promise.all([
-      sb.from("job_costs").select(cols).eq("paid", false).gt("amount", 0).order("entry_date"),
+      // Labor only — vendor bills (rentals, materials, dump, fuel) never belong on payroll.
+      sb.from("job_costs").select(cols).eq("paid", false).eq("category", "Labor").gt("amount", 0).order("entry_date"),
       sb.from("job_costs").select(cols).eq("paid", true).eq("category", "Labor").gte("updated_at", since).order("updated_at", { ascending: false }).limit(40),
       sb.from("jobs").select("id,job_name,customer,location,job,status").order("job_name"),
       sb.from("workers").select("name").eq("active", true).eq("is_owner", false).order("name"),
