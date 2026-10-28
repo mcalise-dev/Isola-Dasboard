@@ -51,6 +51,7 @@ export const GROUPS: NavGroup[] = [
         { href: "/build", label: "Build & price", icon: Hammer },
         { href: "/punchlist", label: "Punch list", icon: ClipboardCheck },
         { href: "/markup", label: "Photo markup", icon: PenTool },
+        { href: "/projects/vendors", label: "Material vendors", icon: Truck },
       ] },
       { key: "schedule", href: "/dispatch", label: "Schedule", icon: CalendarDays, tabs: [
         { href: "/dispatch", label: "Dispatch board", icon: LayoutGrid, badge: "dispatch" },

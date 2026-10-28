@@ -1,4 +1,5 @@
 "use client";
+import { withPhoneLinks } from "@/lib/phoneLinks";
 import { useEffect, useMemo, useState } from "react";
 import { undoable, showError } from "@/components/Toaster";
 import { createClient } from "@/lib/supabase/client";
@@ -145,7 +146,7 @@ export default function TasksTab() {
           </span>
         </button>
         <div className="min-w-0 flex-1">
-          <div className={cn("text-sm", t.done ? "text-neutral-400 line-through" : "font-medium text-white")}>{t.title}</div>
+          <div className={cn("text-sm", t.done ? "text-neutral-400 line-through" : "font-medium text-white")}>{withPhoneLinks(t.title)}</div>
           <div className="truncate text-xs text-neutral-400">
             {t.due_date ? (
               <span className={!t.done && t.due_date <= todayISO() ? "font-semibold text-red-300" : "text-neutral-400"}>

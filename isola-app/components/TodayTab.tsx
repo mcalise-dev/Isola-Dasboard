@@ -1,4 +1,5 @@
 "use client";
+import { withPhoneLinks } from "@/lib/phoneLinks";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -172,7 +173,7 @@ export default function TodayTab() {
           <span className="flex h-5 w-5 items-center justify-center rounded-md border border-neutral-600 text-transparent hover:text-emerald-300"><Check size={13} strokeWidth={3} /></span>
         </button>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm text-white">{t.title}</div>
+          <div className="truncate text-sm text-white">{withPhoneLinks(t.title)}</div>
           <div className="truncate text-xs text-neutral-400">
             {late ? <span className="font-semibold text-red-300">{daysSince(t.due_date)}d overdue · </span> : null}
             {j ? <Link href={`/?job=${j.id}`} className="underline decoration-neutral-700 underline-offset-2 hover:text-neutral-200">{j.job_name || j.customer}</Link> : "No job"}

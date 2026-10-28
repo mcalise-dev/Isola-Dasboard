@@ -1,4 +1,5 @@
 "use client";
+import { withPhoneLinks } from "@/lib/phoneLinks";
 // v4.6 job record panels. Same data rules as the old v4.5 job file,
 // split into self-loading pieces so the record page can lay them out in tabs and a rail.
 import { useEffect, useMemo, useState } from "react";
@@ -312,7 +313,7 @@ export function TasksPanel({ jobId }: { jobId: string }) {
               <Row key={t.id}>
                 <button onClick={() => toggle(t)} aria-label={t.done ? "Mark not done" : "Mark done"} className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs", t.done ? "border-emerald-400 bg-emerald-400 text-neutral-900" : "border-neutral-600 text-transparent hover:border-white")}>✓</button>
                 <div className="min-w-0 flex-1">
-                  <div className={cn("text-sm", t.done ? "text-neutral-500 line-through" : "font-medium text-white")}>{t.title}</div>
+                  <div className={cn("text-sm", t.done ? "text-neutral-500 line-through" : "font-medium text-white")}>{withPhoneLinks(t.title)}</div>
                   {t.due_date ? <div className={cn("text-xs", !t.done && t.due_date < today ? "text-red-400" : "text-neutral-400")}>due {fmtDate(t.due_date)}</div> : null}
                 </div>
                 <button onClick={() => crewToggle(t)} title={t.crew_visible ? "Crew can see this. Tap to hide" : "Only you see this. Tap to show the crew"}

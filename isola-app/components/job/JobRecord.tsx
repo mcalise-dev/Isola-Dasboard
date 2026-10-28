@@ -29,6 +29,7 @@ import FieldTab from "@/components/field/FieldTab";
 import BudgetPanel from "@/components/field/BudgetPanel";
 import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { needsConfirm } from "@/lib/schedule";
 
 const addDaysISO = (s: string, n: number) => {
@@ -38,8 +39,9 @@ const addDaysISO = (s: string, n: number) => {
 import {
   Phone, Navigation, Pencil, MoreHorizontal, Star, Trash2, XCircle, ChevronLeft, MapPin, Hammer, ThumbsUp,
   CalendarPlus, Play, CheckCircle2, PauseCircle, FileText, Banknote, ArrowRight, ListChecks, Briefcase, Building2, Camera,
-  ClipboardList,
+  ClipboardList, Truck,
 } from "lucide-react";
+import MaterialVendors from "@/components/MaterialVendors";
 
 const STEPS = [
   { key: "lead", label: "Lead" }, { key: "quote", label: "Awaiting quote" }, { key: "walked", label: "Walked" }, { key: "awaiting", label: "Sent" },
@@ -107,6 +109,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
   const [drafting, setDrafting] = useState(false);
   // T&M jobs have no fixed price: the Money box measures against what has been billed so far
   const [tmBilled, setTmBilled] = useState<number | null>(null);
+  const [vendorsOpen, setVendorsOpen] = useState(false);
   const [crew, setCrew] = useState<string[]>([]);
   const [customer, setCustomer] = useState<any | null>(null);
   const [property, setProperty] = useState<any | null>(null);
@@ -328,21 +331,30 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             </TabsList>
             <TabsContent value="overview" className="space-y-6">
               {/* CompanyCam-style quick actions: everything for the job starts right here */}
-              <div className={cn("grid gap-2", partner ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-5")}>
+              <div className={cn("grid gap-2", partner ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3 sm:grid-cols-6")}>
                 {[
                   { k: "costs", label: "Costs", sub: "Log receipts & labor", icon: Banknote },
                   { k: "photos", label: "Photos", sub: "Take & mark up", icon: Camera },
                   ...(partner ? [] : [{ k: "proposal", label: "Proposal", sub: "Build & price", icon: Hammer }]),
                   { k: "schedule", label: "Schedule", sub: "Crew & deliveries", icon: CalendarPlus },
                   { k: "field", label: "Field", sub: "Plans, RFIs, submittals", icon: ClipboardList },
+                  ...(partner ? [] : [{ k: "vendors", label: "Vendors", sub: "Supplier phone book", icon: Truck }]),
                 ].map(({ k, label, sub, icon: I }) => (
-                  <button key={k} onClick={() => setTab(k)} className="flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 text-left hover:border-white/20">
+                  <button key={k} onClick={() => (k === "vendors" ? setVendorsOpen(true) : setTab(k))} className="flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 text-left hover:border-white/20">
                     <I size={18} className="text-white" />
                     <span className="text-[14px] font-semibold text-white">{label}</span>
                     <span className="hidden text-xs text-neutral-500 sm:block">{sub}</span>
                   </button>
                 ))}
               </div>
+              {!partner ? (
+                <Dialog open={vendorsOpen} onOpenChange={setVendorsOpen}>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle>Material vendors</DialogTitle></DialogHeader>
+                    <div className="max-h-[70vh] overflow-y-auto pr-1"><MaterialVendors compact /></div>
+                  </DialogContent>
+                </Dialog>
+              ) : null}
               <JobTimeline jobId={job.id} onEditPlan={() => setTab("crew")} />
               <section>
                 <h2 className="mb-2 text-[17px] font-semibold text-white">Scope of work</h2>
