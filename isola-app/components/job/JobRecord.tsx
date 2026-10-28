@@ -391,6 +391,8 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
 
             {/* v8.0: every cost on the job, and logging new ones, on its own tab */}
             <TabsContent value="costs" className="space-y-8">
+              {/* T&M: the running customer bill sits right where costs are logged; re-keyed so it refreshes on every entry */}
+              {isTm ? <TmJobBill key={`${(costs ?? []).length}-${tmBilled ?? 0}`} jobId={job.id} onChanged={load} /> : null}
               <BudgetPanel job={job} onChange={load} />
               <section id="sec-costs" className="scroll-mt-24 space-y-8">
                 <CostsPanel jobId={job.id} onChange={load} />
