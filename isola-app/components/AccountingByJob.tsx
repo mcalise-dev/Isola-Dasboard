@@ -1,6 +1,6 @@
 "use client";
 // v8.0 (10/28/26) Accounting at a glance: who owes what, from which job — both directions.
-//   Owed to me  = job_financials.balance_due (contract + approved change orders − payments)
+//   Owed to me  = job_financials.balance_due (contract + approved change orders − paid (payments or marked paid); progress/complete only)
 //   I owe crew  = unpaid Labor lines in job_costs (same rule as Owed to crew / payroll)
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -22,10 +22,18 @@ export default function AccountingByJob() {
       const [f, c, j] = await Promise.all([
         sb.from("job_financials").select("job_id,job_name,customer,status,balance_due,contract_total,paid_to_date").gt("balance_due", 0).neq("status", "lost"),
         sb.from("job_costs").select("job_id,worker,vendor,amount").eq("paid", false).eq("category", "Labor").gt("amount", 0),
-        sb.from("jobs").select("id,job_name,customer,location,job"),
+        sb.from("jobs").select("id,job_name,customer,location,job,status,billing_type,contract_holder,tm_invoice_total,paid_date,paid_amount"),
       ]);
       // only work that's actually underway or done is "owed"; a quote isn't a receivable yet
-      setToMe((f.data ?? []).filter((r: any) => ["booked", "progress", "complete"].includes(r.status)).sort((a: any, b: any) => b.balance_due - a.balance_due));
+      // booked-but-not-started jobs aren't owed yet — same rule as the Home "Owed to me" tile
+      const fin = (f.data ?? []).filter((r: any) => ["progress", "complete"].includes(r.status));
+      const seen = new Set(fin.map((r: any) => r.job_id));
+      // T&M jobs with no fixed price: owed = billed-to-date minus paid
+      const tm = (j.data ?? [])
+        .filter((x: any) => !seen.has(x.id) && ["progress", "complete"].includes(x.status) && x.billing_type === "tm" && x.contract_holder !== "thm" && !x.paid_date)
+        .map((x: any) => ({ job_id: x.id, job_name: x.job_name, customer: x.customer, status: x.status, balance_due: Math.round(((Number(x.tm_invoice_total) || 0) - (Number(x.paid_amount) || 0)) * 100) / 100 }))
+        .filter((r: any) => r.balance_due > 0.005);
+      setToMe([...fin, ...tm].sort((a: any, b: any) => b.balance_due - a.balance_due));
       const byJob = new Map<string, { jobId: string | null; label: string; total: number; people: Set<string> }>();
       for (const r of c.data ?? []) {
         const k = r.job_id ?? "none";
