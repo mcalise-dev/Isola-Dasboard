@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { fmtDate } from "@/lib/format";
 import { withTimeout } from "@/lib/load";
 import { showError, showToast, undoable } from "@/components/Toaster";
 import { copyText } from "@/components/Dialogs";
@@ -13,7 +12,10 @@ import { Input, Textarea, Field, Label } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import W9YearEnd from "@/components/W9YearEnd";
-import { Plus, Link2, Search, ChevronDown, Phone, Mail, Pencil, Trash2, Eye, Paperclip, Check, X, Users, FileText } from "lucide-react";
+import ScheduleItemDialog from "@/components/schedule/ScheduleItemDialog";
+import { typeOf } from "@/lib/schedule";
+import { fmtDate, todayISO, jobLabel } from "@/lib/format";
+import { Plus, Link2, Search, ChevronDown, Phone, Mail, Pencil, Trash2, Eye, Paperclip, Check, X, Users, FileText, CalendarPlus, CalendarClock } from "lucide-react";
 
 /* ============================================================
    VENDORS — subs and suppliers, and the paperwork Isola needs
@@ -39,6 +41,17 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   inactive: { label: "Inactive", cls: "border-white/10 bg-transparent text-neutral-400" },
 };
 const needsReview = (v: any) => v.status === "new" || v.status === "updated";
+
+// what kind of schedule item a vendor usually is, from their trade
+const typeForTrade = (trade: string | null | undefined) => {
+  const t = String(trade ?? "").toLowerCase();
+  if (/concrete|ready.?mix/.test(t)) return "pour";
+  if (/rental|equipment|machine/.test(t)) return "equipment";
+  if (/supply|supplier|material|stone|block|lumber|yard/.test(t)) return "delivery";
+  if (/inspect/.test(t)) return "inspection";
+  return "sub";
+};
+const timeOf = (t: string | null) => { if (!t) return ""; const [h, m] = t.split(":").map(Number); return `${((h + 11) % 12) + 1}${m ? ":" + String(m).padStart(2, "0") : ""}${h < 12 ? "a" : "p"}`; };
 
 const daysTo = (iso: string | null | undefined) =>
   iso ? Math.floor((new Date(iso + "T12:00:00").getTime() - Date.now()) / 86400000) : null;
@@ -94,6 +107,10 @@ export default function VendorsTab() {
   const [quickBusy, setQuickBusy] = useState(false);
   const [quickKey, setQuickKey] = useState(0);
   const [w9Key, setW9Key] = useState(0);
+  // v8.2: vendor scheduling — upcoming bookings per vendor, and "Schedule them" from the card
+  const [booked, setBooked] = useState<Record<string, any[]>>({});
+  const [jobsList, setJobsList] = useState<any[]>([]);
+  const [booking, setBooking] = useState<any>(null);
 
   // One step: type the company, pick W-9 / COI, attach. Reuses the vendor if the
   // name already exists (case-insensitive), otherwise creates it.
@@ -140,6 +157,18 @@ export default function VendorsTab() {
       setRows(data ?? []);
       setLoading(false);
       setW9Key((k) => k + 1);
+      const [se, js] = await Promise.all([
+        supabase.from("schedule_entries").select("id,entry_date,start_time,end_time,item_type,job_id,label,qty,status,vendor_id,company").gte("entry_date", todayISO()).order("entry_date").order("start_time", { nullsFirst: false }),
+        supabase.from("jobs").select("id,job_name,customer,location,job,status"),
+      ]);
+      const by: Record<string, any[]> = {};
+      const list = data ?? [];
+      for (const e of se.data ?? []) {
+        // older entries may only carry the company name — match it to the vendor too
+        const vid = e.vendor_id ?? list.find((v: any) => v.company?.trim().toLowerCase() === String(e.company ?? "").trim().toLowerCase())?.id;
+        if (vid) (by[vid] ??= []).push(e);
+      }
+      setBooked(by); setJobsList(js.data ?? []);
     } catch (e: any) {
       setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
     }
@@ -385,6 +414,7 @@ export default function VendorsTab() {
                 <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-semibold">
                   <span className={c.cls}>{c.text}</span>
                   <span className={v.w9_id ? "text-emerald-400" : "text-amber-300"}>{v.w9_id ? "W-9 on file" : "No W-9"}</span>
+                  {booked[v.id]?.length ? <span className="inline-flex items-center gap-1 text-sky-300"><CalendarClock size={12} /> Next {fmtDate(booked[v.id][0].entry_date).replace(/^\w+, /, "")}</span> : null}
                 </div>
               </button>
 
@@ -401,6 +431,7 @@ export default function VendorsTab() {
                   <div className="flex flex-wrap gap-1.5">
                     {needsReview(v) ? <Button variant="success" size="sm" className="h-10 md:h-8" onClick={() => setStatus(v, "approved")}><Check size={14} /> Mark approved</Button> : null}
                     <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => openEdit(v)}><Pencil size={14} /> Edit</Button>
+                    <Button size="sm" className="h-10 md:h-8" onClick={() => setBooking({ company: v.company, type: typeForTrade(v.trade) })}><CalendarPlus size={14} /> Schedule them</Button>
                     <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => setUpload({ doc_type: "coi" })}><Plus size={14} /> COI</Button>
                     <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => setUpload({ doc_type: "w9" })}><Plus size={14} /> W-9</Button>
                     <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => setUpload({ doc_type: "other" })}><Plus size={14} /> Other</Button>
@@ -441,6 +472,24 @@ export default function VendorsTab() {
                   ) : null}
 
                   <div className="space-y-1.5">
+                    <Label className="text-xs uppercase tracking-wide text-neutral-500">On the schedule</Label>
+                    {!booked[v.id]?.length ? <div className="text-sm text-neutral-500">Nothing booked. Tap “Schedule them” to put them on a job.</div> : null}
+                    {(booked[v.id] ?? []).slice(0, 8).map((e) => {
+                      const j = jobsList.find((x) => x.id === e.job_id);
+                      return (
+                        <button key={e.id} onClick={() => setBooking({ item: e, company: v.company, type: e.item_type })} className="flex w-full items-center gap-3 rounded-lg border border-border bg-neutral-950 px-3 py-2 text-left text-sm hover:border-white/25">
+                          <div className="w-16 shrink-0 text-xs font-semibold text-neutral-300">{fmtDate(e.entry_date).replace(/^(\w+), /, "$1 ")}</div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-neutral-100">{j ? jobLabel(j) : e.label || "No job"}</div>
+                            <div className="truncate text-xs text-neutral-500">{[typeOf(e).label, e.start_time ? `${timeOf(e.start_time)}${e.end_time ? "–" + timeOf(e.end_time) : ""}` : null, e.qty].filter(Boolean).join(" · ")}</div>
+                          </div>
+                          {e.status && e.status !== "scheduled" ? <Badge variant={e.status === "confirmed" ? "success" : "muted"}>{e.status}</Badge> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="space-y-1.5">
                     <Label className="text-xs uppercase tracking-wide text-neutral-500">Documents</Label>
                     {docs.length === 0 ? <div className="text-sm text-neutral-500">None on file.</div> : null}
                     {docs.map((d) => (
@@ -477,6 +526,11 @@ export default function VendorsTab() {
           action={<Button variant="outline" onClick={copyLink}><Link2 size={16} /> Copy upload link</Button>}
         />
       ) : null}
+
+      <ScheduleItemDialog open={!!booking} onOpenChange={(o) => { if (!o) setBooking(null); }}
+        item={booking?.item ?? null} date={booking?.item ? undefined : todayISO()} type={booking?.type ?? "sub"} company={booking?.company}
+        jobs={jobsList.filter((j) => !["lost"].includes(j.status))} crew={[]}
+        onSaved={() => { setBooking(null); load(); }} />
 
       <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
         {editing ? (

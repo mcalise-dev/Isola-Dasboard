@@ -26,13 +26,15 @@ export type ScheduleDialogProps = {
   type?: string;
   /** lock the job (opened from a job record) */
   lockJob?: boolean;
+  /** pre-fill the company (opened from a vendor's card) */
+  company?: string;
   jobs?: any[];
   crew: string[];
   onSaved: (firstDate?: string, jobId?: string | null) => void;
 };
 
-const blank = (date: string, jobId: string | null | undefined, type: string) => ({
-  date, days: 1, skip: true, item_type: type, job_id: jobId ?? "", label: "", company: "", phone: "",
+const blank = (date: string, jobId: string | null | undefined, type: string, company = "") => ({
+  date, days: 1, skip: true, item_type: type, job_id: jobId ?? "", label: "", company, phone: "",
   start_time: type === "crew" ? "" : "07:00", end_time: "", qty: "", notes: "", status: "scheduled", crew: [] as string[],
 });
 
@@ -41,9 +43,9 @@ function addDays(s: string, n: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export default function ScheduleItemDialog({ open, onOpenChange, item, date, jobId, type = "crew", lockJob, jobs, crew, onSaved }: ScheduleDialogProps) {
+export default function ScheduleItemDialog({ open, onOpenChange, item, date, jobId, type = "crew", lockJob, company, jobs, crew, onSaved }: ScheduleDialogProps) {
   const sb = useMemo(() => createClient(), []);
-  const [f, setF] = useState(() => blank(date ?? "", jobId, type));
+  const [f, setF] = useState(() => blank(date ?? "", jobId, type, company ?? ""));
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -57,9 +59,9 @@ export default function ScheduleItemDialog({ open, onOpenChange, item, date, job
         start_time: item.start_time?.slice(0, 5) ?? "", end_time: item.end_time?.slice(0, 5) ?? "",
         qty: item.qty ?? "", notes: item.notes ?? "", status: item.status ?? "scheduled", crew: whoOn(item),
       });
-    } else setF(blank(date ?? "", jobId, type));
+    } else setF(blank(date ?? "", jobId, type, company ?? ""));
     sb.from("vendors").select("id,company,trade,phone").order("company").then(({ data }) => setVendors((data as Vendor[]) ?? []));
-  }, [open, item, date, jobId, type, sb]);
+  }, [open, item, date, jobId, type, company, sb]);
 
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
   const outside = OUTSIDE.has(f.item_type);
