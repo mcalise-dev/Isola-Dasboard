@@ -49,12 +49,14 @@ function Row({ children, className }: { children: React.ReactNode; className?: s
 export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () => void }) {
   const sb = useMemo(() => createClient(), []);
   const [rows, setRows] = useState<any[] | null>(null);
-  const [f, setF] = useState({ vendor: "", category: "Materials", amount: "", entry_date: todayISO(), notes: "", own: false });
+  const [f, setF] = useState({ vendor: "", category: "Materials", amount: "", entry_date: todayISO(), notes: "", own: false, cost_code: "" });
+  const [codes, setCodes] = useState<{ code: string; name: string }[]>([]);
+  useEffect(() => { sb.from("cost_codes").select("code,name").eq("archived", false).order("sort").then(({ data }: any) => setCodes(data ?? [])); }, [sb]);
   const [receipt, setReceipt] = useState("");
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState("");
   const load = async () => {
-    const { data } = await sb.from("job_costs").select("id,entry_date,vendor,category,amount,bill_amount,notes,status,receipt_b64").eq("job_id", jobId).neq("category", "Labor").order("entry_date", { ascending: false });
+    const { data } = await sb.from("job_costs").select("id,entry_date,vendor,category,amount,bill_amount,notes,status,receipt_b64,cost_code").eq("job_id", jobId).neq("category", "Labor").order("entry_date", { ascending: false });
     // receipts saved without a category are pending rows from the camera
     const { data: pend } = await sb.from("job_costs").select("id,entry_date,vendor,category,amount,bill_amount,notes,status,receipt_b64").eq("job_id", jobId).is("category", null);
     const all = [...(data ?? []), ...(pend ?? []).filter((p: any) => !(data ?? []).some((d: any) => d.id === p.id))];
@@ -80,10 +82,10 @@ export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () =
     setBusy(true);
     const pending = !f.vendor.trim() || !amt;
     const own = f.own && f.category === "Trucking" && !!amt;
-    const { error } = await sb.from("job_costs").insert({ job_id: jobId, entry_date: f.entry_date, vendor: f.vendor.trim() || null, category: f.category || null, amount: own ? 0 : (amt || null), bill_amount: own ? amt : null, notes: f.notes.trim() || null, receipt_b64: receipt || null, status: pending ? "pending" : "ok" });
+    const { error } = await sb.from("job_costs").insert({ job_id: jobId, entry_date: f.entry_date, vendor: f.vendor.trim() || null, category: f.category || null, amount: own ? 0 : (amt || null), bill_amount: own ? amt : null, notes: f.notes.trim() || null, receipt_b64: receipt || null, status: pending ? "pending" : "ok", cost_code: f.cost_code || null });
     setBusy(false);
     if (error) { showError("Save failed: " + error.message); return; }
-    setF({ vendor: "", category: f.category, amount: "", entry_date: todayISO(), notes: "", own: f.own }); setReceipt("");
+    setF({ vendor: "", category: f.category, amount: "", entry_date: todayISO(), notes: "", own: f.own, cost_code: f.cost_code }); setReceipt("");
     showToast(own ? "Trucking logged: billed to the customer, not a cost" : "Cost logged");
     load(); onChange?.(); changed();
   }
@@ -104,7 +106,7 @@ export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () =
                 {c.receipt_b64 ? <button onClick={() => setView(c.receipt_b64)} className="shrink-0"><img src={c.receipt_b64} alt="receipt" className="h-9 w-9 rounded-md border border-white/10 object-cover" /></button> : <Receipt size={18} className="shrink-0 text-neutral-500" />}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-white">{c.vendor ?? "Receipt, needs details"}</div>
-                  <div className="truncate text-xs text-neutral-400">{fmtDate(c.entry_date)} · {c.category ?? "—"}{c.notes ? ` · ${c.notes}` : ""}</div>
+                  <div className="truncate text-xs text-neutral-400">{fmtDate(c.entry_date)} · {c.category ?? "—"}{c.cost_code ? ` · ${c.cost_code}` : ""}{c.notes ? ` · ${c.notes}` : ""}</div>
                 </div>
                 {c.status === "pending" ? <Badge variant="warning">Claude</Badge> : null}
                 {c.bill_amount != null
@@ -127,7 +129,13 @@ export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () =
             <input type="checkbox" checked={f.own} onChange={(e) => setF({ ...f, own: e.target.checked })} /> {OWN_TRUCK_LABEL}
           </label>
         ) : null}
-        <Input className="mt-2" placeholder="Notes (optional)" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_220px]">
+          <Input placeholder="Notes (optional)" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
+          <NativeSelect value={f.cost_code} onChange={(e) => setF({ ...f, cost_code: e.target.value })} aria-label="Budget line">
+            <option value="">Budget line (optional)</option>
+            {codes.map((c) => <option key={c.code} value={c.code}>{c.code} · {c.name}</option>)}
+          </NativeSelect>
+        </div>
         <div className="mt-2 flex flex-wrap gap-2">
           <label className={cn("inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-[13px] font-semibold", receipt ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-input text-white hover:bg-accent")}>
             <Camera size={15} /> {receipt ? "Receipt attached" : "Camera"}

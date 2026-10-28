@@ -25,6 +25,8 @@ import { JobBuild } from "@/components/BuildTab";
 import ThmPanel from "@/components/job/ThmPanel";
 import SiteLinePanel from "@/components/job/SiteLinePanel";
 import JobTimeline from "@/components/job/JobTimeline";
+import FieldTab from "@/components/field/FieldTab";
+import BudgetPanel from "@/components/field/BudgetPanel";
 import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
 import { needsConfirm } from "@/lib/schedule";
@@ -49,9 +51,10 @@ const ORDER = ["lead", "quote", "awaiting", "booked", "progress", "complete"];
 // Schedule · Money. Photos mark up in place; the proposal is built in place.
 // Deep link with /jobs/<id>?tab=<key>. Old tab names (files, build, punch, billing…) still work:
 // they open the tab that now holds that section and scroll to it.
-const TABS = ["overview", "costs", "photos", "proposal", "schedule", "money"] as const;
+const TABS = ["overview", "costs", "field", "photos", "proposal", "schedule", "money"] as const;
 const TAB_ALIAS: Record<string, string> = {
   partner: "thm", tyler: "thm",
+  plans: "field", drawings: "field", rfi: "field", rfis: "field", submittals: "field", inspections: "field", forms: "field", budget: "costs",
   billing: "money", payments: "money", "change-orders": "money",
   build: "proposal", proposals: "proposal", estimate: "proposal", builder: "proposal",
   files: "photos", markup: "photos", pictures: "photos",
@@ -312,10 +315,11 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
         {/* main */}
         <div className="min-w-0">
           <Tabs value={tab} onValueChange={setTab}>
-            {/* v8.0: six tabs — scrolls sideways on a narrow phone */}
+            {/* v8.1: seven tabs — scrolls sideways on a narrow phone */}
             <TabsList className="flex-nowrap gap-4 sm:gap-5 [&>*]:min-h-[40px]">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="costs">Costs</TabsTrigger>
+              <TabsTrigger value="field">Field</TabsTrigger>
               <TabsTrigger value="photos">Photos</TabsTrigger>
               {partner ? null : <TabsTrigger value="proposal">Proposal</TabsTrigger>}
               <TabsTrigger value="schedule">Schedule{schedOpen ? <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 text-[11px] font-bold text-amber-300">{schedOpen}</span> : null}</TabsTrigger>
@@ -385,10 +389,16 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
 
             {/* v8.0: every cost on the job, and logging new ones, on its own tab */}
             <TabsContent value="costs" className="space-y-8">
+              <BudgetPanel job={job} onChange={load} />
               <section id="sec-costs" className="scroll-mt-24 space-y-8">
                 <CostsPanel jobId={job.id} onChange={load} />
                 <LaborPanel jobId={job.id} onChange={load} />
               </section>
+            </TabsContent>
+
+            {/* v8.1: plans with pins, RFIs, submittals, inspections */}
+            <TabsContent value="field">
+              <FieldTab job={job} />
             </TabsContent>
 
             <TabsContent value="photos" className="space-y-8">
