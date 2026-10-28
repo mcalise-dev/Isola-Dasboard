@@ -152,12 +152,13 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
     setDrafting((e.data ?? []).some((x: any) => !x.sent_at));
     const jd: any = j.data;
     if (jd?.billing_type === "tm") {
-      const [tc, tr, tw] = await Promise.all([
+      const [tc, tr, tw, tco] = await Promise.all([
         sb.from("job_costs").select("id,entry_date,category,worker,vendor,hours,rate,amount,bill_amount,notes").eq("job_id", id),
         sb.from("job_pay_rates").select("*").eq("job_id", id),
         sb.from("workers").select("id,name,rate,rate_type,is_owner"),
+        sb.from("change_orders").select("id,amount,status").eq("job_id", id),
       ]);
-      setTmBilled(computeBill({ job: jd, costs: tc.data ?? [], rates: tr.data ?? [], workers: tw.data ?? [] }).total);
+      setTmBilled(computeBill({ job: jd, costs: tc.data ?? [], rates: tr.data ?? [], workers: tw.data ?? [], cos: tco.data ?? [] }).total);
     } else setTmBilled(null);
     if (jd?.customer_id) sb.from("customers").select("id,name,contact_name,phone,email,client_type,kind").eq("id", jd.customer_id).maybeSingle().then(({ data }) => setCustomer(data ?? null));
     if (jd?.property_id) sb.from("properties").select("id,label,address,city,access_notes").eq("id", jd.property_id).maybeSingle().then(({ data }) => setProperty(data ?? null));

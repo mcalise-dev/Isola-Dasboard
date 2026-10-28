@@ -291,7 +291,7 @@ export function ProposalPanel({ jobId }: { jobId: string }) {
       const [e, l, j, s] = await withTimeout(Promise.all([
         sb.from("estimates").select("*").eq("job_id", jobId).order("created_at", { ascending: false }),
         sb.from("proposal_links").select("*").eq("job_id", jobId).order("created_at", { ascending: false }),
-        sb.from("jobs").select("id,job_name,customer,location,job,price,status,proposal_status,quoted_date,scope_of_work,terms").eq("id", jobId).maybeSingle(),
+        sb.from("jobs").select("id,job_name,customer,location,job,price,status,proposal_status,quoted_date,scope_of_work,terms,billing_type").eq("id", jobId).maybeSingle(),
         sb.from("siteline_shares").select("token").eq("job_id", jobId).maybeSingle(),
       ]));
       const fe = firstError(e, l, j, s);

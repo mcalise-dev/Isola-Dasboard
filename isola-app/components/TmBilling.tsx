@@ -23,14 +23,14 @@ import { ChevronDown, ChevronRight, Clock } from "lucide-react";
 export const MARKUPS = [5, 10, 15, 20, 25];
 const num = (v: any) => (v == null || v === "" ? null : Number(v));
 
-type Data = { job: any; costs: any[]; rates: any[]; workers: any[] };
+type Data = { job: any; costs: any[]; rates: any[]; workers: any[]; cos?: any[] };
 
 // What one non-labor line bills: own-equipment lines bill their bill_amount flat; everything else is cost + markup.
 export const billedOf = (c: any, markup: number | null) =>
   num(c.bill_amount) != null ? Number(c.bill_amount) : Math.round(Number(c.amount || 0) * (1 + (markup ?? 0) / 100) * 100) / 100;
 const sumBilled = (items: any[], markup: number | null) => Math.round(items.reduce((a, c) => a + billedOf(c, markup), 0) * 100) / 100;
 
-export function computeBill({ job, costs, rates, workers }: Data) {
+export function computeBill({ job, costs, rates, workers, cos = [] }: Data) {
   const wByName = (n: string | null) => workers.find((w) => w.name.toLowerCase() === String(n ?? "").trim().toLowerCase());
   const defBill = num(job.tm_bill_rate);
   const markup = num(job.materials_markup);
@@ -60,9 +60,12 @@ export function computeBill({ job, costs, rates, workers }: Data) {
   const matBill = sumBilled(other, markup);
   const truckCost = trucking.reduce((a, c) => a + Number(c.amount || 0), 0);
   const truckBill = sumBilled(trucking, markup);
-  const total = laborBill + matBill + truckBill;
+  // approved fixed-price change orders add on top of the T&M bill; $0 COs are added scope billed at T&M rates
+  const coApproved = cos.filter((c) => c.status === "approved");
+  const coBill = Math.round(coApproved.reduce((a, c) => a + Number(c.amount || 0), 0) * 100) / 100;
+  const total = laborBill + matBill + truckBill + coBill;
   const cost = laborCost + matCost + truckCost;
-  return { people: [...people.values()], laborCost, laborBill, matCost, matBill, truckCost, truckBill, trucking, markup, total, cost, margin: total - cost, missingRate, other };
+  return { people: [...people.values()], laborCost, laborBill, matCost, matBill, truckCost, truckBill, trucking, markup, total, cost, margin: total - cost, missingRate, other, coApproved, coBill };
 }
 
 function CostSection({ title, empty, items, cost, bill, markup }: { title: string; empty: string; items: any[]; cost: number; bill: number; markup: number | null }) {
@@ -105,14 +108,15 @@ export function TmJobBill({ jobId, compact, onChanged }: { jobId: string; compac
   const [defIn, setDefIn] = useState<string | null>(null);
 
   async function load() {
-    const [j, c, r, w] = await Promise.all([
+    const [j, c, r, w, co] = await Promise.all([
       sb.from("jobs").select("id,job_name,customer,location,job,status,billing_type,tm_bill_rate,materials_markup").eq("id", jobId).single(),
       sb.from("job_costs").select("id,entry_date,category,worker,vendor,hours,rate,amount,bill_amount,notes").eq("job_id", jobId).order("entry_date"),
       sb.from("job_pay_rates").select("*").eq("job_id", jobId),
       sb.from("workers").select("id,name,rate,rate_type,is_owner"),
+      sb.from("change_orders").select("id,co_number,title,amount,status").eq("job_id", jobId).order("co_number"),
     ]);
     if (j.error) { showError("Couldn't load job: " + j.error.message); return; }
-    setD({ job: j.data, costs: c.data ?? [], rates: r.data ?? [], workers: w.data ?? [] });
+    setD({ job: j.data, costs: c.data ?? [], rates: r.data ?? [], workers: w.data ?? [], cos: co.data ?? [] });
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [jobId]);
 
@@ -210,6 +214,21 @@ export function TmJobBill({ jobId, compact, onChanged }: { jobId: string; compac
           <CostSection title="Trucking" empty="" items={b.trucking} cost={b.truckCost} bill={b.truckBill} markup={b.markup} />
         ) : null}
 
+        {/* approved change orders (fixed-price adds) */}
+        {b.coApproved.length ? (
+          <div>
+            <div className="mb-1 text-[11px] font-bold uppercase tracking-widest text-neutral-500">Approved change orders</div>
+            <div className="space-y-1">
+              {b.coApproved.map((c: any) => (
+                <div key={c.id} className="flex items-center gap-3 text-sm">
+                  <span className="min-w-0 flex-1 truncate text-white">CO #{c.co_number}{c.title ? `: ${c.title}` : ""}</span>
+                  <span className="tabular-nums text-neutral-200">{Number(c.amount) ? money(Number(c.amount)) : "billed T&M"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {/* totals */}
         <div className="border-t border-border pt-3">
           <div className="flex items-baseline">
@@ -243,13 +262,14 @@ export default function TmBillingTab() {
     const tm = (j.data ?? []).filter((x: any) => x.billing_type === "tm");
     setOthers((j.data ?? []).filter((x: any) => x.billing_type !== "tm" && ["progress", "booked", "awaiting", "complete"].includes(x.status)));
     const ids = tm.map((x: any) => x.id);
-    const [c, r] = ids.length ? await Promise.all([
+    const [c, r, co] = ids.length ? await Promise.all([
       sb.from("job_costs").select("id,job_id,entry_date,category,worker,vendor,hours,rate,amount,bill_amount,notes").in("job_id", ids),
       sb.from("job_pay_rates").select("*").in("job_id", ids),
-    ]) : [{ data: [] }, { data: [] }] as any;
+      sb.from("change_orders").select("id,job_id,co_number,title,amount,status").in("job_id", ids),
+    ]) : [{ data: [] }, { data: [] }, { data: [] }] as any;
     setRows(tm.map((job: any) => ({
       job,
-      bill: computeBill({ job, costs: (c.data ?? []).filter((x: any) => x.job_id === job.id), rates: (r.data ?? []).filter((x: any) => x.job_id === job.id), workers: w.data ?? [] }),
+      bill: computeBill({ job, costs: (c.data ?? []).filter((x: any) => x.job_id === job.id), rates: (r.data ?? []).filter((x: any) => x.job_id === job.id), workers: w.data ?? [], cos: (co.data ?? []).filter((x: any) => x.job_id === job.id) }),
     })));
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);

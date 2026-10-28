@@ -49,7 +49,7 @@ export default function ProposalsTab() {
       const [j, pl, ss] = await withTimeout(Promise.all([
         supabase
           .from("jobs")
-          .select("id,job_name,customer,customer_id,location,job,price,contract_holder,isola_cut,status,proposal_status,quoted_date,scope_of_work,terms,contact_phone,updated_at")
+          .select("id,job_name,customer,customer_id,location,job,price,contract_holder,isola_cut,status,proposal_status,quoted_date,scope_of_work,terms,contact_phone,updated_at,billing_type")
           .neq("proposal_status", "none")
           .not("proposal_status", "is", null)
           .order("quoted_date", { ascending: true }),
@@ -412,7 +412,7 @@ export function LinkEditor({ supabase, job, link, kind, onClose, onSaved }: any)
             <Textarea value={f.scope} onChange={set("scope")} rows={5} placeholder={isCO ? "Grind down and patch trip hazards at Units 9 and 78" : "Saw cut and remove existing slab\nBase prep and compaction\nPour 4in 3500psi concrete, broom finish"} />
           </Field>
           <div className={`grid gap-2 ${isCO ? "grid-cols-2" : "grid-cols-3"}`}>
-            <Field label={isCO ? "Change amount" : "Price"}><Input value={f.price} onChange={set("price")} inputMode="decimal" /></Field>
+            <Field label={isCO ? (job.billing_type === "tm" ? "Change amount — blank = billed T&M" : "Change amount") : "Price"}><Input value={f.price} onChange={set("price")} inputMode="decimal" placeholder={isCO && job.billing_type === "tm" ? "T&M" : undefined} /></Field>
             {!isCO ? <Field label="Deposit %"><Input value={f.deposit_pct} onChange={set("deposit_pct")} inputMode="numeric" /></Field> : null}
             <Field label="Expires"><Input type="date" value={f.expires_at} onChange={set("expires_at")} /></Field>
           </div>
