@@ -49,7 +49,7 @@ const ORDER = ["lead", "quote", "awaiting", "booked", "progress", "complete"];
 // Schedule · Money. Photos mark up in place; the proposal is built in place.
 // Deep link with /jobs/<id>?tab=<key>. Old tab names (files, build, punch, billing…) still work:
 // they open the tab that now holds that section and scroll to it.
-const TABS = ["overview", "photos", "proposal", "schedule", "money"] as const;
+const TABS = ["overview", "costs", "photos", "proposal", "schedule", "money"] as const;
 const TAB_ALIAS: Record<string, string> = {
   partner: "thm", tyler: "thm",
   billing: "money", payments: "money", "change-orders": "money",
@@ -64,7 +64,7 @@ const TAB_ALIAS: Record<string, string> = {
 const SECTION_TAB: Record<string, (typeof TABS)[number]> = {
   tasks: "overview", activity: "overview",
   crew: "schedule",
-  costs: "money", thm: "money",
+  thm: "money",
   docs: "proposal", siteline: "proposal",
 };
 const resolve = (t: string | null | undefined): { tab: string; section: string | null } | null => {
@@ -312,9 +312,10 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
         {/* main */}
         <div className="min-w-0">
           <Tabs value={tab} onValueChange={setTab}>
-            {/* v7.2: five tabs — scrolls sideways on a narrow phone */}
+            {/* v8.0: six tabs — scrolls sideways on a narrow phone */}
             <TabsList className="flex-nowrap gap-4 sm:gap-5 [&>*]:min-h-[40px]">
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="costs">Costs</TabsTrigger>
               <TabsTrigger value="photos">Photos</TabsTrigger>
               {partner ? null : <TabsTrigger value="proposal">Proposal</TabsTrigger>}
               <TabsTrigger value="schedule">Schedule{schedOpen ? <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 text-[11px] font-bold text-amber-300">{schedOpen}</span> : null}</TabsTrigger>
@@ -322,8 +323,9 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             </TabsList>
             <TabsContent value="overview" className="space-y-6">
               {/* CompanyCam-style quick actions: everything for the job starts right here */}
-              <div className={cn("grid gap-2", partner ? "grid-cols-2" : "grid-cols-3")}>
+              <div className={cn("grid gap-2", partner ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
                 {[
+                  { k: "costs", label: "Costs", sub: "Log receipts & labor", icon: Banknote },
                   { k: "photos", label: "Photos", sub: "Take & mark up", icon: Camera },
                   ...(partner ? [] : [{ k: "proposal", label: "Proposal", sub: "Build & price", icon: Hammer }]),
                   { k: "schedule", label: "Schedule", sub: "Crew & deliveries", icon: CalendarPlus },
@@ -381,6 +383,14 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
               <section id="sec-activity" className="scroll-mt-24"><ActivityPanel job={job} extra={{ costs, visits }} /></section>
             </TabsContent>
 
+            {/* v8.0: every cost on the job, and logging new ones, on its own tab */}
+            <TabsContent value="costs" className="space-y-8">
+              <section id="sec-costs" className="scroll-mt-24 space-y-8">
+                <CostsPanel jobId={job.id} onChange={load} />
+                <LaborPanel jobId={job.id} onChange={load} />
+              </section>
+            </TabsContent>
+
             <TabsContent value="photos" className="space-y-8">
               <section id="sec-photos" className="scroll-mt-24"><PhotosPanel jobId={job.id} /></section>
             </TabsContent>
@@ -414,10 +424,6 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
                 <MoneyPanel job={job} />
                 <TmJobBill jobId={job.id} onChanged={load} />
               </section>
-              <section id="sec-costs" className="scroll-mt-24 space-y-8">
-                <CostsPanel jobId={job.id} onChange={load} />
-                <LaborPanel jobId={job.id} onChange={load} />
-              </section>
               {withThm ? (
                 <section id="sec-thm" className="scroll-mt-24 space-y-4">
                   <h2 className="text-[17px] font-semibold text-white">THM</h2>
@@ -441,7 +447,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             <h3 className="mb-2 text-[15px] font-semibold text-white">Money</h3>
             <div className="grid grid-cols-3 gap-2">
               <div><div className="text-xs text-neutral-500">{isTm ? "Billed (T&M)" : "Contract"}</div><div className="truncate text-lg font-semibold tabular-nums text-white">{isTm ? (tmBilled == null ? "—" : `$${Math.round(tmBilled).toLocaleString()}`) : fmtPrice(job.price) || "—"}</div></div>
-              <div><div className="text-xs text-neutral-500">Spent</div><div className="text-lg font-semibold tabular-nums text-white">${Math.round(spent).toLocaleString()}</div></div>
+              <button onClick={() => setTab("costs")} className="text-left hover:opacity-80"><div className="text-xs text-neutral-500">Spent</div><div className="text-lg font-semibold tabular-nums text-white underline-offset-4 hover:underline">${Math.round(spent).toLocaleString()}</div></button>
               <div><div className="text-xs text-neutral-500">Margin</div>
                 <div className={cn("text-lg font-semibold tabular-nums", mPct == null ? "text-neutral-500" : mPct < 10 ? "text-red-300" : mPct < 30 ? "text-amber-300" : "text-emerald-300")}>{margin == null ? "—" : `${mPct}%`}</div></div>
             </div>
