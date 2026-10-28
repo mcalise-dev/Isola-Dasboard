@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Textarea, Field, Label } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import W9YearEnd from "@/components/W9YearEnd";
 import { Plus, Link2, Search, ChevronDown, Phone, Mail, Pencil, Trash2, Eye, Paperclip, Check, X, Users, FileText } from "lucide-react";
 
 /* ============================================================
@@ -92,6 +93,7 @@ export default function VendorsTab() {
   const [quick, setQuick] = useState<{ company: string; doc_type: "w9" | "coi" | "other"; expires_at: string; files: File[] }>({ company: "", doc_type: "w9", expires_at: "", files: [] });
   const [quickBusy, setQuickBusy] = useState(false);
   const [quickKey, setQuickKey] = useState(0);
+  const [w9Key, setW9Key] = useState(0);
 
   // One step: type the company, pick W-9 / COI, attach. Reuses the vendor if the
   // name already exists (case-insensitive), otherwise creates it.
@@ -137,6 +139,7 @@ export default function VendorsTab() {
       if (error) throw new Error("Couldn't load vendors: " + error.message);
       setRows(data ?? []);
       setLoading(false);
+      setW9Key((k) => k + 1);
     } catch (e: any) {
       setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
     }
@@ -187,6 +190,7 @@ export default function VendorsTab() {
       email: editing.email?.trim() || null,
       address: editing.address?.trim() || null,
       notes: editing.notes?.trim() || null,
+      paid_as: String(editing.paid_as_text ?? "").split(",").map((x: string) => x.trim()).filter(Boolean),
       status: editing.status || "approved",
       updated_at: new Date().toISOString(),
     };
@@ -197,6 +201,14 @@ export default function VendorsTab() {
     if (error) return showError(error.message.includes("vendors_company_email_uq") ? "That vendor is already on the list." : "Save failed: " + error.message);
     showToast(editing.id ? "Vendor updated" : "Vendor added");
     setEditing(null); load();
+  }
+
+  // paid_as isn't in vendor_overview — pull it when the edit dialog opens
+  async function openEdit(v: any) {
+    setOpenId(null);
+    setEditing({ ...v, paid_as_text: "" });
+    const { data } = await supabase.from("vendors").select("paid_as").eq("id", v.id).maybeSingle();
+    setEditing((e: any) => (e && e.id === v.id ? { ...e, paid_as_text: (data?.paid_as ?? []).join(", ") } : e));
   }
 
   async function setStatus(v: any, status: string) {
@@ -323,6 +335,8 @@ export default function VendorsTab() {
         </Button>
       </Card>
 
+      <W9YearEnd key={w9Key} />
+
       {rows.length ? (
         <div className="grid grid-cols-3 gap-2">
           <Stat label="To review" value={<span className={counts.review ? "text-sky-300" : undefined}>{counts.review}</span>}
@@ -385,7 +399,7 @@ export default function VendorsTab() {
 
                   <div className="flex flex-wrap gap-1.5">
                     {needsReview(v) ? <Button variant="success" size="sm" className="h-10 md:h-8" onClick={() => setStatus(v, "approved")}><Check size={14} /> Mark approved</Button> : null}
-                    <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => { setOpenId(null); setEditing({ ...v }); }}><Pencil size={14} /> Edit</Button>
+                    <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => openEdit(v)}><Pencil size={14} /> Edit</Button>
                     <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => setUpload({ doc_type: "coi" })}><Plus size={14} /> COI</Button>
                     <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => setUpload({ doc_type: "w9" })}><Plus size={14} /> W-9</Button>
                     <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => setUpload({ doc_type: "other" })}><Plus size={14} /> Other</Button>
@@ -478,6 +492,7 @@ export default function VendorsTab() {
                 <Field label="Email"><Input type="email" value={editing.email ?? ""} onChange={(e) => set("email", e.target.value)} /></Field>
               </div>
               <Field label="Address"><Input value={editing.address ?? ""} onChange={(e) => set("address", e.target.value)} /></Field>
+              <Field label="Paid as (crew names, comma-separated)"><Input value={editing.paid_as_text ?? ""} placeholder="e.g. Marco" onChange={(e) => set("paid_as_text", e.target.value)} /></Field>
               <Field label="Notes"><Textarea rows={2} value={editing.notes ?? ""} onChange={(e) => set("notes", e.target.value)} /></Field>
               <div>
                 <Label>Status</Label>
