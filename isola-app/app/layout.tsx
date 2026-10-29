@@ -19,7 +19,7 @@ export const viewport: Viewport = { themeColor: "#000000" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`h-full antialiased ${GeistSans.variable}`}>
+    <html lang="en" className={`h-full antialiased ${GeistSans.variable}`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col bg-black text-neutral-100">{children}</body>
     </html>
   );

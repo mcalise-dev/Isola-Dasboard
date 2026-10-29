@@ -95,3 +95,62 @@ h1, h2, h3 { letter-spacing: -0.015em; }
 @keyframes isola-slide { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 .anim-slide { animation: isola-slide 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @media (prefers-reduced-motion: reduce) { .anim-slide { animation: none; } }
+
+/* ============================================================
+   v8.2 (10/29/26) LIGHT THEME — for daytime / bright sun.
+   Every app color is a CSS variable (Tailwind v4), so light mode just re-points the
+   variables: white <-> ink, the neutral scale flips, status colors get the deeper
+   shades that read on white. Brand yellow stays. Set by html.light (ThemeToggle:
+   Auto = light 6 AM–6 PM, or Light / Dark). Public client pages never get the class.
+   ============================================================ */
+html.light {
+  color-scheme: light;
+  background: #F3F4F6;
+  --color-background: #F3F4F6;
+  --color-foreground: #111418;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #111418;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #111418;
+  --color-secondary: #ECEEF1;
+  --color-secondary-foreground: #111418;
+  --color-muted: #F0F1F3;
+  --color-muted-foreground: #58606A;
+  --color-accent: #E8EAED;
+  --color-accent-foreground: #0B0D0E;
+  --color-border: rgba(10, 14, 18, 0.12);
+  --color-input: rgba(10, 14, 18, 0.20);
+  --color-success: #059669;
+  --color-warning: #B45309;
+  --color-danger: #DC2626;
+  /* "white" text and overlays become ink; the page "black" becomes light gray */
+  --color-white: #0E1114;
+  --color-black: #F3F4F6;
+  /* neutral scale flipped: light text on dark -> dark text on light, dark surfaces -> light */
+  --color-neutral-50: #0B0D0E;
+  --color-neutral-100: #15191D;
+  --color-neutral-200: #23282D;
+  --color-neutral-300: #343A40;
+  --color-neutral-400: #4A5158;
+  --color-neutral-500: #626A72;
+  --color-neutral-600: #8E959C;
+  --color-neutral-700: #C5CAD0;
+  --color-neutral-800: #E3E6E9;
+  --color-neutral-900: #F4F5F7;
+  --color-neutral-950: #FFFFFF;
+  /* status text: pastel-on-black shades -> deeper shades that read on white */
+  --color-emerald-200: #065F46; --color-emerald-300: #047857; --color-emerald-400: #059669;
+  --color-amber-200: #92400E; --color-amber-300: #B45309; --color-amber-400: #D97706;
+  --color-red-200: #991B1B; --color-red-300: #B91C1C; --color-red-400: #DC2626;
+  --color-sky-200: #854D0E; --color-sky-300: #A16207; --color-sky-400: #CA8A04;
+}
+/* on the yellow brand fill, keep the original dark ink and true white */
+html.light .bg-brand, html.light .bg-primary {
+  --color-neutral-950: #07090B; --color-neutral-900: #0C0F12; --color-neutral-800: #1A1F24;
+  --color-white: #FFFFFF;
+}
+/* yellow text is unreadable on white — use a deep gold instead */
+html.light .text-brand { color: #8A6400; }
+html.light .skeleton { background: linear-gradient(90deg, rgba(0,0,0,.04) 0%, rgba(0,0,0,.08) 50%, rgba(0,0,0,.04) 100%); background-size: 200% 100%; }
+html.light .scroll-thin { scrollbar-color: rgba(0,0,0,.2) transparent; }
+html.light ::selection { background: #F2C230; color: #0B0D0E; }

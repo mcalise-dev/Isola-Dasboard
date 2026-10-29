@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger, PopoverClose } from "@/compone
 import { useAttention } from "@/lib/attention";
 import { logout } from "@/app/login/actions";
 import { cn } from "@/lib/utils";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const DOT = { high: "bg-red-400", mid: "bg-amber-400", low: "bg-neutral-500" } as const;
 
@@ -45,6 +46,7 @@ export default function TopBar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <ThemeToggle />
         <Popover>
           <PopoverTrigger asChild>
             <button aria-label={`Alerts${n ? ` (${n})` : ""}`} className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-300 hover:bg-accent hover:text-white">

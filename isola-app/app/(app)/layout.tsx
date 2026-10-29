@@ -11,12 +11,15 @@ import DeepLinks from "@/components/DeepLinks";
 import OfflineCache from "@/components/OfflineCache";
 import JobForm from "@/components/job/JobForm";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { THEME_BOOT } from "@/lib/theme";
 
 // v4.6 (10/3/26): Field Desk layout in Isola's black & white — top bar with the command
 // bar, + New and the alerts bell; grouped sidebar with counts; phone bottom bar + Menu.
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <TooltipProvider>
+      {/* light/dark before first paint (Auto = light 6 AM–6 PM) */}
+      <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       <div className="flex min-h-screen flex-col">
         <TopBar />
         <Sidebar />
