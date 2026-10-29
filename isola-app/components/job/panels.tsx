@@ -110,7 +110,7 @@ export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () =
                   <div className="truncate text-xs text-neutral-400">{fmtDate(c.entry_date)} · {c.category ?? "—"}{c.cost_code ? ` · ${c.cost_code}` : ""}{c.notes ? ` · ${c.notes}` : ""}</div>
                 </div>
                 {c.status === "pending" ? <Badge variant="warning">Claude</Badge> : null}
-                {c.bill_amount != null
+                {c.bill_amount != null && !Number(c.amount)
                   ? <div className="shrink-0 text-right"><div className="text-sm font-semibold tabular-nums text-emerald-300">bill {usd(Number(c.bill_amount))}</div><div className="text-[11px] text-neutral-500">no cost</div></div>
                   : <div className="shrink-0 text-sm font-semibold tabular-nums text-white">{usd(Number(c.amount ?? 0))}</div>}
                 <button onClick={() => remove(c)} aria-label="Delete cost" className="shrink-0 rounded p-1 text-neutral-500 hover:text-red-400"><Trash2 size={15} /></button>

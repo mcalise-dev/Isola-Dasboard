@@ -154,7 +154,7 @@ export default function CostsTab() {
     setSheet(c);
     setForm(c === "new"
       ? { kind, job_id: filter !== "all" && filter !== OVERHEAD ? filter : (activeJobs[0]?.id ?? OVERHEAD), entry_date: todayISO(), vendor: "", category: kind === "labor" ? "Labor" : "", amount: "", notes: "", receipt_b64: null, worker: "", hours: "", days: "1", rate: "", rate_type: "hourly", paid: true, own: false }
-      : { kind: c.hours != null || c.worker ? "labor" : "receipt", job_id: c.job_id ?? OVERHEAD, entry_date: c.entry_date, vendor: c.vendor ?? "", category: c.category ?? "", amount: (c.bill_amount != null ? c.bill_amount : c.amount) ?? "", own: c.bill_amount != null, notes: c.notes ?? "", receipt_b64: c.receipt_b64, worker: c.worker ?? "", hours: c.hours ?? "", days: c.days ?? "1", rate: c.rate ?? "", rate_type: c.rate_type ?? "hourly", paid: c.paid !== false });
+      : { kind: c.hours != null || c.worker ? "labor" : "receipt", job_id: c.job_id ?? OVERHEAD, entry_date: c.entry_date, vendor: c.vendor ?? "", category: c.category ?? "", amount: (c.bill_amount != null && !Number(c.amount) ? c.bill_amount : c.amount) ?? "", own: c.bill_amount != null && !Number(c.amount), notes: c.notes ?? "", receipt_b64: c.receipt_b64, worker: c.worker ?? "", hours: c.hours ?? "", days: c.days ?? "1", rate: c.rate ?? "", rate_type: c.rate_type ?? "hourly", paid: c.paid !== false });
   }
 
   // One handler for both inputs. One photo fills the open form; several from the
@@ -220,6 +220,8 @@ export default function CostsTab() {
     // Isola's own truck: billed to the customer, not money spent
     const own = !isLabor && !!form.own && payload.category === "Trucking" && amount != null;
     payload.bill_amount = own ? amount : null;
+    // THM lines carry their own customer bill (synced from the THM panel) — never wipe it from here
+    if (!own && payload.category === "THM") delete payload.bill_amount;
     if (own) payload.amount = 0;
     payload.status = !isLabor && payload.receipt_b64 && (amount == null || !payload.vendor || !payload.category) ? "pending" : "ok";
     if (!isLabor && !payload.receipt_b64 && amount == null) { showError("Add a receipt photo or an amount."); return; }
@@ -417,7 +419,7 @@ export default function CostsTab() {
                       </span>
                     </span>
                     <span className="flex shrink-0 flex-col items-end gap-1">
-                      {c.bill_amount != null ? <span className="font-semibold tabular-nums text-emerald-300">bill {money(Number(c.bill_amount))}</span> : <span className={cn("font-semibold tabular-nums", c.paid === false ? "text-red-300" : "text-white")}>{c.amount != null ? money(Number(c.amount)) : "—"}</span>}
+                      {c.bill_amount != null && !Number(c.amount) ? <span className="font-semibold tabular-nums text-emerald-300">bill {money(Number(c.bill_amount))}</span> : <span className={cn("font-semibold tabular-nums", c.paid === false ? "text-red-300" : "text-white")}>{c.amount != null ? money(Number(c.amount)) : "—"}</span>}
                       {statusBadge(c)}
                     </span>
                   </button>
@@ -448,7 +450,7 @@ export default function CostsTab() {
                     <TD className="max-w-[200px]"><div className="truncate font-semibold text-white">{c.vendor ?? "(vendor pending)"}</div>{c.notes ? <div className="truncate text-xs text-neutral-500">{c.notes}</div> : null}</TD>
                     {filter === "all" ? <TD className="max-w-[200px] truncate text-neutral-300">{labelFor(c.job_id)}</TD> : null}
                     <TD className="whitespace-nowrap text-neutral-400">{detail(c)}</TD>
-                    <TD className={cn("whitespace-nowrap text-right font-semibold tabular-nums", c.bill_amount != null ? "text-emerald-300" : c.paid === false ? "text-red-300" : "text-white")}>{c.bill_amount != null ? `bill ${money(Number(c.bill_amount))}` : c.amount != null ? money(Number(c.amount)) : "—"}</TD>
+                    <TD className={cn("whitespace-nowrap text-right font-semibold tabular-nums", c.bill_amount != null && !Number(c.amount) ? "text-emerald-300" : c.paid === false ? "text-red-300" : "text-white")}>{c.bill_amount != null && !Number(c.amount) ? `bill ${money(Number(c.bill_amount))}` : c.amount != null ? money(Number(c.amount)) : "—"}</TD>
                     <TD>{statusBadge(c)}</TD>
                   </TR>
                 ))}

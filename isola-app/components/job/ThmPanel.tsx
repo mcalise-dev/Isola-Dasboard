@@ -22,7 +22,7 @@ import { Check, Clock, Hammer, Package, Pencil, Plus, Trash2, Truck, Wrench } fr
 type Item = {
   id: string; job_id: string; kind: "truck" | "machine" | "labor" | "other"; label: string | null;
   category?: string | null; status?: string | null; vendor?: string | null; submitted_by?: string | null;
-  unit: "hours" | "days" | "flat"; qty: number; rate: number; amount: number;
+  unit: "hours" | "days" | "flat"; qty: number; rate: number; amount: number; bill_rate?: number | null;
   entry_date: string | null; notes: string | null; sort: number; created_at: string;
 };
 
@@ -38,7 +38,9 @@ const MATERIAL = { key: "material", label: "Materials", icon: Package, placehold
 const errMsg = (e: any) => (e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
 const num = (v: any) => { const n = Number(String(v ?? "").replace(/[^0-9.]/g, "")); return Number.isFinite(n) ? n : 0; };
 
-export default function ThmPanel({ job, onChange }: { job: any; onChange?: () => void }) {
+// showBill: owner view of a T&M job — each THM line can also be billed to the customer
+// (thm_job_items.bill_rate; the DB sync puts qty x bill_rate on job_costs.bill_amount).
+export default function ThmPanel({ job, onChange, showBill = false }: { job: any; onChange?: () => void; showBill?: boolean }) {
   const sb = useMemo(() => createClient(), []);
   const [items, setItems] = useState<Item[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -87,6 +89,8 @@ export default function ThmPanel({ job, onChange }: { job: any; onChange?: () =>
       label: kind === "labor" ? (last?.label ?? "Tyler") : kind === "truck" ? (last?.label ?? "Dump truck") : null,
       unit: kind === "other" ? "flat" : (last?.unit ?? (kind === "labor" ? "hours" : "days")),
       qty: 1, rate: Number(last?.rate ?? 0), entry_date: todayISO(), sort: (items?.length ?? 0) + 1,
+      // T&M job: pass the line through to the customer at the same rate unless changed
+      ...(job.billing_type === "tm" ? { bill_rate: Number(last?.rate ?? 0) } : {}),
     };
     const { data, error } = await sb.from("thm_job_items").insert(row).select("*").single();
     setBusy("");
@@ -98,9 +102,12 @@ export default function ThmPanel({ job, onChange }: { job: any; onChange?: () =>
   async function save(it: Item, patch: Partial<Item>) {
     const next = { ...it, ...patch };
     if (next.unit === "flat") next.qty = 1;
+    // a pass-through line (billed at what Tyler is paid) follows the rate when it changes
+    if (patch.rate !== undefined && !("bill_rate" in patch) && it.bill_rate != null && Number(it.bill_rate) === Number(it.rate)) next.bill_rate = num(patch.rate);
     setItems((s) => (s ?? []).map((x) => (x.id === it.id ? { ...next, amount: Math.round(num(next.qty) * num(next.rate) * 100) / 100 } : x)));
     const { error } = await sb.from("thm_job_items").update({
       label: next.label, unit: next.unit, qty: num(next.qty), rate: num(next.rate),
+      bill_rate: next.bill_rate == null ? null : num(next.bill_rate),
       entry_date: next.entry_date || null, notes: next.notes, updated_at: new Date().toISOString(),
     }).eq("id", it.id);
     if (error) { showError("Save failed: " + error.message); load(); return; }
@@ -182,7 +189,7 @@ export default function ThmPanel({ job, onChange }: { job: any; onChange?: () =>
           <Empty icon={<Truck size={24} />} title="Nothing on this job yet" body={`Add the truck, each machine and the labor. Pick hours or days, plug in how many and the rate.`} />
         ) : (
           <div className="space-y-2">
-            {items.map((it) => <Line key={it.id} it={it} onSave={(p) => save(it, p)} onRemove={() => remove(it)} onApprove={() => approve(it)} />)}
+            {items.map((it) => <Line showBill={showBill} key={it.id} it={it} onSave={(p) => save(it, p)} onRemove={() => remove(it)} onApprove={() => approve(it)} />)}
           </div>
         )}
       </section>
@@ -190,7 +197,7 @@ export default function ThmPanel({ job, onChange }: { job: any; onChange?: () =>
   );
 }
 
-function Line({ it, onSave, onRemove, onApprove }: { it: Item; onSave: (p: Partial<Item>) => void; onRemove: () => void; onApprove: () => void }) {
+function Line({ it, onSave, onRemove, onApprove, showBill = false }: { it: Item; onSave: (p: Partial<Item>) => void; onRemove: () => void; onApprove: () => void; showBill?: boolean }) {
   const meta = it.category === "material" ? MATERIAL : (KINDS.find((k) => k.key === it.kind) ?? KINDS[3]);
   const pending = it.status === "submitted";
   const Icon = meta.icon;
@@ -198,6 +205,7 @@ function Line({ it, onSave, onRemove, onApprove }: { it: Item; onSave: (p: Parti
   const [qty, setQty] = useState(String(it.qty ?? ""));
   const [rate, setRate] = useState(String(it.rate ?? ""));
   const [notes, setNotes] = useState(it.notes ?? "");
+  const [bill, setBill] = useState(it.bill_rate == null ? "" : String(it.bill_rate));
   const amount = Math.round(num(it.unit === "flat" ? 1 : qty) * num(rate) * 100) / 100;
   const per = it.unit === "days" ? "/day" : it.unit === "hours" ? "/hr" : "";
 
@@ -231,6 +239,15 @@ function Line({ it, onSave, onRemove, onApprove }: { it: Item; onSave: (p: Parti
       <Input className="mt-2 h-9 text-[13px]" placeholder="Note (optional)" value={notes}
         onChange={(e) => setNotes(e.target.value)} onBlur={() => { if (notes !== (it.notes ?? "")) onSave({ notes: notes.trim() || null }); }} />
       {it.unit !== "flat" ? <p className="mt-1 text-xs text-neutral-500">{num(qty) || 0} {it.unit} × {money(num(rate))}{per} = {money(amount)}</p> : null}
+      {showBill ? (
+        <div className="mt-2 flex items-center gap-2 text-xs text-neutral-400">
+          <span className="shrink-0">Bill customer{it.unit === "flat" ? "" : ` ${per}`}</span>
+          <Input className="h-9 w-24" inputMode="decimal" placeholder="not billed" value={bill}
+            onChange={(e) => setBill(e.target.value)}
+            onBlur={() => { const v = bill.trim() === "" ? null : num(bill); if (v !== (it.bill_rate == null ? null : Number(it.bill_rate))) onSave({ bill_rate: v }); }} />
+          <span className="ml-auto tabular-nums text-emerald-300">{bill.trim() === "" ? "cost only" : `bills ${money(Math.round(num(it.unit === "flat" ? 1 : qty) * num(bill) * 100) / 100)}`}</span>
+        </div>
+      ) : null}
     </Card>
   );
 }

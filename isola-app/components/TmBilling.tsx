@@ -37,6 +37,9 @@ export function computeBill({ job, costs, rates, workers, cos = [] }: Data) {
   const labor = costs.filter((c) => c.category === "Labor");
   // THM reimbursement lines are what Isola owes Tyler, not a material to bill the customer
   const other = costs.filter((c) => c.category !== "Labor" && c.category !== "THM" && c.category !== "Trucking");
+  // THM lines with a bill amount (machine, delivery, Tyler's truck) are billed to the customer at that amount;
+  // their amount is what Isola owes THM. THM lines without one stay cost only.
+  const equipment = costs.filter((c) => c.category === "THM" && num(c.bill_amount) != null);
   const trucking = costs.filter((c) => c.category === "Trucking");
   const people = new Map<string, { name: string; worker: any; hours: number; cost: number; bill: number; billRate: number | null; payRate: number | null; lump: number }>();
   let missingRate = false;
@@ -63,9 +66,11 @@ export function computeBill({ job, costs, rates, workers, cos = [] }: Data) {
   // approved fixed-price change orders add on top of the T&M bill; $0 COs are added scope billed at T&M rates
   const coApproved = cos.filter((c) => c.status === "approved");
   const coBill = Math.round(coApproved.reduce((a, c) => a + Number(c.amount || 0), 0) * 100) / 100;
-  const total = laborBill + matBill + truckBill + coBill;
-  const cost = laborCost + matCost + truckCost;
-  return { people: [...people.values()], laborCost, laborBill, matCost, matBill, truckCost, truckBill, trucking, markup, total, cost, margin: total - cost, missingRate, other, coApproved, coBill };
+  const equipCost = equipment.reduce((a, c) => a + Number(c.amount || 0), 0);
+  const equipBill = Math.round(equipment.reduce((a, c) => a + Number(c.bill_amount || 0), 0) * 100) / 100;
+  const total = laborBill + matBill + truckBill + coBill + equipBill;
+  const cost = laborCost + matCost + truckCost + equipCost;
+  return { people: [...people.values()], laborCost, laborBill, matCost, matBill, truckCost, truckBill, trucking, markup, total, cost, margin: total - cost, missingRate, other, coApproved, coBill, equipment, equipCost, equipBill };
 }
 
 function CostSection({ title, empty, items, cost, bill, markup }: { title: string; empty: string; items: any[]; cost: number; bill: number; markup: number | null }) {
@@ -76,7 +81,7 @@ function CostSection({ title, empty, items, cost, bill, markup }: { title: strin
         <div className="space-y-1">
           {items.map((c: any) => {
             const amt = Number(c.amount || 0);
-            const own = num(c.bill_amount) != null;
+            const own = num(c.bill_amount) != null && !Number(c.amount);
             const billed = billedOf(c, markup);
             return (
               <div key={c.id} className="flex items-start gap-3 text-sm">
@@ -208,6 +213,11 @@ export function TmJobBill({ jobId, compact, onChanged }: { jobId: string; compac
 
         {/* materials */}
         <CostSection title="Materials & other costs" empty="None logged yet." items={b.other} cost={b.matCost} bill={b.matBill} markup={b.markup} />
+
+        {/* machine & equipment from THM (delivery, machine hours, truck) */}
+        {b.equipment.length ? (
+          <CostSection title="Machine & equipment" empty="" items={b.equipment} cost={b.equipCost} bill={b.equipBill} markup={null} />
+        ) : null}
 
         {/* trucking: optional, only shows once a Trucking cost is logged */}
         {b.trucking.length ? (

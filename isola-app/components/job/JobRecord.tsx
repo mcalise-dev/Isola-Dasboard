@@ -454,7 +454,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
               {withThm ? (
                 <section id="sec-thm" className="scroll-mt-24 space-y-4">
                   <h2 className="text-[17px] font-semibold text-white">THM</h2>
-                  <ThmPanel job={job} onChange={load} />
+                  <ThmPanel job={job} onChange={load} showBill={!partner && job.billing_type === "tm"} />
                 </section>
               ) : null}
             </TabsContent>
