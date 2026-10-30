@@ -325,6 +325,8 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const [srcPhoto, setSrcPhoto] = useState<any>(null);   // the ORIGINAL job photo, if any
   const [editRow, setEditRow] = useState<any>(null);      // an existing marked-up row being re-edited
   const [shapes, setShapes] = useState<Shape[]>([]);
+  const shapesRef = useRef<Shape[]>([]);
+  shapesRef.current = shapes;
   const [past, setPast] = useState<Shape[][]>([]);
   const [future, setFuture] = useState<Shape[][]>([]);
   const [tool, setTool] = useState<Tool>("path");
@@ -356,7 +358,9 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   }
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const drag = useRef<{ mode: "draw" | "move" | "handle" | "pathpt" | "tbdraw"; start?: P; before?: Shape[]; idx?: number } | null>(null);
+  const drag = useRef<{ mode: "draw" | "move" | "handle" | "pathpt" | "tbdraw"; start?: P; before?: Shape[]; idx?: number; wasSel?: boolean } | null>(null);
+  // double-tap on any text box, in any tool, opens it for editing
+  const lastTap = useRef<{ t: number; p: P } | null>(null);
 
   // jobs for the picker
   useEffect(() => {
@@ -390,6 +394,8 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
         if (orig) {
           setImg(await loadImg(orig.photo_b64));
           setSrcPhoto(orig); setEditRow(row); reset((row.markup as Markup).shapes || []);
+          // v8.x: reopening a saved markup lands in Move so a tap selects an existing box instead of drawing a new mark
+          setTool("select");
           return;
         }
       }
@@ -493,6 +499,20 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     e.preventDefault();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     const p = toImg(e);
+    const now = Date.now();
+    const prevTap = lastTap.current;
+    lastTap.current = { t: now, p };
+    const textHit = [...shapes].reverse().find((s) => (s.type === "text" || s.type === "dim") && hit(s, p, tolImg, base));
+    // double-tap on a text box from any drawing tool: drop whatever the first tap started and edit the box
+    if (tool !== "select" && textHit && prevTap && now - prevTap.t < 400 && dist(prevTap.p, p) < tolImg * 2) {
+      lastTap.current = null;
+      if (draft?.type === "path") setDraft((d) => { const pts = (d?.points || []).slice(0, -1); return pts.length ? { ...d!, points: pts } : null; });
+      else setDraft(null);
+      drag.current = null;
+      setTool("select"); setSel(textHit.id);
+      editTextOf(textHit.id);
+      return;
+    }
     if (tool === "select") {
       const cur = shapes.find((x) => x.id === sel);
       if (cur) {
@@ -501,7 +521,13 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       }
       const h = [...shapes].reverse().find((s) => hit(s, p, tolImg, base));
       setSel(h?.id ?? null);
-      drag.current = h ? { mode: "move", start: p, before: shapes } : null;
+      drag.current = h ? { mode: "move", start: p, before: shapes, wasSel: h.id === sel } : null;
+      return;
+    }
+    if (tool === "text" && textHit && textHit.type === "text") {
+      // tapping an existing text box with the Text tool edits that box instead of stacking a new one on top
+      setTool("select"); setSel(textHit.id);
+      editTextOf(textHit.id);
       return;
     }
     if (tool === "text") {
@@ -552,7 +578,10 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     const d = drag.current; drag.current = null;
     if (!d) return;
     if (d.mode === "move" || d.mode === "handle") {
-      if (d.before && d.before !== shapes) { setPast((p) => [...p.slice(-60), d.before!]); setFuture([]); }
+      if (d.before && d.before !== shapes) { setPast((p) => [...p.slice(-60), d.before!]); setFuture([]); return; }
+      // tap (no drag) on a box that was already selected: open its text, like Canva / Keynote
+      const s = shapes.find((x) => x.id === sel);
+      if (d.mode === "move" && d.wasSel && s && (s.type === "text" || s.type === "dim")) editTextOf(s.id);
       return;
     }
     if (d.mode === "tbdraw" && draft) {
@@ -587,11 +616,14 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   }
 
   function deleteSel() { if (!sel) return; commit(shapes.filter((s) => s.id !== sel)); setSel(null); }
-  async function editSelText() {
-    const s = shapes.find((x) => x.id === sel); if (!s || (s.type !== "text" && s.type !== "dim")) return;
+  async function editSelText() { if (sel) await editTextOf(sel); }
+  async function editTextOf(id: string) {
+    const s = shapes.find((x) => x.id === id); if (!s || (s.type !== "text" && s.type !== "dim")) return;
     const t = await askText({ title: s.type === "dim" ? "Measurement" : "Edit text", initial: s.text || "", confirm: "Save", multiline: s.type === "text" });
     if (t === null) return;
-    commit(shapes.map((x) => (x.id === sel ? { ...x, text: t.trim() } : x)));
+    // the dialog is async, so build on the latest shapes, not the ones captured at tap time
+    const cur = shapesRef.current;
+    commit(cur.map((x) => (x.id === id ? (isBox(x) ? clampBox({ ...x, text: t.trim() }) : { ...x, text: t.trim() }) : x)), cur);
   }
   async function editSelNum() {
     const s = shapes.find((x) => x.id === sel); if (!s) return;
@@ -697,9 +729,9 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const selShape = shapes.find((x) => x.id === sel);
   const hint =
     tool === "path" ? (draft ? `${draft.points?.length} point${draft.points?.length === 1 ? "" : "s"} · tap to add more · tap the first point to close it · Done to finish` : "Tap to drop each point — lines connect as you go")
-    : tool === "select" ? (selShape ? (selShape.type === "text" ? (isBox(selShape) ? "Drag to move · drag a corner dot to resize the box — text wraps to fit" : "Drag to move · change text color, size, font, box color or number below") : "Drag to move · drag a white dot to reshape · color and size buttons restyle it") : "Tap a mark to select it")
+    : tool === "select" ? (selShape ? (selShape.type === "text" ? (isBox(selShape) ? "Tap again to edit the words · drag to move · drag a corner dot to resize" : "Tap again to edit the words · drag to move · restyle below") : "Drag to move · drag a white dot to reshape · color and size buttons restyle it") : "Tap any box or mark to select it · tap a selected box again to edit its words")
     : tool === "dim" ? "Drag from one end to the other, then type the measurement"
-    : tool === "text" ? "Tap for a box that fits the text, or drag to draw the box the size you want"
+    : tool === "text" ? "Tap empty space for a new box (or drag to size it) · tap an existing box to edit it"
     : tool === "num" ? `Tap to drop numbered dots (next: ${nextNum(shapes)}) · color buttons set the dot color`
     : tool === "pen" ? "Draw with your finger" : "Drag to draw";
 
