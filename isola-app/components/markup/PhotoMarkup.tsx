@@ -282,12 +282,21 @@ function drawCaption(ctx: CanvasRenderingContext2D, text: string, W: number, H: 
   lines.forEach((l, i) => ctx.fillText(l, x + padX, y + padY + lh * (i + 0.5)));
   ctx.restore();
 }
+// v7.3: a line that starts with ** is a disclosure — no number, printed small at the bottom of the panel
+const isNote = (t: string) => t.trim().startsWith("**");
+const noteText = (t: string) => t.trim().replace(/^\*\*\s*/, "").replace(/\s*\*\*$/, "").trim();
+// step number for each line (null for ** notes); blank lines keep their number so step 3 stays #3
+function stepNums(items: string[]): (number | null)[] {
+  let n = 0;
+  return items.map((t) => (isNote(t) ? null : ++n));
+}
 // v5.6: steps panel — a dark section split off the photo (right side or below) listing numbered steps
 function panelLayout(p: Panel, W: number, H: number) {
   const c = (measureCtx ??= document.createElement("canvas").getContext("2d")!);
-  // keep each step's own number (step 3 stays #3 even if step 2 is still blank)
-  const all = p.items.map((t, i) => ({ t: t.trim(), n: i + 1 })).filter((x) => x.t);
-  const items = all.map((x) => x.t), nums = all.map((x) => x.n);
+  const sn = stepNums(p.items);
+  const all = p.items.map((t, i) => ({ t: t.trim(), n: sn[i] })).filter((x) => x.t && x.n !== null);
+  const items = all.map((x) => x.t), nums = all.map((x) => x.n as number);
+  const notes = p.items.filter(isNote).map(noteText).filter(Boolean);
   const pw = p.side === "right" ? Math.round(Math.max(W * 0.34, Math.min(W * 0.6, H * 0.62))) : W;
   let f = p.side === "right" ? pw * 0.05 : Math.min(W, H * 1.4) * 0.028;
   for (let tries = 0; tries < 14; tries++) {
@@ -295,11 +304,15 @@ function panelLayout(p: Panel, W: number, H: number) {
     const textX = pad + r * 2 + f * 0.6, maxW = pw - textX - pad;
     c.save(); c.font = `600 ${f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
     const rows = items.map((t) => wrapLines(c, t.split("\n"), Math.max(f * 3, maxW)));
+    const noteF = f * 0.78, noteLh = noteF * 1.3;
+    c.font = `italic 500 ${noteF}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
+    const noteRows = notes.map((t) => wrapLines(c, ("* " + t).split("\n"), Math.max(f * 3, pw - pad * 2)));
     c.restore();
     const rowsH = rows.reduce((a, l) => a + Math.max(r * 2, l.length * lh) + gap, 0);
-    const h = pad + titleF * 1.2 + f * 0.9 + rowsH + pad * 0.6;
+    const notesH = noteRows.length ? f * 0.7 + noteRows.reduce((a, l) => a + l.length * noteLh + noteF * 0.35, 0) : 0;
+    const h = pad + titleF * 1.2 + f * 0.9 + rowsH + notesH + pad * 0.6;
     if (p.side === "bottom" || h <= H || tries === 13) {
-      return { pw, ph: p.side === "right" ? H : Math.ceil(h), f, pad, r, lh, gap, titleF, textX, rows, nums };
+      return { pw, ph: p.side === "right" ? H : Math.ceil(h), f, pad, r, lh, gap, titleF, textX, rows, nums, noteRows, noteF, noteLh };
     }
     f *= 0.9;
   }
@@ -330,6 +343,18 @@ function drawPanel(ctx: CanvasRenderingContext2D, p: Panel, W: number, H: number
     lines.forEach((ln, j) => ctx.fillText(ln, L.textX, top + L.lh * (j + 0.5)));
     y += rowH + L.gap;
   });
+  // ** notes: thin rule, then small italic gray lines with no number, like a disclosure
+  if (L.noteRows.length) {
+    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    ctx.fillRect(L.pad, y + L.f * 0.05, L.pw - L.pad * 2, Math.max(1, L.f * 0.06));
+    y += L.f * 0.7;
+    ctx.font = `italic 500 ${L.noteF}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
+    ctx.fillStyle = "#B4BAC0"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    L.noteRows.forEach((lines) => {
+      lines.forEach((ln, j) => ctx.fillText(ln, L.pad, y + L.noteLh * (j + 0.5)));
+      y += lines.length * L.noteLh + L.noteF * 0.35;
+    });
+  }
   ctx.restore();
 }
 const pinR = (s: Shape, base: number) => base * (2.6 + (s.size || 2) * 1.3);
@@ -423,8 +448,12 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   // dropping dot N opens the steps list (below the photo) with lines 1..N ready to fill
   function ensureStep(n: number, note?: string) {
     setSteps((prev) => {
-      const a = [...prev]; while (a.length < n) a.push("");
-      if (note?.trim() && !a[n - 1].trim()) a[n - 1] = note.trim().replace(/\n/g, " ");
+      // ** notes don't count toward dot numbers — step N is the Nth numbered line
+      const a = [...prev];
+      let count = a.filter((t) => !isNote(t)).length;
+      while (count < n) { a.push(""); count++; }
+      const idx = a.findIndex((_, i) => stepNums(a)[i] === n);
+      if (idx >= 0 && note?.trim() && !a[idx].trim()) a[idx] = note.trim().replace(/\n/g, " ");
       return a;
     });
     if (!panelOn) { setPanelSide("bottom"); setPanelOn(true); }
@@ -438,7 +467,10 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     const pins = shapes.filter((x) => x.type === "num").sort((a, b) => (a.num ?? 0) - (b.num ?? 0));
     if (!pins.length) { showError("Drop some numbered dots first."); return; }
     const lines = pins.map((pn) => shapes.find((x) => x.ref === pn.id)?.text?.replace(/\n/g, " ") || "");
-    setSteps((prev) => lines.map((l, i) => l || prev[i] || "")); setPanelOn(true);
+    setSteps((prev) => {
+      const numbered = prev.filter((t) => !isNote(t)), notes = prev.filter(isNote);
+      return [...lines.map((l, i) => l || numbered[i] || ""), ...notes];   // ** notes stay, at the end
+    }); setPanelOn(true);
   }
   const [draft, setDraft] = useState<Shape | null>(null);
   const [hover, setHover] = useState<P | null>(null);
@@ -1084,20 +1116,22 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
             <input value={panelTitle} onChange={(e) => setPanelTitle(e.target.value)} placeholder="Or type your own title"
               className="mb-1.5 w-full rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] font-semibold text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
             <div className="space-y-1.5">
-              {(steps.length ? steps : [""]).map((st, i) => (
+              {(() => { const list = steps.length ? steps : [""]; const nums = stepNums(list); return list.map((st, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-extrabold text-neutral-950">{i + 1}</span>
+                  {nums[i] === null
+                    ? <span title="Note — no number, printed at the bottom" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 text-[13px] font-extrabold text-neutral-400">*</span>
+                    : <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-extrabold text-neutral-950">{nums[i]}</span>}
                   <input value={st} onChange={(e) => { const v = e.target.value; setSteps((prev) => { const a = prev.length ? [...prev] : [""]; a[i] = v; return a; }); }}
-                    placeholder={i === 0 ? "e.g. Remove loose brick and failed mortar" : `Step ${i + 1}`}
+                    placeholder={i === 0 ? "e.g. Remove loose brick and failed mortar" : nums[i] === null ? "Note" : `Step ${nums[i]}`}
                     className="min-w-0 flex-1 rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
                   <button aria-label={`Remove step ${i + 1}`} onClick={() => setSteps((prev) => prev.filter((_, j) => j !== i))}
                     className="shrink-0 rounded p-1.5 text-neutral-500 hover:text-white"><X size={16} /></button>
                 </div>
-              ))}
+              )); })()}
             </div>
             <div className="mt-1.5 flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setSteps((prev) => [...(prev.length ? prev : [""]), ""])}>+ Add step</Button>
-              <p className="text-xs text-neutral-500">Step 1 matches dot 1. Each dot you drop adds its line here.</p>
+              <p className="text-xs text-neutral-500">Step 1 matches dot 1. Start a line with ** for a note with no number — it prints at the bottom like a disclosure.</p>
             </div>
           </>
         ) : <p className="text-xs text-neutral-500">Split a dark section off the photo that lists numbered steps — what will be done.</p>}
