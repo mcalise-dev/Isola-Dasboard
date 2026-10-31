@@ -30,6 +30,9 @@ export async function drawStamp(ctx: CanvasRenderingContext2D, w: number, h: num
   ctx.beginPath(); ctx.arc(x + D / 2, y + D / 2, D / 2, 0, Math.PI * 2); ctx.fillStyle = "#000"; ctx.fill();
   ctx.shadowColor = "transparent";
   ctx.beginPath(); ctx.arc(x + D / 2, y + D / 2, D / 2, 0, Math.PI * 2); ctx.clip();
+  // v5.2 (10/31/26): logo.png is now a 1024px clean master; downscale it smoothly so the
+  // badge edges and lettering stay sharp instead of the old gritty 256px palette PNG.
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
   ctx.drawImage(lg, x, y, D, D);
   ctx.restore();
 }

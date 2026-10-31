@@ -32,7 +32,8 @@ type Shape = {
   w?: number; h?: number; ts?: number;
 };
 type Tool = "select" | Shape["type"];
-type Markup = { v: 1; w: number; h: number; shapes: Shape[] };
+// v5.4: caption = "what we're looking at", saved as the photo's caption and (optionally) printed along the bottom
+type Markup = { v: 1; w: number; h: number; shapes: Shape[]; caption?: string; showCap?: boolean };
 
 const COLORS = [
   { v: "#F2C230", n: "Yellow" },
@@ -256,6 +257,27 @@ function drawTextBox(ctx: CanvasRenderingContext2D, s: Shape, base: number) {
   });
   ctx.restore();
 }
+// caption strip along the bottom of the photo, kept left of the Isola logo (same size/margin as lib/stamp)
+function drawCaption(ctx: CanvasRenderingContext2D, text: string, W: number, H: number) {
+  const t = text.trim(); if (!t) return;
+  const short = Math.min(W, H), D = Math.max(40, Math.min(220, short * 0.14)), m = short * 0.025, gap = short * 0.015;
+  const f = Math.max(14, short * 0.038), padX = f * 0.7, padY = f * 0.45, lh = f * 1.25;
+  const maxW = W - m - D - gap - m;
+  ctx.save();
+  ctx.font = `700 ${f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
+  let lines = wrapLines(ctx, t.split("\n"), maxW - padX * 2);
+  if (lines.length > 3) { lines = lines.slice(0, 3); lines[2] = lines[2].replace(/\s*\S*$/, "") + "…"; }
+  const w = Math.min(maxW, Math.max(...lines.map((l) => ctx.measureText(l).width)) + padX * 2);
+  const h = lines.length * lh + padY * 2;
+  const x = m, y = H - m - Math.max(h, 0);
+  ctx.shadowColor = "rgba(0,0,0,0.35)"; ctx.shadowBlur = f * 0.4;
+  rrect(ctx, x, y, w, h, f * 0.3); ctx.fillStyle = "rgba(11,13,14,0.80)"; ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.fillStyle = "#F2C230"; ctx.fillRect(x, y + f * 0.3, Math.max(3, f * 0.14), h - f * 0.6);
+  ctx.fillStyle = "#FFFFFF"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  lines.forEach((l, i) => ctx.fillText(l, x + padX, y + padY + lh * (i + 0.5)));
+  ctx.restore();
+}
 const pinR = (s: Shape, base: number) => base * (2.6 + (s.size || 2) * 1.3);
 
 function bbox(s: Shape, base: number): { x0: number; y0: number; x1: number; y1: number } {
@@ -335,6 +357,9 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const [font, setFont] = useState<FontKey>("sans");
   const [bg, setBg] = useState("rgba(11,13,14,0.72)");
   const [numbered, setNumbered] = useState(false);
+  const [pinNotes, setPinNotes] = useState(true);   // Number tool: ask for a note and drop a text box beside the dot
+  const [caption, setCaption] = useState("");
+  const [showCap, setShowCap] = useState(true);
   const [draft, setDraft] = useState<Shape | null>(null);
   const [hover, setHover] = useState<P | null>(null);
   const [sel, setSel] = useState<string | null>(null);
@@ -394,12 +419,15 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
         if (orig) {
           setImg(await loadImg(orig.photo_b64));
           setSrcPhoto(orig); setEditRow(row); reset((row.markup as Markup).shapes || []);
+          const mk = row.markup as Markup;
+          setCaption(mk.caption ?? (row.caption && row.caption !== "Marked up" ? row.caption : "")); setShowCap(mk.showCap ?? true);
           // v8.x: reopening a saved markup lands in Move so a tap selects an existing box instead of drawing a new mark
           setTool("select");
           return;
         }
       }
       setImg(await loadImg(row.photo_b64)); setSrcPhoto(row); setEditRow(null); reset([]);
+      setCaption(row.caption && !["Original", "Marked up"].includes(row.caption) ? row.caption : ""); setShowCap(true);
     } catch (e: any) { showError(e.message); } finally { setBusy(false); }
   }
   async function openFile(f?: File) {
@@ -407,7 +435,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     setBusy(true);
     try {
       const b64 = await stampSafe(await compressImage(f, 1600, 0.85), 0.88);
-      setImg(await loadImg(b64)); setSrcPhoto(null); setEditRow(null); reset([]);
+      setImg(await loadImg(b64)); setSrcPhoto(null); setEditRow(null); reset([]); setCaption(""); setShowCap(true);
     } catch { showError("Could not open that photo."); } finally { setBusy(false); }
   }
   function reset(s: Shape[]) { setShapes(s); setPast([]); setFuture([]); setDraft(null); setSel(null); }
@@ -455,6 +483,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
     ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
     shapes.forEach((s) => drawShape(ctx, s, base));
+    if (showCap && caption.trim()) drawCaption(ctx, caption, img.naturalWidth, img.naturalHeight);
     if (draft) {
       if (draft.type === "path" && hover && draft.points?.length) {
         const last = draft.points[draft.points.length - 1];
@@ -470,7 +499,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       ctx.strokeRect(b.x0 - pad, b.y0 - pad, b.x1 - b.x0 + pad * 2, b.y1 - b.y0 + pad * 2); ctx.restore();
       handles(s, base).forEach((h) => { ctx.beginPath(); ctx.arc(h.x, h.y, 7 / scale, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill(); ctx.lineWidth = 2.5 / scale; ctx.strokeStyle = "#F2C230"; ctx.stroke(); });
     }
-  }, [img, view, shapes, draft, hover, sel, scale, base]);
+  }, [img, view, shapes, draft, hover, sel, scale, base, caption, showCap]);
 
   function toImg(e: React.PointerEvent): P {
     const r = canvasRef.current!.getBoundingClientRect();
@@ -539,7 +568,21 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     }
     if (tool === "num") {
       const pin: Shape = { id: uid(), type: "num", color, size, at: p, num: nextNum(shapes) };
-      commit([...shapes, pin]);
+      if (!pinNotes) { commit([...shapes, pin]); return; }
+      // show the dot right away, then ask what it is and drop a note box beside it
+      const before = shapes;
+      setShapes([...before, pin]);
+      const t = await askText({ title: `Note for #${pin.num}`, placeholder: "e.g. Cracked crown — open joint\nLeave blank for just the dot", confirm: "Add", multiline: true });
+      const cur = shapesRef.current;
+      if (!t?.trim()) { commit(cur, before); return; }
+      const bgUse = bg === "none" ? "rgba(11,13,14,0.72)" : bg;
+      const tc = bgUse.startsWith("rgba") || isDark(bgUse) ? "#FFFFFF" : "#0B0D0E";
+      let box: Shape = { id: uid(), type: "text", color: tc, size, at: p, text: t.trim(), font, bg: bgUse };
+      const L = textLayout(box, base), R0 = pinR(pin, base), off = R0 * 1.5;
+      const W = img.naturalWidth;
+      const cx = p.x + off + L.w <= W ? p.x + off + L.w / 2 : p.x - off - L.w / 2;
+      box = clampBox({ ...box, at: { x: cx, y: p.y } });
+      commit([...cur, box], before);
       return;
     }
     if (tool === "path") {
@@ -684,6 +727,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     ctx.drawImage(img!, 0, 0);
     const all = draft && draft.type === "path" && (draft.points?.length || 0) >= 2 ? [...shapes, draft] : shapes;
     all.forEach((s) => drawShape(ctx, s, base));
+    if (showCap && caption.trim()) drawCaption(ctx, caption, c.width, c.height);
     await drawStamp(ctx, c.width, c.height).catch(() => {}); // Isola badge, bottom-right, on top of the markup
     return c.toDataURL("image/jpeg", 0.85);
   }
@@ -698,7 +742,8 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     setBusy(true);
     try {
       const all = draft && draft.type === "path" && (draft.points?.length || 0) >= 2 ? [...shapes, draft] : shapes;
-      const markup: Markup = { v: 1, w: img!.naturalWidth, h: img!.naturalHeight, shapes: all };
+      const cap = caption.trim();
+      const markup: Markup = { v: 1, w: img!.naturalWidth, h: img!.naturalHeight, shapes: all, caption: cap, showCap };
       const out = await render();
       let source = srcPhoto;
       if (!source || source.job_id !== jobId) {
@@ -709,10 +754,10 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
         source = data; setSrcPhoto(data);
       }
       if (editRow && !asNew && editRow.job_id === jobId) {
-        const { error } = await sb.from("job_photos").update({ photo_b64: out, markup }).eq("id", editRow.id);
+        const { error } = await sb.from("job_photos").update({ photo_b64: out, markup, caption: cap || "Marked up" }).eq("id", editRow.id);
         if (error) throw error;
       } else {
-        const { data, error } = await sb.from("job_photos").insert({ job_id: jobId, phase: source.phase || "before", photo_b64: out, caption: "Marked up", markup, source_photo_id: source.id }).select("id,job_id,phase,caption").single();
+        const { data, error } = await sb.from("job_photos").insert({ job_id: jobId, phase: source.phase || "before", photo_b64: out, caption: cap || "Marked up", markup, source_photo_id: source.id }).select("id,job_id,phase,caption").single();
         if (error) throw error;
         setEditRow(data);
       }
@@ -732,7 +777,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     : tool === "select" ? (selShape ? (selShape.type === "text" ? (isBox(selShape) ? "Tap again to edit the words · drag to move · drag a corner dot to resize" : "Tap again to edit the words · drag to move · restyle below") : "Drag to move · drag a white dot to reshape · color and size buttons restyle it") : "Tap any box or mark to select it · tap a selected box again to edit its words")
     : tool === "dim" ? "Drag from one end to the other, then type the measurement"
     : tool === "text" ? "Tap empty space for a new box (or drag to size it) · tap an existing box to edit it"
-    : tool === "num" ? `Tap to drop numbered dots (next: ${nextNum(shapes)}) · color buttons set the dot color`
+    : tool === "num" ? `Tap to drop numbered dots (next: ${nextNum(shapes)})${pinNotes ? " · type a note and it goes in a box beside the dot" : ""}`
     : tool === "pen" ? "Draw with your finger" : "Drag to draw";
 
   // ---------- picker ----------
@@ -866,6 +911,18 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
         );
       })() : null}
 
+      {tool === "num" ? (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-white/[0.09] bg-card p-2">
+          <span className="text-[13px] text-neutral-300">Note box beside each dot</span>
+          <div className="ml-auto inline-flex rounded-lg border border-border bg-neutral-950 p-0.5">
+            {[true, false].map((v) => (
+              <button key={String(v)} onClick={() => setPinNotes(v)}
+                className={cn("h-8 rounded-md px-3 text-[13px] font-semibold", pinNotes === v ? "bg-brand text-neutral-950" : "text-neutral-300")}>{v ? "On" : "Dot only"}</button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="mb-2 flex min-h-[36px] flex-wrap items-center gap-2 text-[13px] text-neutral-400">
         <span className="mr-auto">{hint}</span>
         {draft?.type === "path" ? (
@@ -889,6 +946,20 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           className="rounded-lg border border-white/[0.09] bg-black select-none"
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
           onPointerLeave={() => setHover(null)} />
+      </div>
+
+      <div className="mt-3 rounded-lg border border-white/[0.09] bg-card p-2.5">
+        <label className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+          What are we looking at?
+          <span className="ml-auto inline-flex items-center gap-1.5 normal-case tracking-normal">
+            <input type="checkbox" checked={showCap} onChange={(e) => setShowCap(e.target.checked)} className="h-4 w-4 accent-[#F2C230]" />
+            <span className="text-[13px] font-medium text-neutral-300">Show on photo</span>
+          </span>
+        </label>
+        <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={2}
+          placeholder="e.g. Chimney crown — cracked cap, open joints at flue tiles"
+          className="w-full resize-none rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
+        <p className="mt-1 text-xs text-neutral-500">Saved as the photo&apos;s caption{showCap ? " and printed along the bottom of the photo" : ""}.</p>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
