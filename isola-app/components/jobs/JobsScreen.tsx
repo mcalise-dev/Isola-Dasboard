@@ -21,7 +21,7 @@ import { PageHeader, Empty, KV, Progress, Kbd } from "@/components/ui/bits";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TableWrap, Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Plus, Search, Table2, Columns3, ArrowUpDown, Briefcase, Star, Phone, Navigation, ArrowRight, ExternalLink } from "lucide-react";
+import { Plus, Search, Table2, Columns3, ArrowUpDown, Briefcase, Star, Phone, Navigation, ArrowRight, ExternalLink, Trash2 } from "lucide-react";
 
 type Ctx = { walked: Set<string>; drafting: Set<string>; scheduled: Set<string>; next: Record<string, any>; spent: Record<string, number> };
 const VIEWS = [
@@ -154,6 +154,20 @@ export default function JobsScreen() {
     });
   }
 
+  // v8.1 (10/31/26): delete straight from the Pipeline — table row, phone card, or the side peek.
+  // Confirm first, then the row disappears with a few seconds to undo before it's gone for good.
+  function remove(j: any) {
+    const nm = j.job_name || [j.customer, j.location].filter(Boolean).join(" — ") || "this job";
+    if (!window.confirm(`Delete "${nm}"?\n\nRemoves the job with its proposal links, photos, schedule entries and jobbook.`)) return;
+    const before = jobs ?? [];
+    undoable({
+      text: `${nm} deleted`,
+      hide: () => { setJobs(before.filter((x) => x.id !== j.id)); setPeek((cur: any) => (cur && cur.id === j.id ? null : cur)); },
+      restore: () => setJobs(before),
+      commit: async () => { const { error } = await sb.from("jobs").delete().eq("id", j.id); if (error) { setJobs(before); showError("Delete failed: " + error.message); } window.dispatchEvent(new Event("isola:changed")); },
+    });
+  }
+
   const columns = useMemo<ColumnDef<any>[]>(() => [
     {
       id: "job", header: "Job", accessorFn: (j) => (j.job_name || j.customer || "").toLowerCase(),
@@ -197,7 +211,14 @@ export default function JobsScreen() {
       id: "updated", header: "Updated", accessorFn: (j) => j.updated_at ?? "",
       cell: ({ row: { original: j } }) => <span className="whitespace-nowrap text-xs text-neutral-500">{j.updated_at ? fmtDate(String(j.updated_at).slice(0, 10)).replace(/^\w+, /, "") : ""}</span>,
     },
-  ], [ctx, today]);
+    {
+      id: "del", header: "", enableSorting: false,
+      cell: ({ row: { original: j } }) => (
+        <button aria-label="Delete job" title="Delete job" onClick={(e) => { e.stopPropagation(); remove(j); }}
+          className="rounded-md p-1.5 text-neutral-600 hover:bg-red-500/10 hover:text-red-300"><Trash2 size={15} /></button>
+      ),
+    },
+  ], [ctx, today, jobs]);
 
   const table = useReactTable({ data: shown, columns, state: { sorting }, onSortingChange: setSorting, getCoreRowModel: getCoreRowModel(), getSortedRowModel: getSortedRowModel() });
 
@@ -306,6 +327,8 @@ export default function JobsScreen() {
                     {j.price ? <div className="text-[15px] font-semibold tabular-nums text-white">{fmtPrice(j.price)}</div> : null}
                     {tag ? <div className={cn("mt-0.5 text-xs font-semibold", tag.cls)}>{tag.text}</div> : <div className="mt-0.5 text-xs text-neutral-500">{STATUS_META[j.status]?.label}</div>}
                   </div>
+                  <button aria-label="Delete job" onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(j); }}
+                    className="-mr-1 shrink-0 self-center rounded-md p-2 text-neutral-600 active:bg-red-500/10 active:text-red-300"><Trash2 size={16} /></button>
                 </div>
               </Link>
             );
@@ -340,13 +363,13 @@ export default function JobsScreen() {
       )}
 
       <Sheet open={!!peek} onOpenChange={(o) => { if (!o) setPeek(null); }}>
-        {peek ? <SheetContent title={peek.job_name || peek.customer}><Peek j={peek} ctx={ctx} onMove={move} onPatch={applyPatch} /></SheetContent> : null}
+        {peek ? <SheetContent title={peek.job_name || peek.customer}><Peek j={peek} ctx={ctx} onMove={move} onPatch={applyPatch} onDelete={remove} /></SheetContent> : null}
       </Sheet>
     </div>
   );
 }
 
-function Peek({ j, ctx, onMove, onPatch }: { j: any; ctx: Ctx; onMove: (j: any, s: string) => void; onPatch: (j: any, p: Record<string, any>, text: string) => void }) {
+function Peek({ j, ctx, onMove, onPatch, onDelete }: { j: any; ctx: Ctx; onMove: (j: any, s: string) => void; onPatch: (j: any, p: Record<string, any>, text: string) => void; onDelete: (j: any) => void }) {
   const router = useRouter();
   const step = nextStep(j, { walked: ctx.walked.has(j.id), drafting: ctx.drafting.has(j.id), scheduled: ctx.scheduled.has(j.id) || !!j.start_date });
   const p = price(j), s = ctx.spent[j.id] ?? 0;
@@ -365,6 +388,7 @@ function Peek({ j, ctx, onMove, onPatch }: { j: any; ctx: Ctx; onMove: (j: any, 
           {tel.length >= 7 ? <Button asChild size="sm" variant="outline"><a href={`tel:${tel.slice(0, 11)}`}><Phone size={14} /> Call</a></Button> : null}
           {j.location ? <Button asChild size="sm" variant="outline"><a href={`https://maps.google.com/?q=${encodeURIComponent(j.location)}`} target="_blank" rel="noreferrer"><Navigation size={14} /> Map</a></Button> : null}
           <Button size="sm" variant="outline" onClick={() => editJob(j)}>Edit</Button>
+          <Button size="sm" variant="outline" className="text-red-300 hover:text-red-200" onClick={() => onDelete(j)}><Trash2 size={14} /> Delete</Button>
         </div>
       </div>
       <div className="flex-1 space-y-5 overflow-y-auto scroll-thin px-5 py-4">

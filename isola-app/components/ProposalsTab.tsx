@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { fmtDate, jobLabel, parsePrice, revenueOf } from "@/lib/format";
 import { withTimeout, firstError } from "@/lib/load";
 import { getProposalValidDays, getPaymentTerms, daysFromToday, DEFAULT_VALID_DAYS } from "@/lib/settings";
-import { showError, showToast } from "@/components/Toaster";
+import { showError, showToast, undoable } from "@/components/Toaster";
 import { copyText } from "@/components/Dialogs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Textarea, Field, NativeSelect } from "@/components/ui/input";
 import { PageHeader, SectionTitle, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Eye, Copy, Pencil, Link2, Check, X, RotateCcw, FileText, Plus, Mail, Download, PenLine, Upload } from "lucide-react";
+import { Eye, Copy, Pencil, Link2, Check, X, RotateCcw, FileText, Plus, Mail, Download, PenLine, Upload, Trash2, Archive } from "lucide-react";
 import { downloadSignedCopy } from "@/lib/signedPdf";
 import { newToken, nextCoNumber } from "@/lib/esign";
 
@@ -77,6 +77,54 @@ export default function ProposalsTab() {
     if (proposal_status === "sent" && !j.quoted_date) patch.quoted_date = new Date().toISOString().slice(0, 10);
     const { error } = await supabase.from("jobs").update(patch).eq("id", j.id);
     if (error) showError("Update failed: " + error.message); else load();
+  }
+
+  // v8.1 (10/31/26): delete from the Proposals tab.
+  // • Delete a signature link (proposal or change order) that hasn't been signed.
+  // • "Remove" takes the job off this page (proposal_status → none); the job stays in the Pipeline.
+  // • "Delete job" removes the job everywhere.
+  function deleteLink(j: any, l: any) {
+    const word = l.kind === "change_order" ? "change order" : "proposal";
+    if (!window.confirm(`Delete this ${word} link for "${jobLabel(j)}"?\n\nThe link stops working for the client.`)) return;
+    const before = links;
+    undoable({
+      text: `${word[0].toUpperCase() + word.slice(1)} deleted`,
+      hide: () => setLinks({ ...before, [j.id]: (before[j.id] ?? []).filter((x) => x.id !== l.id) }),
+      restore: () => setLinks(before),
+      commit: async () => {
+        const { error } = await supabase.from("proposal_links").delete().eq("id", l.id);
+        if (error) { setLinks(before); showError("Delete failed: " + error.message); return; }
+        if (l.change_order_id) await supabase.from("change_orders").delete().eq("id", l.change_order_id).neq("status", "approved");
+        window.dispatchEvent(new Event("isola:changed"));
+      },
+    });
+  }
+  function removeFromProposals(j: any) {
+    const before = jobs ?? [];
+    undoable({
+      text: `${jobLabel(j)} removed from Proposals`,
+      hide: () => setJobs(before.filter((x) => x.id !== j.id)),
+      restore: () => setJobs(before),
+      commit: async () => {
+        const { error } = await supabase.from("jobs").update({ proposal_status: "none", updated_at: new Date().toISOString() }).eq("id", j.id);
+        if (error) { setJobs(before); showError("Update failed: " + error.message); }
+        window.dispatchEvent(new Event("isola:changed"));
+      },
+    });
+  }
+  function deleteJob(j: any) {
+    if (!window.confirm(`Delete "${jobLabel(j)}"?\n\nRemoves the whole job — proposal links, photos, schedule entries and jobbook — from the Pipeline too.`)) return;
+    const before = jobs ?? [];
+    undoable({
+      text: `${jobLabel(j)} deleted`,
+      hide: () => setJobs(before.filter((x) => x.id !== j.id)),
+      restore: () => setJobs(before),
+      commit: async () => {
+        const { error } = await supabase.from("jobs").delete().eq("id", j.id);
+        if (error) { setJobs(before); showError("Delete failed: " + error.message); }
+        window.dispatchEvent(new Event("isola:changed"));
+      },
+    });
   }
 
   const linkUrl = (t: string) => `${typeof window !== "undefined" ? window.location.origin : ""}/p/${t}`;
@@ -166,8 +214,13 @@ export default function ProposalsTab() {
             <Button variant="outline" size="sm" className="h-10" onClick={() => emailLink(j, l)}><Mail size={14} /> Email it</Button>
           )}
         </div>
-        {!isSigned && l.status !== "declined" ? (
-          <Button variant="ghost" size="sm" className="h-9 w-full" onClick={() => setEditing({ job: j, link: l })}><Pencil size={14} /> Edit</Button>
+        {!isSigned ? (
+          <div className="grid grid-cols-2 gap-2">
+            {l.status !== "declined" ? (
+              <Button variant="ghost" size="sm" className="h-9" onClick={() => setEditing({ job: j, link: l })}><Pencil size={14} /> Edit</Button>
+            ) : <span />}
+            <Button variant="ghost" size="sm" className="h-9 text-red-300 hover:text-red-200" onClick={() => deleteLink(j, l)}><Trash2 size={14} /> Delete</Button>
+          </div>
         ) : null}
       </div>
     );
@@ -211,6 +264,10 @@ export default function ProposalsTab() {
               {a.label}
             </Button>
           ))}
+          <div className="ml-auto flex gap-1">
+            <Button variant="ghost" size="sm" className="h-10 text-neutral-400" title="Take off this page — job stays in the Pipeline" onClick={() => removeFromProposals(j)}><Archive size={14} /> Remove</Button>
+            <Button variant="ghost" size="sm" className="h-10 text-red-300 hover:text-red-200" aria-label="Delete job" title="Delete the whole job" onClick={() => deleteJob(j)}><Trash2 size={14} /></Button>
+          </div>
         </div>
       </Card>
     );
