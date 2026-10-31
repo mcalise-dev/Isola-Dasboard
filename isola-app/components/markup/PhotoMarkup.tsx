@@ -283,8 +283,11 @@ function drawCaption(ctx: CanvasRenderingContext2D, text: string, W: number, H: 
   ctx.restore();
 }
 // v7.3: a line that starts with ** is a disclosure — no number, printed small at the bottom of the panel
-const isNote = (t: string) => t.trim().startsWith("**");
-const noteText = (t: string) => t.trim().replace(/^\*\*\s*/, "").replace(/\s*\*\*$/, "").trim();
+// forgiving: any star character (* ＊ ∗ ✱ ★ etc.) at the start, one or two of them, or ** at the end
+const STAR = "[*\\uFF0A\\u2217\\u2731\\u2605\\u22C6\\u204E]";
+const NOTE_START = new RegExp("^\\s*" + STAR), NOTE_END = new RegExp(STAR + STAR + "\\s*$");
+const isNote = (t: string) => NOTE_START.test(t) || NOTE_END.test(t);
+const noteText = (t: string) => t.replace(new RegExp("^\\s*(" + STAR + "\\s*)+"), "").replace(new RegExp("(\\s*" + STAR + ")+\\s*$"), "").trim();
 // step number for each line (null for ** notes); blank lines keep their number so step 3 stays #3
 function stepNums(items: string[]): (number | null)[] {
   let n = 0;
