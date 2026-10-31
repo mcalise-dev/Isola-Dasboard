@@ -30,10 +30,12 @@ type Shape = {
   font?: FontKey; bg?: string; num?: number;
   // v5.3: box size set by dragging its corners (text wraps to w; h can add room below), and a text-size nudge
   w?: number; h?: number; ts?: number;
+  ref?: string;   // v5.6: a note box points at the numbered dot it explains
 };
 type Tool = "select" | Shape["type"];
 // v5.4: caption = "what we're looking at", saved as the photo's caption and (optionally) printed along the bottom
-type Markup = { v: 1; w: number; h: number; shapes: Shape[]; caption?: string; showCap?: boolean };
+type Panel = { side: "right" | "bottom"; title: string; items: string[] };
+type Markup = { v: 1; w: number; h: number; shapes: Shape[]; caption?: string; showCap?: boolean; panel?: Panel | null };
 
 const COLORS = [
   { v: "#F2C230", n: "Yellow" },
@@ -278,6 +280,54 @@ function drawCaption(ctx: CanvasRenderingContext2D, text: string, W: number, H: 
   lines.forEach((l, i) => ctx.fillText(l, x + padX, y + padY + lh * (i + 0.5)));
   ctx.restore();
 }
+// v5.6: steps panel — a dark section split off the photo (right side or below) listing numbered steps
+function panelLayout(p: Panel, W: number, H: number) {
+  const c = (measureCtx ??= document.createElement("canvas").getContext("2d")!);
+  const items = p.items.map((t) => t.trim()).filter(Boolean);
+  const pw = p.side === "right" ? Math.round(Math.max(W * 0.34, Math.min(W * 0.6, H * 0.62))) : W;
+  let f = p.side === "right" ? pw * 0.05 : Math.min(W, H * 1.4) * 0.028;
+  for (let tries = 0; tries < 14; tries++) {
+    const pad = f * 1.3, r = f * 0.85, lh = f * 1.3, gap = f * 0.75, titleF = f * 1.15;
+    const textX = pad + r * 2 + f * 0.6, maxW = pw - textX - pad;
+    c.save(); c.font = `600 ${f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
+    const rows = items.map((t) => wrapLines(c, t.split("\n"), Math.max(f * 3, maxW)));
+    c.restore();
+    const rowsH = rows.reduce((a, l) => a + Math.max(r * 2, l.length * lh) + gap, 0);
+    const h = pad + titleF * 1.2 + f * 0.9 + rowsH + pad * 0.6;
+    if (p.side === "bottom" || h <= H || tries === 13) {
+      return { pw, ph: p.side === "right" ? H : Math.ceil(h), f, pad, r, lh, gap, titleF, textX, rows };
+    }
+    f *= 0.9;
+  }
+  throw new Error("unreachable");
+}
+function drawPanel(ctx: CanvasRenderingContext2D, p: Panel, W: number, H: number, ox: number, oy: number) {
+  const L = panelLayout(p, W, H);
+  ctx.save();
+  ctx.translate(ox, oy);
+  ctx.fillStyle = "#0E1114"; ctx.fillRect(0, 0, L.pw, L.ph);
+  ctx.fillStyle = "#F2C230";
+  if (p.side === "right") ctx.fillRect(0, 0, Math.max(3, L.f * 0.18), L.ph);
+  else ctx.fillRect(0, 0, L.pw, Math.max(3, L.f * 0.18));
+  ctx.textBaseline = "middle"; ctx.textAlign = "left";
+  let y = L.pad + L.titleF * 0.6;
+  ctx.font = `800 ${L.titleF}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
+  ctx.fillStyle = "#F2C230";
+  const title = (p.title || "Scope of work").toUpperCase();
+  ctx.fillText(title, L.pad, y);
+  y += L.titleF * 0.6 + L.f * 0.9;
+  ctx.font = `600 ${L.f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
+  L.rows.forEach((lines, i) => {
+    const rowH = Math.max(L.r * 2, lines.length * L.lh);
+    numDot(ctx, i + 1, L.pad + L.r, y + Math.min(rowH, L.lh) / 2 + (lines.length > 1 ? 0 : (rowH - L.lh) / 2), L.r, "#F2C230");
+    ctx.font = `600 ${L.f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
+    ctx.fillStyle = "#FFFFFF"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    const top = lines.length > 1 ? y : y + (rowH - L.lh) / 2;
+    lines.forEach((ln, j) => ctx.fillText(ln, L.textX, top + L.lh * (j + 0.5)));
+    y += rowH + L.gap;
+  });
+  ctx.restore();
+}
 const pinR = (s: Shape, base: number) => base * (2.6 + (s.size || 2) * 1.3);
 
 function bbox(s: Shape, base: number): { x0: number; y0: number; x1: number; y1: number } {
@@ -360,6 +410,22 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const [pinNotes, setPinNotes] = useState(true);   // Number tool: ask for a note and drop a text box beside the dot
   const [caption, setCaption] = useState("");
   const [showCap, setShowCap] = useState(true);
+  const [panelOn, setPanelOn] = useState(false);
+  const [panelSide, setPanelSide] = useState<"right" | "bottom">("right");
+  const [panelTitle, setPanelTitle] = useState("Scope of work");
+  const [panelText, setPanelText] = useState("");   // one step per line
+  const panel: Panel | null = panelOn && panelText.trim() ? { side: panelSide, title: panelTitle, items: panelText.split("\n") } : null;
+  const panelRef = useRef<HTMLCanvasElement>(null);
+  function loadPanel(pn?: Panel | null) {
+    setPanelOn(!!pn); setPanelSide(pn?.side ?? "right"); setPanelTitle(pn?.title ?? "Scope of work"); setPanelText(pn?.items?.join("\n") ?? "");
+  }
+  // fill the steps from the numbered dots, in order, using each dot's note
+  function stepsFromDots() {
+    const pins = shapes.filter((x) => x.type === "num").sort((a, b) => (a.num ?? 0) - (b.num ?? 0));
+    if (!pins.length) { showError("Drop some numbered dots first."); return; }
+    const lines = pins.map((pn) => shapes.find((x) => x.ref === pn.id)?.text?.replace(/\n/g, " ") || "");
+    setPanelText(lines.join("\n")); setPanelOn(true);
+  }
   const [draft, setDraft] = useState<Shape | null>(null);
   const [hover, setHover] = useState<P | null>(null);
   const [sel, setSel] = useState<string | null>(null);
@@ -420,14 +486,14 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           setImg(await loadImg(orig.photo_b64));
           setSrcPhoto(orig); setEditRow(row); reset((row.markup as Markup).shapes || []);
           const mk = row.markup as Markup;
-          setCaption(mk.caption ?? (row.caption && row.caption !== "Marked up" ? row.caption : "")); setShowCap(mk.showCap ?? true);
+          setCaption(mk.caption ?? (row.caption && row.caption !== "Marked up" ? row.caption : "")); setShowCap(mk.showCap ?? true); loadPanel(mk.panel);
           // v8.x: reopening a saved markup lands in Move so a tap selects an existing box instead of drawing a new mark
           setTool("select");
           return;
         }
       }
       setImg(await loadImg(row.photo_b64)); setSrcPhoto(row); setEditRow(null); reset([]);
-      setCaption(row.caption && !["Original", "Marked up"].includes(row.caption) ? row.caption : ""); setShowCap(true);
+      setCaption(row.caption && !["Original", "Marked up"].includes(row.caption) ? row.caption : ""); setShowCap(true); loadPanel(null);
     } catch (e: any) { showError(e.message); } finally { setBusy(false); }
   }
   async function openFile(f?: File) {
@@ -435,7 +501,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     setBusy(true);
     try {
       const b64 = await stampSafe(await compressImage(f, 1600, 0.85), 0.88);
-      setImg(await loadImg(b64)); setSrcPhoto(null); setEditRow(null); reset([]); setCaption(""); setShowCap(true);
+      setImg(await loadImg(b64)); setSrcPhoto(null); setEditRow(null); reset([]); setCaption(""); setShowCap(true); loadPanel(null);
     } catch { showError("Could not open that photo."); } finally { setBusy(false); }
   }
   function reset(s: Shape[]) { setShapes(s); setPast([]); setFuture([]); setDraft(null); setSel(null); }
@@ -461,14 +527,16 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     const fit = () => {
       const el = wrapRef.current; if (!el) return;
       const maxW = el.clientWidth, maxH = Math.max(260, window.innerHeight - (window.innerWidth < 768 ? 330 : 300));
-      const s = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+      const W = img.naturalWidth, H = img.naturalHeight;
+      const PL = panel ? panelLayout(panel, W, H) : null;
+      const s = Math.min(maxW / (W + (PL && panel!.side === "right" ? PL.pw : 0)), maxH / (H + (PL && panel!.side === "bottom" ? PL.ph : 0)));
       setView({ w: Math.round(img.naturalWidth * s), h: Math.round(img.naturalHeight * s) });
     };
     fit();
     const ro = new ResizeObserver(fit); if (wrapRef.current) ro.observe(wrapRef.current);
     window.addEventListener("resize", fit);
     return () => { ro.disconnect(); window.removeEventListener("resize", fit); };
-  }, [img]);
+  }, [img, panelOn, panelSide, panelText, panelTitle]);
 
   const scale = img && view.w ? view.w / img.naturalWidth : 1;
   const base = img ? baseUnit(img.naturalWidth, img.naturalHeight) : 1;
@@ -501,7 +569,15 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     }
     // v5.5: show the clean Isola badge live (it covers any older stamp baked into the photo, same spot and size)
     drawStamp(ctx, img.naturalWidth, img.naturalHeight).catch(() => {});
-  }, [img, view, shapes, draft, hover, sel, scale, base, caption, showCap]);
+    const pc = panelRef.current;
+    if (pc && panel) {
+      const PL = panelLayout(panel, img.naturalWidth, img.naturalHeight);
+      pc.width = Math.round(PL.pw * scale * dpr); pc.height = Math.round(PL.ph * scale * dpr);
+      pc.style.width = Math.round(PL.pw * scale) + "px"; pc.style.height = Math.round(PL.ph * scale) + "px";
+      const pctx = pc.getContext("2d")!; pctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+      drawPanel(pctx, panel, img.naturalWidth, img.naturalHeight, 0, 0);
+    }
+  }, [img, view, shapes, draft, hover, sel, scale, base, caption, showCap, panelOn, panelSide, panelText, panelTitle]);
 
   function toImg(e: React.PointerEvent): P {
     const r = canvasRef.current!.getBoundingClientRect();
@@ -579,7 +655,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       if (!t?.trim()) { commit(cur, before); return; }
       const bgUse = bg === "none" ? "rgba(11,13,14,0.72)" : bg;
       const tc = bgUse.startsWith("rgba") || isDark(bgUse) ? "#FFFFFF" : "#0B0D0E";
-      let box: Shape = { id: uid(), type: "text", color: tc, size, at: p, text: t.trim(), font, bg: bgUse };
+      let box: Shape = { id: uid(), type: "text", color: tc, size, at: p, text: t.trim(), font, bg: bgUse, ref: pin.id };
       const L = textLayout(box, base), R0 = pinR(pin, base), off = R0 * 1.5;
       const W = img.naturalWidth;
       const cx = p.x + off + L.w <= W ? p.x + off + L.w / 2 : p.x - off - L.w / 2;
@@ -724,13 +800,17 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
 
   async function render(): Promise<string> {
     const c = document.createElement("canvas");
-    c.width = img!.naturalWidth; c.height = img!.naturalHeight;
+    const W = img!.naturalWidth, H = img!.naturalHeight;
+    const PL = panel ? panelLayout(panel, W, H) : null;
+    c.width = W + (PL && panel!.side === "right" ? PL.pw : 0); c.height = H + (PL && panel!.side === "bottom" ? PL.ph : 0);
     const ctx = c.getContext("2d")!;
+    ctx.fillStyle = "#0E1114"; ctx.fillRect(0, 0, c.width, c.height);
     ctx.drawImage(img!, 0, 0);
     const all = draft && draft.type === "path" && (draft.points?.length || 0) >= 2 ? [...shapes, draft] : shapes;
     all.forEach((s) => drawShape(ctx, s, base));
-    if (showCap && caption.trim()) drawCaption(ctx, caption, c.width, c.height);
-    await drawStamp(ctx, c.width, c.height).catch(() => {}); // Isola badge, bottom-right, on top of the markup
+    if (showCap && caption.trim()) drawCaption(ctx, caption, W, H);
+    await drawStamp(ctx, W, H).catch(() => {}); // Isola badge, bottom-right of the photo, on top of the markup
+    if (PL) drawPanel(ctx, panel!, W, H, panel!.side === "right" ? W : 0, panel!.side === "right" ? 0 : H);
     return c.toDataURL("image/jpeg", 0.85);
   }
   async function download() {
@@ -745,7 +825,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     try {
       const all = draft && draft.type === "path" && (draft.points?.length || 0) >= 2 ? [...shapes, draft] : shapes;
       const cap = caption.trim();
-      const markup: Markup = { v: 1, w: img!.naturalWidth, h: img!.naturalHeight, shapes: all, caption: cap, showCap };
+      const markup: Markup = { v: 1, w: img!.naturalWidth, h: img!.naturalHeight, shapes: all, caption: cap, showCap, panel };
       const out = await render();
       let source = srcPhoto;
       if (!source || source.job_id !== jobId) {
@@ -942,12 +1022,13 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
         ) : null}
       </div>
 
-      <div ref={wrapRef} className="flex w-full justify-center">
+      <div ref={wrapRef} className={cn("flex w-full justify-center", panel?.side === "bottom" ? "flex-col items-center" : "flex-row")}>
         <canvas ref={canvasRef}
           style={{ width: view.w, height: view.h, touchAction: "none", cursor: tool === "select" ? "default" : "crosshair" }}
           className="rounded-lg border border-white/[0.09] bg-black select-none"
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
           onPointerLeave={() => setHover(null)} />
+        {panel ? <canvas ref={panelRef} className="shrink-0 select-none" /> : null}
       </div>
 
       <div className="mt-3 rounded-lg border border-white/[0.09] bg-card p-2.5">
@@ -962,6 +1043,30 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           placeholder="e.g. Chimney crown — cracked cap, open joints at flue tiles"
           className="w-full resize-none rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
         <p className="mt-1 text-xs text-neutral-500">Saved as the photo&apos;s caption{showCap ? " and printed along the bottom of the photo" : ""}.</p>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-white/[0.09] bg-card p-2.5">
+        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Steps panel</span>
+          <div className="inline-flex rounded-lg border border-border bg-neutral-950 p-0.5">
+            {([["off", "Off"], ["right", "Side"], ["bottom", "Below"]] as const).map(([k, l]) => {
+              const on = k === "off" ? !panelOn : panelOn && panelSide === k;
+              return <button key={k} onClick={() => { if (k === "off") setPanelOn(false); else { setPanelOn(true); setPanelSide(k); } }}
+                className={cn("h-8 rounded-md px-3 text-[13px] font-semibold", on ? "bg-brand text-neutral-950" : "text-neutral-300")}>{l}</button>;
+            })}
+          </div>
+          {shapes.some((x) => x.type === "num") ? <Button variant="outline" size="sm" className="ml-auto" onClick={stepsFromDots}><Hash size={14} /> Fill from dots</Button> : null}
+        </div>
+        {panelOn ? (
+          <>
+            <input value={panelTitle} onChange={(e) => setPanelTitle(e.target.value)} placeholder="Scope of work"
+              className="mb-1.5 w-full rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] font-semibold text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
+            <textarea value={panelText} onChange={(e) => setPanelText(e.target.value)} rows={5}
+              placeholder={"One step per line — they number themselves\nRemove loose brick and old mortar\nRebuild crown with new cap\nRepoint and seal"}
+              className="w-full resize-y rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
+            <p className="mt-1 text-xs text-neutral-500">Each line is a numbered step. Step 1 matches dot 1. &ldquo;Fill from dots&rdquo; pulls the notes you typed on the numbered dots.</p>
+          </>
+        ) : <p className="text-xs text-neutral-500">Split a dark section off the photo that lists numbered steps — what will be done.</p>}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
