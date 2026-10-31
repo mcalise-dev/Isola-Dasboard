@@ -34,8 +34,8 @@ type Shape = {
 };
 type Tool = "select" | Shape["type"];
 // v5.4: caption = "what we're looking at", saved as the photo's caption and (optionally) printed along the bottom
-type Panel = { side: "right" | "bottom"; title: string; items: string[] };
-type Markup = { v: 1; w: number; h: number; shapes: Shape[]; caption?: string; showCap?: boolean; panel?: Panel | null };
+type Panel = { side: "right" | "bottom"; title: string; items: string[]; titleScale?: number };
+type Markup = { v: 1; w: number; h: number; shapes: Shape[]; caption?: string; showCap?: boolean; capScale?: number; panel?: Panel | null };
 
 const COLORS = [
   { v: "#F2C230", n: "Yellow" },
@@ -262,10 +262,10 @@ function drawTextBox(ctx: CanvasRenderingContext2D, s: Shape, base: number) {
   ctx.restore();
 }
 // caption strip along the bottom of the photo, kept left of the Isola logo (same size/margin as lib/stamp)
-function drawCaption(ctx: CanvasRenderingContext2D, text: string, W: number, H: number) {
+function drawCaption(ctx: CanvasRenderingContext2D, text: string, W: number, H: number, scale = 1) {
   const t = text.trim(); if (!t) return;
   const short = Math.min(W, H), D = Math.max(40, Math.min(220, short * 0.14)), m = short * 0.025, gap = short * 0.015;
-  const f = Math.max(14, short * 0.038), padX = f * 0.7, padY = f * 0.45, lh = f * 1.25;
+  const f = Math.max(14, short * 0.038) * scale, padX = f * 0.7, padY = f * 0.45, lh = f * 1.25;
   const maxW = W - m - D - gap - m;
   ctx.save();
   ctx.font = `700 ${f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
@@ -300,7 +300,12 @@ function panelLayout(p: Panel, W: number, H: number) {
   const pw = p.side === "right" ? Math.round(Math.max(W * 0.34, Math.min(W * 0.6, H * 0.62))) : W;
   let f = p.side === "right" ? pw * 0.05 : Math.min(W, H * 1.4) * 0.028;
   for (let tries = 0; tries < 14; tries++) {
-    const pad = f * 1.3, r = f * 0.85, lh = f * 1.3, gap = f * 0.75, titleF = f * 1.15;
+    const pad = f * 1.3, r = f * 0.85, lh = f * 1.3, gap = f * 0.75;
+    // title size is adjustable; it never runs wider than the panel
+    let titleF = f * 1.15 * (p.titleScale ?? 1);
+    c.save(); c.font = `800 ${titleF}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
+    const tw = c.measureText((p.title || "Scope of work").toUpperCase()).width; c.restore();
+    if (tw > pw - pad * 2) titleF *= (pw - pad * 2) / tw;
     const textX = pad + r * 2 + f * 0.6, maxW = pw - textX - pad;
     c.save(); c.font = `600 ${f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
     const rows = items.map((t) => wrapLines(c, t.split("\n"), Math.max(f * 3, maxW)));
@@ -412,6 +417,20 @@ function loadImg(src: string): Promise<HTMLImageElement> {
   return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("Could not open that photo")); i.src = src; });
 }
 
+// v7.3: small A- / A+ control for text size (60%-250%); tap the % to reset
+function SizeStepper({ value, onChange, label, className }: { value: number; onChange: (v: number) => void; label: string; className?: string }) {
+  const step = (d: number) => onChange(Math.round(Math.min(2.5, Math.max(0.6, value + d)) * 10) / 10);
+  return (
+    <div className={cn("inline-flex shrink-0 items-center rounded-lg border border-border bg-neutral-950 p-0.5", className)} aria-label={label}>
+      <button type="button" aria-label={`${label} smaller`} onClick={() => step(-0.1)} disabled={value <= 0.6}
+        className="h-8 w-8 rounded-md text-[12px] font-bold text-neutral-300 hover:text-white disabled:opacity-40">A&minus;</button>
+      <button type="button" title="Reset size" onClick={() => onChange(1)} className="h-8 min-w-[3rem] px-1 text-[12px] font-semibold tabular-nums text-neutral-400 hover:text-white">{Math.round(value * 100)}%</button>
+      <button type="button" aria-label={`${label} bigger`} onClick={() => step(0.1)} disabled={value >= 2.5}
+        className="h-8 w-8 rounded-md text-[15px] font-bold text-neutral-300 hover:text-white disabled:opacity-40">A+</button>
+    </div>
+  );
+}
+
 // ---------- screen ----------
 // v7.2: also runs INSIDE a job (CompanyCam-style). Pass lockJobId and it is pinned to that job —
 // no job pickers, Close hands back to the job page, the address bar is left alone.
@@ -439,12 +458,14 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const [pinNotes, setPinNotes] = useState(true);   // Number tool: ask for a note and drop a text box beside the dot
   const [caption, setCaption] = useState("");
   const [showCap, setShowCap] = useState(true);
+  const [capScale, setCapScale] = useState(1);     // caption text size (1 = default)
+  const [titleScale, setTitleScale] = useState(1); // steps-panel title size (1 = default)
   const [panelOn, setPanelOn] = useState(false);
   const [panelSide, setPanelSide] = useState<"right" | "bottom">("right");
   const [panelTitle, setPanelTitle] = useState("Scope of work");
   const [steps, setSteps] = useState<string[]>([]);   // step N lines up with dot N
   const panelText = steps.join("\n");
-  const panel: Panel | null = panelOn && steps.some((x) => x.trim()) ? { side: panelSide, title: panelTitle, items: steps } : null;
+  const panel: Panel | null = panelOn && steps.some((x) => x.trim()) ? { side: panelSide, title: panelTitle, items: steps, titleScale } : null;
   // dropping dot N opens the steps list (below the photo) with lines 1..N ready to fill
   function ensureStep(n: number, note?: string) {
     setSteps((prev) => {
@@ -460,7 +481,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   }
   const panelRef = useRef<HTMLCanvasElement>(null);
   function loadPanel(pn?: Panel | null) {
-    setPanelOn(!!pn); setPanelSide(pn?.side ?? "right"); setPanelTitle(pn?.title ?? "Scope of work"); setSteps(pn?.items ?? []);
+    setPanelOn(!!pn); setPanelSide(pn?.side ?? "right"); setPanelTitle(pn?.title ?? "Scope of work"); setSteps(pn?.items ?? []); setTitleScale(pn?.titleScale ?? 1);
   }
   // fill the steps from the numbered dots, in order, using each dot's note
   function stepsFromDots() {
@@ -532,14 +553,14 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           setImg(await loadImg(orig.photo_b64));
           setSrcPhoto(orig); setEditRow(row); reset((row.markup as Markup).shapes || []);
           const mk = row.markup as Markup;
-          setCaption(mk.caption ?? (row.caption && row.caption !== "Marked up" ? row.caption : "")); setShowCap(mk.showCap ?? true); loadPanel(mk.panel);
+          setCaption(mk.caption ?? (row.caption && row.caption !== "Marked up" ? row.caption : "")); setShowCap(mk.showCap ?? true); setCapScale(mk.capScale ?? 1); loadPanel(mk.panel);
           // v8.x: reopening a saved markup lands in Move so a tap selects an existing box instead of drawing a new mark
           setTool("select");
           return;
         }
       }
       setImg(await loadImg(row.photo_b64)); setSrcPhoto(row); setEditRow(null); reset([]);
-      setCaption(row.caption && !["Original", "Marked up"].includes(row.caption) ? row.caption : ""); setShowCap(true); loadPanel(null);
+      setCaption(row.caption && !["Original", "Marked up"].includes(row.caption) ? row.caption : ""); setShowCap(true); setCapScale(1); loadPanel(null);
     } catch (e: any) { showError(e.message); } finally { setBusy(false); }
   }
   async function openFile(f?: File) {
@@ -547,7 +568,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     setBusy(true);
     try {
       const b64 = await stampSafe(await compressImage(f, 1600, 0.85), 0.88);
-      setImg(await loadImg(b64)); setSrcPhoto(null); setEditRow(null); reset([]); setCaption(""); setShowCap(true); loadPanel(null);
+      setImg(await loadImg(b64)); setSrcPhoto(null); setEditRow(null); reset([]); setCaption(""); setShowCap(true); setCapScale(1); loadPanel(null);
     } catch { showError("Could not open that photo."); } finally { setBusy(false); }
   }
   function reset(s: Shape[]) { setShapes(s); setPast([]); setFuture([]); setDraft(null); setSel(null); }
@@ -582,7 +603,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     const ro = new ResizeObserver(fit); if (wrapRef.current) ro.observe(wrapRef.current);
     window.addEventListener("resize", fit);
     return () => { ro.disconnect(); window.removeEventListener("resize", fit); };
-  }, [img, panelOn, panelSide, panelText, panelTitle]);
+  }, [img, panelOn, panelSide, panelText, panelTitle, titleScale]);
 
   const scale = img && view.w ? view.w / img.naturalWidth : 1;
   const base = img ? baseUnit(img.naturalWidth, img.naturalHeight) : 1;
@@ -597,7 +618,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
     ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
     shapes.forEach((s) => drawShape(ctx, s, base));
-    if (showCap && caption.trim()) drawCaption(ctx, caption, img.naturalWidth, img.naturalHeight);
+    if (showCap && caption.trim()) drawCaption(ctx, caption, img.naturalWidth, img.naturalHeight, capScale);
     if (draft) {
       if (draft.type === "path" && hover && draft.points?.length) {
         const last = draft.points[draft.points.length - 1];
@@ -623,7 +644,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       const pctx = pc.getContext("2d")!; pctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
       drawPanel(pctx, panel, img.naturalWidth, img.naturalHeight, 0, 0);
     }
-  }, [img, view, shapes, draft, hover, sel, scale, base, caption, showCap, panelOn, panelSide, panelText, panelTitle]);
+  }, [img, view, shapes, draft, hover, sel, scale, base, caption, showCap, capScale, panelOn, panelSide, panelText, panelTitle, titleScale]);
 
   function toImg(e: React.PointerEvent): P {
     const r = canvasRef.current!.getBoundingClientRect();
@@ -855,7 +876,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     ctx.drawImage(img!, 0, 0);
     const all = draft && draft.type === "path" && (draft.points?.length || 0) >= 2 ? [...shapes, draft] : shapes;
     all.forEach((s) => drawShape(ctx, s, base));
-    if (showCap && caption.trim()) drawCaption(ctx, caption, W, H);
+    if (showCap && caption.trim()) drawCaption(ctx, caption, W, H, capScale);
     await drawStamp(ctx, W, H).catch(() => {}); // Isola badge, bottom-right of the photo, on top of the markup
     if (PL) drawPanel(ctx, panel!, W, H, panel!.side === "right" ? W : 0, panel!.side === "right" ? 0 : H);
     return c.toDataURL("image/jpeg", 0.85);
@@ -872,7 +893,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     try {
       const all = draft && draft.type === "path" && (draft.points?.length || 0) >= 2 ? [...shapes, draft] : shapes;
       const cap = caption.trim();
-      const markup: Markup = { v: 1, w: img!.naturalWidth, h: img!.naturalHeight, shapes: all, caption: cap, showCap, panel };
+      const markup: Markup = { v: 1, w: img!.naturalWidth, h: img!.naturalHeight, shapes: all, caption: cap, showCap, capScale, panel };
       const out = await render();
       let source = srcPhoto;
       if (!source || source.job_id !== jobId) {
@@ -1089,7 +1110,10 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
         <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={2}
           placeholder="e.g. Chimney crown — cracked cap, open joints at flue tiles"
           className="w-full resize-none rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
-        <p className="mt-1 text-xs text-neutral-500">Saved as the photo&apos;s caption{showCap ? " and printed along the bottom of the photo" : ""}.</p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <p className="text-xs text-neutral-500">Saved as the photo&apos;s caption{showCap ? " and printed along the bottom of the photo" : ""}.</p>
+          {showCap ? <SizeStepper className="ml-auto" value={capScale} onChange={setCapScale} label="Caption text size" /> : null}
+        </div>
       </div>
 
       <div className="mt-3 rounded-lg border border-white/[0.09] bg-card p-2.5">
@@ -1113,8 +1137,11 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
                     panelTitle.trim().toLowerCase() === t.toLowerCase() ? "border-brand bg-brand text-neutral-950" : "border-white/[0.09] text-neutral-300 hover:text-white")}>{t}</button>
               ))}
             </div>
-            <input value={panelTitle} onChange={(e) => setPanelTitle(e.target.value)} placeholder="Or type your own title"
-              className="mb-1.5 w-full rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] font-semibold text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
+            <div className="mb-1.5 flex items-center gap-2">
+              <input value={panelTitle} onChange={(e) => setPanelTitle(e.target.value)} placeholder="Or type your own title"
+                className="min-w-0 flex-1 rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] font-semibold text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
+              <SizeStepper value={titleScale} onChange={setTitleScale} label="Title text size" />
+            </div>
             <div className="space-y-1.5">
               {(() => { const list = steps.length ? steps : [""]; const nums = stepNums(list); return list.map((st, i) => (
                 <div key={i} className="flex items-center gap-2">
