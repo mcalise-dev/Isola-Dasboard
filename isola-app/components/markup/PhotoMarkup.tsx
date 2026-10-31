@@ -283,7 +283,9 @@ function drawCaption(ctx: CanvasRenderingContext2D, text: string, W: number, H: 
 // v5.6: steps panel — a dark section split off the photo (right side or below) listing numbered steps
 function panelLayout(p: Panel, W: number, H: number) {
   const c = (measureCtx ??= document.createElement("canvas").getContext("2d")!);
-  const items = p.items.map((t) => t.trim()).filter(Boolean);
+  // keep each step's own number (step 3 stays #3 even if step 2 is still blank)
+  const all = p.items.map((t, i) => ({ t: t.trim(), n: i + 1 })).filter((x) => x.t);
+  const items = all.map((x) => x.t), nums = all.map((x) => x.n);
   const pw = p.side === "right" ? Math.round(Math.max(W * 0.34, Math.min(W * 0.6, H * 0.62))) : W;
   let f = p.side === "right" ? pw * 0.05 : Math.min(W, H * 1.4) * 0.028;
   for (let tries = 0; tries < 14; tries++) {
@@ -295,7 +297,7 @@ function panelLayout(p: Panel, W: number, H: number) {
     const rowsH = rows.reduce((a, l) => a + Math.max(r * 2, l.length * lh) + gap, 0);
     const h = pad + titleF * 1.2 + f * 0.9 + rowsH + pad * 0.6;
     if (p.side === "bottom" || h <= H || tries === 13) {
-      return { pw, ph: p.side === "right" ? H : Math.ceil(h), f, pad, r, lh, gap, titleF, textX, rows };
+      return { pw, ph: p.side === "right" ? H : Math.ceil(h), f, pad, r, lh, gap, titleF, textX, rows, nums };
     }
     f *= 0.9;
   }
@@ -319,7 +321,7 @@ function drawPanel(ctx: CanvasRenderingContext2D, p: Panel, W: number, H: number
   ctx.font = `600 ${L.f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
   L.rows.forEach((lines, i) => {
     const rowH = Math.max(L.r * 2, lines.length * L.lh);
-    numDot(ctx, i + 1, L.pad + L.r, y + Math.min(rowH, L.lh) / 2 + (lines.length > 1 ? 0 : (rowH - L.lh) / 2), L.r, "#F2C230");
+    numDot(ctx, L.nums[i], L.pad + L.r, y + Math.min(rowH, L.lh) / 2 + (lines.length > 1 ? 0 : (rowH - L.lh) / 2), L.r, "#F2C230");
     ctx.font = `600 ${L.f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
     ctx.fillStyle = "#FFFFFF"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     const top = lines.length > 1 ? y : y + (rowH - L.lh) / 2;
@@ -413,18 +415,28 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const [panelOn, setPanelOn] = useState(false);
   const [panelSide, setPanelSide] = useState<"right" | "bottom">("right");
   const [panelTitle, setPanelTitle] = useState("Scope of work");
-  const [panelText, setPanelText] = useState("");   // one step per line
-  const panel: Panel | null = panelOn && panelText.trim() ? { side: panelSide, title: panelTitle, items: panelText.split("\n") } : null;
+  const [steps, setSteps] = useState<string[]>([]);   // step N lines up with dot N
+  const panelText = steps.join("\n");
+  const panel: Panel | null = panelOn && steps.some((x) => x.trim()) ? { side: panelSide, title: panelTitle, items: steps } : null;
+  // dropping dot N opens the steps list (below the photo) with lines 1..N ready to fill
+  function ensureStep(n: number, note?: string) {
+    setSteps((prev) => {
+      const a = [...prev]; while (a.length < n) a.push("");
+      if (note?.trim() && !a[n - 1].trim()) a[n - 1] = note.trim().replace(/\n/g, " ");
+      return a;
+    });
+    if (!panelOn) { setPanelSide("bottom"); setPanelOn(true); }
+  }
   const panelRef = useRef<HTMLCanvasElement>(null);
   function loadPanel(pn?: Panel | null) {
-    setPanelOn(!!pn); setPanelSide(pn?.side ?? "right"); setPanelTitle(pn?.title ?? "Scope of work"); setPanelText(pn?.items?.join("\n") ?? "");
+    setPanelOn(!!pn); setPanelSide(pn?.side ?? "right"); setPanelTitle(pn?.title ?? "Scope of work"); setSteps(pn?.items ?? []);
   }
   // fill the steps from the numbered dots, in order, using each dot's note
   function stepsFromDots() {
     const pins = shapes.filter((x) => x.type === "num").sort((a, b) => (a.num ?? 0) - (b.num ?? 0));
     if (!pins.length) { showError("Drop some numbered dots first."); return; }
     const lines = pins.map((pn) => shapes.find((x) => x.ref === pn.id)?.text?.replace(/\n/g, " ") || "");
-    setPanelText(lines.join("\n")); setPanelOn(true);
+    setSteps((prev) => lines.map((l, i) => l || prev[i] || "")); setPanelOn(true);
   }
   const [draft, setDraft] = useState<Shape | null>(null);
   const [hover, setHover] = useState<P | null>(null);
@@ -646,12 +658,13 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     }
     if (tool === "num") {
       const pin: Shape = { id: uid(), type: "num", color, size, at: p, num: nextNum(shapes) };
-      if (!pinNotes) { commit([...shapes, pin]); return; }
+      if (!pinNotes) { commit([...shapes, pin]); ensureStep(pin.num!); return; }
       // show the dot right away, then ask what it is and drop a note box beside it
       const before = shapes;
       setShapes([...before, pin]);
       const t = await askText({ title: `Note for #${pin.num}`, placeholder: "e.g. Cracked crown — open joint\nLeave blank for just the dot", confirm: "Add", multiline: true });
       const cur = shapesRef.current;
+      ensureStep(pin.num!, t ?? undefined);
       if (!t?.trim()) { commit(cur, before); return; }
       const bgUse = bg === "none" ? "rgba(11,13,14,0.72)" : bg;
       const tc = bgUse.startsWith("rgba") || isDark(bgUse) ? "#FFFFFF" : "#0B0D0E";
@@ -1061,10 +1074,22 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           <>
             <input value={panelTitle} onChange={(e) => setPanelTitle(e.target.value)} placeholder="Scope of work"
               className="mb-1.5 w-full rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] font-semibold text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
-            <textarea value={panelText} onChange={(e) => setPanelText(e.target.value)} rows={5}
-              placeholder={"One step per line — they number themselves\nRemove loose brick and old mortar\nRebuild crown with new cap\nRepoint and seal"}
-              className="w-full resize-y rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
-            <p className="mt-1 text-xs text-neutral-500">Each line is a numbered step. Step 1 matches dot 1. &ldquo;Fill from dots&rdquo; pulls the notes you typed on the numbered dots.</p>
+            <div className="space-y-1.5">
+              {(steps.length ? steps : [""]).map((st, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-extrabold text-neutral-950">{i + 1}</span>
+                  <input value={st} onChange={(e) => { const v = e.target.value; setSteps((prev) => { const a = prev.length ? [...prev] : [""]; a[i] = v; return a; }); }}
+                    placeholder={i === 0 ? "e.g. Remove loose brick and failed mortar" : `Step ${i + 1}`}
+                    className="min-w-0 flex-1 rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
+                  <button aria-label={`Remove step ${i + 1}`} onClick={() => setSteps((prev) => prev.filter((_, j) => j !== i))}
+                    className="shrink-0 rounded p-1.5 text-neutral-500 hover:text-white"><X size={16} /></button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setSteps((prev) => [...(prev.length ? prev : [""]), ""])}>+ Add step</Button>
+              <p className="text-xs text-neutral-500">Step 1 matches dot 1. Each dot you drop adds its line here.</p>
+            </div>
           </>
         ) : <p className="text-xs text-neutral-500">Split a dark section off the photo that lists numbered steps — what will be done.</p>}
       </div>
