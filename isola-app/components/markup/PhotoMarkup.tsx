@@ -470,14 +470,14 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const panelText = steps.join("\n");
   const panel: Panel | null = panelOn && steps.some((x) => x.trim()) ? { side: panelSide, title: panelTitle, items: steps, titleScale } : null;
   // dropping dot N opens the steps list (below the photo) with lines 1..N ready to fill
-  function ensureStep(n: number, note?: string) {
+  function ensureStep(n: number, note?: string, overwrite = false) {
     setSteps((prev) => {
       // ** notes don't count toward dot numbers — step N is the Nth numbered line
       const a = [...prev];
       let count = a.filter((t) => !isNote(t)).length;
       while (count < n) { a.push(""); count++; }
       const idx = a.findIndex((_, i) => stepNums(a)[i] === n);
-      if (idx >= 0 && note?.trim() && !a[idx].trim()) a[idx] = note.trim().replace(/\n/g, " ");
+      if (idx >= 0 && note?.trim() && (overwrite || !a[idx].trim())) a[idx] = note.trim().replace(/\n/g, " ");
       return a;
     });
     if (!panelOn) { setPanelSide("bottom"); setPanelOn(true); }
@@ -542,6 +542,27 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     sb.from("job_photos").select("id,phase,caption,photo_b64,source_photo_id,created_at").eq("job_id", jobId).order("created_at", { ascending: false })
       .then(({ data, error }) => { if (error) showError(error.message); setJobPhotos(data ?? []); });
   }, [jobId, img, sb]);
+
+  // v8.0: prepared step lists saved on the job ("what's this photo?") — pick one and each dot preloads its line
+  const [lists, setLists] = useState<any[]>([]);
+  const [listId, setListId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!jobId) { setLists([]); return; }
+    sb.from("markup_lists").select("id,name,title,caption,items,sort").eq("job_id", jobId).order("sort").order("created_at")
+      .then(({ data }) => setLists(data ?? []));
+  }, [jobId, sb]);
+  function applyList(l: any) {
+    setListId(l.id);
+    setPanelTitle(l.title || l.name || "Scope of work");
+    setSteps(Array.isArray(l.items) ? [...l.items] : []);
+    if (!panelOn) { setPanelSide("right"); setPanelOn(true); }
+    if (l.caption && !caption.trim()) setCaption(l.caption);
+  }
+  // text of numbered step n, if one is already written (from a picked list or typed in)
+  function stepText(n: number) {
+    const sn = stepNums(steps), i = sn.indexOf(n);
+    return i >= 0 ? (steps[i] || "").trim() : "";
+  }
 
   async function openJobPhoto(id: string) {
     setBusy(true);
@@ -720,9 +741,10 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       // show the dot right away, then ask what it is and drop a note box beside it
       const before = shapes;
       setShapes([...before, pin]);
-      const t = await askText({ title: `Note for #${pin.num}`, placeholder: "e.g. Cracked crown — open joint\nLeave blank for just the dot", confirm: "Add", multiline: true });
+      const pre = stepText(pin.num!);
+      const t = await askText({ title: `Note for #${pin.num}`, placeholder: "e.g. Cracked crown — open joint\nLeave blank for just the dot", confirm: "Add", multiline: true, initial: pre || undefined });
       const cur = shapesRef.current;
-      ensureStep(pin.num!, t ?? undefined);
+      ensureStep(pin.num!, t ?? undefined, !!pre);
       if (!t?.trim()) { commit(cur, before); return; }
       const bgUse = bg === "none" ? "rgba(11,13,14,0.72)" : bg;
       const tc = bgUse.startsWith("rgba") || isDark(bgUse) ? "#FFFFFF" : "#0B0D0E";
@@ -1101,6 +1123,20 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           onPointerLeave={() => setHover(null)} />
         {panel ? <canvas ref={panelRef} className="shrink-0 select-none" /> : null}
       </div>
+
+      {lists.length ? (
+        <div className="mt-3 rounded-lg border border-brand/40 bg-card p-2.5">
+          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">What&apos;s this photo? — loads its prepared steps</div>
+          <div className="no-scrollbar -mx-0.5 flex gap-1 overflow-x-auto px-0.5">
+            {lists.map((l) => (
+              <button key={l.id} onClick={() => applyList(l)}
+                className={cn("h-9 shrink-0 rounded-full border px-3.5 text-[14px] font-semibold",
+                  listId === l.id ? "border-brand bg-brand text-neutral-950" : "border-white/[0.12] text-neutral-200 hover:text-white")}>{l.name}</button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-neutral-500">Then tap the Number tool on the photo — dot 1 comes up with step 1 filled in, dot 2 with step 2, and so on. Edit any line before you add it.</p>
+        </div>
+      ) : null}
 
       <div className="mt-3 rounded-lg border border-white/[0.09] bg-card p-2.5">
         <label className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
