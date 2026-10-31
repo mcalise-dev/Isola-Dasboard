@@ -484,7 +484,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   }
   const panelRef = useRef<HTMLCanvasElement>(null);
   function loadPanel(pn?: Panel | null) {
-    setPanelOn(!!pn); setPanelSide(pn?.side ?? "right"); setPanelTitle(pn?.title ?? "Scope of work"); setSteps(pn?.items ?? []); setTitleScale(pn?.titleScale ?? 1);
+    setPanelOn(!!pn); setPanelSide(pn?.side ?? "right"); setPanelTitle(pn?.title ?? "Scope of work"); setSteps(pn?.items ?? []); setTitleScale(pn?.titleScale ?? 1); setListId(null);
   }
   // fill the steps from the numbered dots, in order, using each dot's note
   function stepsFromDots() {
@@ -555,7 +555,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     setListId(l.id);
     setPanelTitle(l.title || l.name || "Scope of work");
     setSteps(Array.isArray(l.items) ? [...l.items] : []);
-    if (!panelOn) { setPanelSide("right"); setPanelOn(true); }
+    setPanelOn(true);
     if (l.caption && !caption.trim()) setCaption(l.caption);
   }
   // text of numbered step n, if one is already written (from a picked list or typed in)
@@ -1124,17 +1124,25 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
         {panel ? <canvas ref={panelRef} className="shrink-0 select-none" /> : null}
       </div>
 
-      {lists.length ? (
+      {jobId ? (
         <div className="mt-3 rounded-lg border border-brand/40 bg-card p-2.5">
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">What&apos;s this photo? — loads its prepared steps</div>
-          <div className="no-scrollbar -mx-0.5 flex gap-1 overflow-x-auto px-0.5">
-            {lists.map((l) => (
-              <button key={l.id} onClick={() => applyList(l)}
-                className={cn("h-9 shrink-0 rounded-full border px-3.5 text-[14px] font-semibold",
-                  listId === l.id ? "border-brand bg-brand text-neutral-950" : "border-white/[0.12] text-neutral-200 hover:text-white")}>{l.name}</button>
-            ))}
-          </div>
-          <p className="mt-1.5 text-xs text-neutral-500">Then tap the Number tool on the photo — dot 1 comes up with step 1 filled in, dot 2 with step 2, and so on. Edit any line before you add it.</p>
+          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">Steps preset for this job</div>
+          {lists.length ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <NativeSelect value={listId ?? ""} onChange={(e) => { const l = lists.find((x) => x.id === e.target.value); if (l) applyList(l); else { setListId(null); } }}
+                className="min-w-0 flex-1 sm:max-w-xs">
+                <option value="">Pick what this photo is…</option>
+                {lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </NativeSelect>
+              <div className="inline-flex rounded-lg border border-border bg-neutral-950 p-0.5">
+                {([["right", "Side"], ["bottom", "Below"]] as const).map(([k, l]) => (
+                  <button key={k} onClick={() => { setPanelSide(k); setPanelOn(true); }}
+                    className={cn("h-8 rounded-md px-3 text-[13px] font-semibold", panelOn && panelSide === k ? "bg-brand text-neutral-950" : "text-neutral-300")}>{l}</button>
+                ))}
+              </div>
+            </div>
+          ) : <p className="text-xs text-neutral-500">No presets saved for this job yet — ask Claude to set them up.</p>}
+          {lists.length ? <p className="mt-1.5 text-xs text-neutral-500">Picks the steps and writes them on the side or below. Then use the Number tool — dot 1 matches step 1, dot 2 step 2, and so on.</p> : null}
         </div>
       ) : null}
 
