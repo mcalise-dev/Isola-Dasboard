@@ -81,6 +81,8 @@ const TOOLS: { t: Tool; label: string; icon: any }[] = [
   { t: "num", label: "Number", icon: Hash },
 ];
 const SIZE_MULT = [0, 0.7, 1.2, 2];
+// v5.7: quick picks for the steps-panel heading (any custom title still works)
+const PANEL_TITLES = ["Scope of work", "Observations", "Existing conditions", "Problem areas", "Repair steps", "Recommendations", "Work completed", "Notes"];
 const uid = () => Math.random().toString(36).slice(2, 10);
 const dist = (a: P, b: P) => Math.hypot(a.x - b.x, a.y - b.y);
 function segDist(p: P, a: P, b: P) {
@@ -1072,7 +1074,14 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
         </div>
         {panelOn ? (
           <>
-            <input value={panelTitle} onChange={(e) => setPanelTitle(e.target.value)} placeholder="Scope of work"
+            <div className="no-scrollbar -mx-0.5 mb-1.5 flex gap-1 overflow-x-auto px-0.5">
+              {PANEL_TITLES.map((t) => (
+                <button key={t} onClick={() => setPanelTitle(t)}
+                  className={cn("h-8 shrink-0 rounded-full border px-3 text-[13px] font-semibold",
+                    panelTitle.trim().toLowerCase() === t.toLowerCase() ? "border-brand bg-brand text-neutral-950" : "border-white/[0.09] text-neutral-300 hover:text-white")}>{t}</button>
+              ))}
+            </div>
+            <input value={panelTitle} onChange={(e) => setPanelTitle(e.target.value)} placeholder="Or type your own title"
               className="mb-1.5 w-full rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] font-semibold text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
             <div className="space-y-1.5">
               {(steps.length ? steps : [""]).map((st, i) => (
