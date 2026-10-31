@@ -69,7 +69,7 @@ export async function buildSignedPdf(info: SignedInfo): Promise<Uint8Array> {
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   let logo: any = null;
   try {
-    const r = await fetch("/logo.png");
+    const r = await fetch("/isola-badge.png");
     if (r.ok) logo = await doc.embedPng(new Uint8Array(await r.arrayBuffer()));
   } catch {}
   const sig = await doc.embedPng(b64ToBytes(info.signaturePng));

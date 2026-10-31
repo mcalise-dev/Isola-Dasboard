@@ -9,7 +9,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <div className="flex flex-1 items-center justify-center px-5 py-12 bg-black">
       <div className="w-full max-w-sm anim-pop">
         <div className="flex flex-col items-center mb-10">
-          <Image src="/logo.png" alt="Isola" width={112} height={112} className="rounded-full ring-1 ring-white/15" priority />
+          <Image src="/isola-badge.png" alt="Isola" width={112} height={112} className="rounded-full ring-1 ring-white/15" priority />
           <div className="mt-6 text-3xl font-bold tracking-[0.3em] pl-[0.3em] text-white">ISOLA</div>
           <div className="mt-2 text-xs font-medium tracking-[0.25em] text-neutral-400">CONCRETE · MASONRY · SITEWORK</div>
         </div>

@@ -165,7 +165,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-black px-4 py-8">
       <div className="mx-auto max-w-sm">
         <div className="flex items-center justify-center gap-2 mb-6">
-          <img src="/logo.png" alt="" className="h-9 w-9 rounded-full" />
+          <img src="/isola-badge.png" alt="" className="h-9 w-9 rounded-full" />
           <span className="font-bold tracking-tight text-white">Isola</span>
         </div>
         {children}

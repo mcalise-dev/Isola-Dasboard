@@ -59,7 +59,7 @@ export async function newReport(title: string, jobName: string, sub?: string): P
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const black = rgb(0, 0, 0), grey = rgb(0.38, 0.38, 0.38), line = rgb(0.75, 0.75, 0.75);
   let logo: any = null;
-  try { logo = await pdf.embedPng(await fetch("/logo.png").then((r) => r.arrayBuffer())); } catch { /* optional */ }
+  try { logo = await pdf.embedPng(await fetch("/isola-badge.png").then((r) => r.arrayBuffer())); } catch { /* optional */ }
 
   const r: any = { pdf, font, bold };
   const header = (first: boolean) => {

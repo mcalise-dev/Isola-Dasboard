@@ -10,7 +10,7 @@ function logo(): Promise<HTMLImageElement | null> {
       const i = new Image();
       i.onload = () => res(i);
       i.onerror = () => res(null);
-      i.src = "/logo.png";
+      i.src = "/isola-badge.png";
     });
   }
   return logoP;

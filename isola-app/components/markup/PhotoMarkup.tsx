@@ -499,6 +499,8 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       ctx.strokeRect(b.x0 - pad, b.y0 - pad, b.x1 - b.x0 + pad * 2, b.y1 - b.y0 + pad * 2); ctx.restore();
       handles(s, base).forEach((h) => { ctx.beginPath(); ctx.arc(h.x, h.y, 7 / scale, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill(); ctx.lineWidth = 2.5 / scale; ctx.strokeStyle = "#F2C230"; ctx.stroke(); });
     }
+    // v5.5: show the clean Isola badge live (it covers any older stamp baked into the photo, same spot and size)
+    drawStamp(ctx, img.naturalWidth, img.naturalHeight).catch(() => {});
   }, [img, view, shapes, draft, hover, sel, scale, base, caption, showCap]);
 
   function toImg(e: React.PointerEvent): P {

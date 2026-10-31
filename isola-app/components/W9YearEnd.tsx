@@ -104,7 +104,7 @@ export default function W9YearEnd() {
       let page = pdf.addPage([W, H]);
       let y = H - M;
       try {
-        const logoBytes = await fetch("/logo.png").then((r) => r.arrayBuffer());
+        const logoBytes = await fetch("/isola-badge.png").then((r) => r.arrayBuffer());
         const logo = await pdf.embedPng(logoBytes);
         page.drawImage(logo, { x: M, y: y - 60, width: 60, height: 60 });
       } catch { /* logo is a nicety */ }

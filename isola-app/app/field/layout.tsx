@@ -14,7 +14,7 @@ export default function FieldLayout({ children }: { children: React.ReactNode })
     <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-30 bg-black/90 backdrop-blur-md border-b border-white/[0.08] pt-[env(safe-area-inset-top)]">
         <div className="h-[60px] flex items-center gap-3 px-4 max-w-2xl mx-auto">
-          <Image src="/logo.png" alt="Isola" width={36} height={36} className="rounded-full ring-1 ring-white/15" />
+          <Image src="/isola-badge.png" alt="Isola" width={36} height={36} className="rounded-full ring-1 ring-white/15" />
           <div className="min-w-0">
             <div className="text-[15px] font-bold tracking-[0.22em] text-white leading-tight">ISOLA <span className="tracking-normal font-medium text-neutral-400 text-[13px]">Crew</span></div>
             <FieldName />

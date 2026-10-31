@@ -22,7 +22,7 @@ export function Shell({ children, tag }: { children: React.ReactNode; tag?: stri
           <header className="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
             <div className="flex items-center gap-2.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="" className="h-8 w-8 rounded-full bg-black object-cover" />
+              <img src="/isola-badge.png" alt="" className="h-8 w-8 rounded-full bg-black object-cover" />
               <div className="text-[20px] font-extrabold tracking-[0.04em] text-[#111]" style={HEAD}>
                 ISOLA <span className="ml-0.5 text-[18px] tracking-[-0.03em]">Site<span style={{ color: YD }}>Line</span></span>
               </div>
