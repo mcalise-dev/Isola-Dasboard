@@ -132,6 +132,14 @@ export default function JobTimeline({ jobId, onEditPlan }: { jobId: string; onEd
     );
   };
 
+  // v8.4: nothing planned → one quiet line instead of an empty box
+  if (!dates.length && !unscheduled.length) {
+    return onEditPlan ? (
+      <button onClick={onEditPlan} className="inline-flex min-h-[40px] items-center gap-2 text-sm font-semibold text-neutral-400 hover:text-white">
+        <CalendarDays size={16} /> + Plan the job timeline
+      </button>
+    ) : null;
+  }
   return (
     <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5">
       <div className="mb-4 flex items-center gap-2">

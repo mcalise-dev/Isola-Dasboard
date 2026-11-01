@@ -1,3 +1,4 @@
+"use client";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -81,9 +82,37 @@ export function Progress({ value, tone, className }: { value: number; tone?: "ok
 }
 
 // Horizontal stage stepper (job record, pipeline accounts)
+// v8.4: on a phone it collapses to "where it is · what's next" with a progress line; "All stages"
+// opens the full row (still tappable to move a job). Desktop always shows the full row.
 export function Stepper({ steps, current, done, onPick, className }: { steps: { key: string; label: string }[]; current: number; done?: (i: number) => boolean; onPick?: (key: string) => void; className?: string }) {
+  const [open, setOpen] = React.useState(false);
+  const now = steps[Math.max(0, current)];
+  const next = steps[current + 1];
+  const pct = steps.length > 1 ? Math.max(0, current) / (steps.length - 1) : 1;
   return (
-    <ol className={cn("flex overflow-x-auto no-scrollbar rounded-xl border border-border bg-card px-2 py-3", className)}>
+    <div className={className}>
+      <div className={cn("rounded-xl border border-border bg-card px-3.5 py-3 md:hidden", open && "hidden")}>
+        <div className="flex items-center gap-3">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-white bg-neutral-950 ring-4 ring-white/15" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[15px] font-semibold text-white">{now?.label}</div>
+            <div className="truncate text-xs text-neutral-400">{next ? <>Next: {next.label}</> : "Last stage"} · {Math.max(0, current) + 1} of {steps.length}</div>
+          </div>
+          <button type="button" onClick={() => setOpen(true)} className="min-h-[36px] shrink-0 rounded-lg px-2.5 text-xs font-semibold text-neutral-300 hover:bg-white/[0.06] hover:text-white">All stages</button>
+        </div>
+        <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-brand" style={{ width: `${pct * 100}%` }} /></div>
+      </div>
+      <div className={cn(!open && "hidden md:block")}>
+        {open ? <button type="button" onClick={() => setOpen(false)} className="mb-1.5 text-xs font-semibold text-neutral-400 hover:text-white md:hidden">Hide stages</button> : null}
+        <StepperRow steps={steps} current={current} done={done} onPick={onPick} />
+      </div>
+    </div>
+  );
+}
+
+function StepperRow({ steps, current, done, onPick }: { steps: { key: string; label: string }[]; current: number; done?: (i: number) => boolean; onPick?: (key: string) => void }) {
+  return (
+    <ol className="flex overflow-x-auto no-scrollbar rounded-xl border border-border bg-card px-2 py-3">
       {steps.map((s, i) => {
         const isDone = done ? done(i) : i < current;
         const isNow = i === current;

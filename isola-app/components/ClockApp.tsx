@@ -26,7 +26,7 @@ export default function ClockApp() {
   async function loadState(p: string) {
     const supabase = createClient();
     const { data } = await supabase.rpc("crew_state", { p_pin: p });
-    if (!data?.ok) { setErr("That PIN didn't work."); setState(null); return false; }
+    if (!data?.ok) { setErr(data?.error === "locked" ? "Too many wrong PINs. The clock is locked here for 15 minutes — call Mike if you're stuck." : "That PIN didn't work."); setState(null); return false; }
     setErr(""); setState(data);
     const { data: o } = await supabase.rpc("crew_owed", { p_pin: p });
     setOwed(o?.ok ? o : null);

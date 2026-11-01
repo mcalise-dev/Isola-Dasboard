@@ -12,7 +12,7 @@ import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { Empty, SectionTitle } from "@/components/ui/bits";
 import PunchList from "@/components/PunchList";
 import { cn } from "@/lib/utils";
-import { Camera, Images, HardHat, Trash2, Plus, Receipt, CalendarPlus, FileSpreadsheet, Upload, Download, X, PenTool, Check } from "lucide-react";
+import { Camera, Images, HardHat, Trash2, Plus, Receipt, CalendarPlus, FileSpreadsheet, Upload, Download, X, PenTool, Check, ListChecks } from "lucide-react";
 import { stampSafe } from "@/lib/stamp";
 import ScheduleItemDialog from "@/components/schedule/ScheduleItemDialog";
 import PhotoMarkup from "@/components/markup/PhotoMarkup";
@@ -314,12 +314,21 @@ export function TasksPanel({ jobId }: { jobId: string }) {
   }
   const today = todayISO();
   const open = (rows ?? []).filter((t) => !t.done).length;
+  const [adding, setAdding] = useState(false);
+  // v8.4: no tasks yet → one quiet "+ Add a task" line instead of an empty section
+  if (rows !== null && !rows.length && !adding) {
+    return (
+      <button onClick={() => setAdding(true)} className="inline-flex min-h-[40px] items-center gap-2 text-sm font-semibold text-neutral-400 hover:text-white">
+        <ListChecks size={16} /> + Add a task
+      </button>
+    );
+  }
   return (
     <div className="space-y-6">
       <div>
         <SectionTitle right={<span className="text-sm text-neutral-400">{open ? `${open} open` : rows?.length ? "all done" : ""}</span>}>Tasks</SectionTitle>
         <div className="mb-3 flex gap-2">
-          <Input placeholder="Add a task for this job…" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+          <Input autoFocus={adding} placeholder="Add a task for this job…" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
           <Input type="date" className="w-[150px] shrink-0" value={due} onChange={(e) => setDue(e.target.value)} aria-label="Due date" />
           <Button onClick={add} className="shrink-0"><Plus size={16} /> Add</Button>
         </div>
@@ -340,8 +349,8 @@ export function TasksPanel({ jobId }: { jobId: string }) {
               </Row>
             ))}
           </div>
-        ) : <p className="text-sm text-neutral-500">No tasks on this job yet.</p>}
-        <p className="mt-2 text-xs text-neutral-500">Tasks here also show on the main Tasks screen. Tap “Me” to show one to the crew.</p>
+        ) : null}
+        {rows?.length ? <p className="mt-2 text-xs text-neutral-500">Tasks here also show on the main Tasks screen. Tap “Me” to show one to the crew.</p> : null}
       </div>
       <div>
         <SectionTitle>Punch list</SectionTitle>

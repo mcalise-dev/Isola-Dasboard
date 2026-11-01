@@ -9,6 +9,7 @@ import { useAttention, type AttnItem, type Level } from "@/lib/attention";
 import { STATUS_META, PIPELINE, fmtDate, todayISO, revenueOf, jobLabel, daysSince } from "@/lib/format";
 import { openNew } from "@/components/SearchPalette";
 import PayHeadline from "@/components/home/PayHeadline";
+import TodayCard from "@/components/home/TodayCard";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Stat, Empty, SectionTitle } from "@/components/ui/bits";
@@ -100,6 +101,8 @@ export default function HomeScreen() {
         </div>
       </div>
 
+      <TodayCard today={today} routeUrl={routeUrl} />
+
       <PayHeadline />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -143,37 +146,7 @@ export default function HomeScreen() {
             {hidden && items.length ? <button onClick={clear} className="mt-2 text-xs text-neutral-500 hover:text-white">{hidden} snoozed · show</button> : null}
           </section>
 
-          <section>
-            <SectionTitle right={routeUrl ? <Button asChild size="sm" variant="outline"><a href={routeUrl} target="_blank" rel="noreferrer"><Navigation size={14} /> Route</a></Button> : <Link href="/dispatch" className="text-sm font-semibold text-neutral-400 hover:text-white">Dispatch board</Link>}>On site today</SectionTitle>
-            {today === null ? <div className="skeleton h-14" /> : !today.length ? (
-              <p className="rounded-xl border border-dashed border-white/10 px-4 py-5 text-sm text-neutral-500">Nothing on the board today. <Link href="/dispatch" className="font-semibold text-neutral-300 hover:text-white">Plan the week</Link></p>
-            ) : (
-              <div className="grid gap-2 sm:grid-cols-2">
-                {today.map((e: any) => (
-                  (() => {
-                    const ty = typeOf(e);
-                    const Icon = ty.icon;
-                    const st = e.status ?? "scheduled";
-                    return (
-                      <Link key={e.id} href={e.job_id ? `/jobs/${e.job_id}?tab=schedule` : "/schedule"} className={cn("flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:border-white/20", st === "done" && "opacity-60")}>
-                        <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]", ty.tint)}><Icon size={17} /></span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-white">
-                            {e.start_time ? <span className="tabular-nums text-neutral-300">{timeWindow(e)} · </span> : null}{e.jobs?.job_name || e.jobs?.customer || e.label || ty.label}
-                          </span>
-                          <span className="block truncate text-xs text-neutral-400">
-                            {(isOutside(e) ? [e.company || ty.label, e.qty] : [e.item_type && e.item_type !== "crew" ? ty.label : null, e.company, e.assignee, e.jobs?.location]).filter(Boolean).join(" · ") || "—"}
-                          </span>
-                        </span>
-                        {st === "confirmed" ? <Check size={15} className="shrink-0 text-emerald-300" aria-label="Confirmed" />
-                          : isOutside(e) && st === "scheduled" ? <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" title="Not confirmed" /> : null}
-                      </Link>
-                    );
-                  })()
-                ))}
-              </div>
-            )}
-          </section>
+          {/* v8.4: "On site today" moved up into the Today card */}
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-[76px]">

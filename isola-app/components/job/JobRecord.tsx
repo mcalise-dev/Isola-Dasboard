@@ -331,30 +331,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
               {partner ? null : <TabsTrigger value="proposal">Proposal</TabsTrigger>}
             </TabsList>
             <TabsContent value="overview" className="space-y-6">
-              {/* CompanyCam-style quick actions: everything for the job starts right here */}
-              <div className={cn("grid gap-2", partner ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-5")}>
-                {[
-                  { k: "money", label: "Costs", sub: "Log receipts & labor", icon: Banknote },
-                  { k: "photos", label: "Photos", sub: "Take & mark up", icon: Camera },
-                  ...(partner ? [] : [{ k: "proposal", label: "Proposal", sub: "Build & price", icon: Hammer }]),
-                  { k: "schedule", label: "Schedule", sub: "Crew & deliveries", icon: CalendarPlus },
-                  ...(partner ? [] : [{ k: "vendors", label: "Vendors", sub: "Supplier phone book", icon: Truck }]),
-                ].map(({ k, label, sub, icon: I }) => (
-                  <button key={k} onClick={() => (k === "vendors" ? setVendorsOpen(true) : setTab(k))} className="flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 text-left hover:border-white/20">
-                    <I size={18} className="text-white" />
-                    <span className="text-[14px] font-semibold text-white">{label}</span>
-                    <span className="hidden text-xs text-neutral-500 sm:block">{sub}</span>
-                  </button>
-                ))}
-              </div>
-              {!partner ? (
-                <Dialog open={vendorsOpen} onOpenChange={setVendorsOpen}>
-                  <DialogContent>
-                    <DialogHeader><DialogTitle>Material vendors</DialogTitle></DialogHeader>
-                    <div className="max-h-[70vh] overflow-y-auto pr-1"><MaterialVendors compact /></div>
-                  </DialogContent>
-                </Dialog>
-              ) : null}
+              {/* v8.4: the shortcut tiles are gone — they repeated the tabs. The supplier phone book moved to Schedule. */}
               <JobTimeline jobId={job.id} onEditPlan={() => setTab("crew")} />
               <section>
                 <h2 className="mb-2 text-[17px] font-semibold text-white">Scope of work</h2>
@@ -420,6 +397,11 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             </TabsContent>}
 
             <TabsContent value="schedule" className="space-y-8">
+              {partner ? null : (
+                <button onClick={() => setVendorsOpen(true)} className="inline-flex min-h-[40px] items-center gap-2 text-sm font-semibold text-neutral-400 hover:text-white">
+                  <Truck size={16} /> Supplier phone book
+                </button>
+              )}
               <SchedulePanel job={job} entries={sched} crew={crew} onChange={load} />
               <section id="sec-crew" className="scroll-mt-24 space-y-6">
                 <h2 className="text-[17px] font-semibold text-white">Crew plan</h2>
@@ -451,6 +433,14 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             </TabsContent>
 
           </Tabs>
+              {!partner ? (
+                <Dialog open={vendorsOpen} onOpenChange={setVendorsOpen}>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle>Material vendors</DialogTitle></DialogHeader>
+                    <div className="max-h-[70vh] overflow-y-auto pr-1"><MaterialVendors compact /></div>
+                  </DialogContent>
+                </Dialog>
+              ) : null}
         </div>
 
         {/* right rail */}
