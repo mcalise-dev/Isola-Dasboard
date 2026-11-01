@@ -25,7 +25,6 @@ import { JobBuild } from "@/components/BuildTab";
 import ThmPanel from "@/components/job/ThmPanel";
 import SiteLinePanel from "@/components/job/SiteLinePanel";
 import JobTimeline from "@/components/job/JobTimeline";
-import FieldTab from "@/components/field/FieldTab";
 import BudgetPanel from "@/components/field/BudgetPanel";
 import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
@@ -39,7 +38,7 @@ const addDaysISO = (s: string, n: number) => {
 import {
   Phone, Navigation, Pencil, MoreHorizontal, Star, Trash2, XCircle, ChevronLeft, MapPin, Hammer, ThumbsUp,
   CalendarPlus, Play, CheckCircle2, PauseCircle, FileText, Banknote, ArrowRight, ListChecks, Briefcase, Building2, Camera,
-  ClipboardList, Truck,
+  Truck,
 } from "lucide-react";
 import MaterialVendors from "@/components/MaterialVendors";
 
@@ -54,15 +53,18 @@ const ORDER = ["lead", "quote", "awaiting", "booked", "progress", "complete"];
 // Schedule · Money. Photos mark up in place; the proposal is built in place.
 // Deep link with /jobs/<id>?tab=<key>. Old tab names (files, build, punch, billing…) still work:
 // they open the tab that now holds that section and scroll to it.
-const TABS = ["overview", "costs", "field", "photos", "proposal", "schedule", "money"] as const;
+// v8.2: five tabs. Costs folded into Money; Field (plans, RFIs, submittals, inspections) hidden —
+// its old links land on Overview.
+const TABS = ["overview", "money", "schedule", "photos", "proposal"] as const;
 const TAB_ALIAS: Record<string, string> = {
   partner: "thm", tyler: "thm",
-  plans: "field", drawings: "field", rfi: "field", rfis: "field", submittals: "field", inspections: "field", forms: "field", budget: "costs",
+  plans: "overview", drawings: "overview", rfi: "overview", rfis: "overview", submittals: "overview", inspections: "overview", forms: "overview",
+  costs: "money", budget: "money", receipts: "money", materials_costs: "money",
   billing: "money", payments: "money", "change-orders": "money",
   build: "proposal", proposals: "proposal", estimate: "proposal", builder: "proposal",
   files: "photos", markup: "photos", pictures: "photos",
   documents: "docs", log: "docs", logs: "docs", "daily-log": "docs",
-  punch: "tasks", labor: "costs",
+  punch: "tasks", labor: "money",
   plan: "crew", checklist: "crew", materials: "crew", tools: "crew", field: "crew",
   site: "siteline", "site-line": "siteline", client: "siteline", updates: "siteline",
 };
@@ -323,22 +325,19 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             {/* v8.1: seven tabs — scrolls sideways on a narrow phone */}
             <TabsList className="flex-nowrap gap-4 sm:gap-5 [&>*]:min-h-[40px]">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="costs">Costs</TabsTrigger>
-              <TabsTrigger value="field">Field</TabsTrigger>
+              <TabsTrigger value="money">Money</TabsTrigger>
+              <TabsTrigger value="schedule">Schedule{schedOpen ? <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 text-[11px] font-bold text-amber-300">{schedOpen}</span> : null}</TabsTrigger>
               <TabsTrigger value="photos">Photos</TabsTrigger>
               {partner ? null : <TabsTrigger value="proposal">Proposal</TabsTrigger>}
-              <TabsTrigger value="schedule">Schedule{schedOpen ? <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 text-[11px] font-bold text-amber-300">{schedOpen}</span> : null}</TabsTrigger>
-              <TabsTrigger value="money">Money</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-6">
               {/* CompanyCam-style quick actions: everything for the job starts right here */}
-              <div className={cn("grid gap-2", partner ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3 sm:grid-cols-6")}>
+              <div className={cn("grid gap-2", partner ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-5")}>
                 {[
-                  { k: "costs", label: "Costs", sub: "Log receipts & labor", icon: Banknote },
+                  { k: "money", label: "Costs", sub: "Log receipts & labor", icon: Banknote },
                   { k: "photos", label: "Photos", sub: "Take & mark up", icon: Camera },
                   ...(partner ? [] : [{ k: "proposal", label: "Proposal", sub: "Build & price", icon: Hammer }]),
                   { k: "schedule", label: "Schedule", sub: "Crew & deliveries", icon: CalendarPlus },
-                  { k: "field", label: "Field", sub: "Plans, RFIs, submittals", icon: ClipboardList },
                   ...(partner ? [] : [{ k: "vendors", label: "Vendors", sub: "Supplier phone book", icon: Truck }]),
                 ].map(({ k, label, sub, icon: I }) => (
                   <button key={k} onClick={() => (k === "vendors" ? setVendorsOpen(true) : setTab(k))} className="flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 text-left hover:border-white/20">
@@ -402,22 +401,6 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
               <section id="sec-activity" className="scroll-mt-24"><ActivityPanel job={job} extra={{ costs, visits }} /></section>
             </TabsContent>
 
-            {/* v8.0: every cost on the job, and logging new ones, on its own tab */}
-            <TabsContent value="costs" className="space-y-8">
-              {/* T&M: the running customer bill sits right where costs are logged; re-keyed so it refreshes on every entry */}
-              {isTm ? <TmJobBill key={`${(costs ?? []).length}-${tmBilled ?? 0}`} jobId={job.id} onChanged={load} /> : null}
-              <BudgetPanel job={job} onChange={load} />
-              <section id="sec-costs" className="scroll-mt-24 space-y-8">
-                <CostsPanel jobId={job.id} onChange={load} />
-                <LaborPanel jobId={job.id} onChange={load} />
-              </section>
-            </TabsContent>
-
-            {/* v8.1: plans with pins, RFIs, submittals, inspections */}
-            <TabsContent value="field">
-              <FieldTab job={job} />
-            </TabsContent>
-
             <TabsContent value="photos" className="space-y-8">
               <section id="sec-photos" className="scroll-mt-24"><PhotosPanel jobId={job.id} /></section>
             </TabsContent>
@@ -445,11 +428,19 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
               </section>
             </TabsContent>
 
+            {/* v8.2: one Money tab — budget, materials & costs, labor (was the Costs tab), then payments and THM */}
             <TabsContent value="money" className="space-y-8">
+              {/* T&M: the running customer bill sits right where costs are logged; re-keyed so it refreshes on every entry */}
+              {isTm ? <TmJobBill key={`${(costs ?? []).length}-${tmBilled ?? 0}`} jobId={job.id} onChanged={load} /> : null}
+              <BudgetPanel job={job} onChange={load} />
+              <section id="sec-costs" className="scroll-mt-24 space-y-8">
+                <CostsPanel jobId={job.id} onChange={load} />
+                <LaborPanel jobId={job.id} onChange={load} />
+              </section>
               <section className="space-y-6">
                 <h2 className="text-[17px] font-semibold text-white">Payments & change orders</h2>
                 <MoneyPanel job={job} />
-                <TmJobBill jobId={job.id} onChanged={load} />
+                {isTm ? null : <TmJobBill jobId={job.id} onChanged={load} />}
               </section>
               {withThm ? (
                 <section id="sec-thm" className="scroll-mt-24 space-y-4">
@@ -474,7 +465,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             <h3 className="mb-2 text-[15px] font-semibold text-white">Money</h3>
             <div className="grid grid-cols-3 gap-2">
               <div><div className="text-xs text-neutral-500">{isTm ? "Billed (T&M)" : "Contract"}</div><div className="truncate text-lg font-semibold tabular-nums text-white">{isTm ? (tmBilled == null ? "—" : `$${Math.round(tmBilled).toLocaleString()}`) : fmtPrice(job.price) || "—"}</div></div>
-              <button onClick={() => setTab("costs")} className="text-left hover:opacity-80"><div className="text-xs text-neutral-500">Spent</div><div className="text-lg font-semibold tabular-nums text-white underline-offset-4 hover:underline">${Math.round(spent).toLocaleString()}</div></button>
+              <button onClick={() => setTab("money")} className="text-left hover:opacity-80"><div className="text-xs text-neutral-500">Spent</div><div className="text-lg font-semibold tabular-nums text-white underline-offset-4 hover:underline">${Math.round(spent).toLocaleString()}</div></button>
               <div><div className="text-xs text-neutral-500">Margin</div>
                 <div className={cn("text-lg font-semibold tabular-nums", mPct == null ? "text-neutral-500" : mPct < 10 ? "text-red-300" : mPct < 30 ? "text-amber-300" : "text-emerald-300")}>{margin == null ? "—" : `${mPct}%`}</div></div>
             </div>

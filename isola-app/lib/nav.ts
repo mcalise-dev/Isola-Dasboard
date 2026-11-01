@@ -15,7 +15,8 @@ import {
 
 // A screen. A menu entry is a NavItem with `tabs` (its screens, first tab = the entry's
 // own page) or without (a single screen).
-export type NavItem = { href: string; label: string; icon: LucideIcon; badge?: string; key?: string; tabs?: NavItem[] };
+// hidden: off the menu and tab strips, but still in search and still a working page (v8.2 cleanup)
+export type NavItem = { href: string; label: string; icon: LucideIcon; badge?: string; key?: string; tabs?: NavItem[]; hidden?: boolean };
 export type NavGroup = { key: string; label: string; icon: LucideIcon; home: string; items: NavItem[]; /** starts folded in the menu */ collapsed?: boolean };
 
 // v7.4 (10/22/26): Crew & subs gets its own entry (crew, vendors/COIs, subs payroll) and
@@ -56,7 +57,7 @@ export const GROUPS: NavGroup[] = [
       { key: "schedule", href: "/dispatch", label: "Schedule", icon: CalendarDays, tabs: [
         { href: "/dispatch", label: "Dispatch board", icon: LayoutGrid, badge: "dispatch" },
         { href: "/schedule", label: "Calendar", icon: CalendarDays },
-        { href: "/snow", label: "Recurring", icon: Snowflake },
+        { href: "/snow", label: "Recurring", icon: Snowflake, hidden: true },
       ] },
       { key: "crew", href: "/crew", label: "Crew & vendors", icon: HardHat, tabs: [
         { href: "/crew", label: "Crew & time", icon: HardHat },
@@ -69,19 +70,19 @@ export const GROUPS: NavGroup[] = [
       // who's owed what, from which job — both directions — plus THM, costs and the books
       { key: "accounting", href: "/money", label: "Accounting", icon: Wallet, tabs: [
         { href: "/money", label: "Owed to me", icon: Wallet, badge: "money" },
-        { href: "/payroll", label: "Owed to crew", icon: HandCoins },
+        { href: "/payroll", label: "Payroll", icon: HandCoins },
         { href: "/thm", label: "THM tab", icon: Handshake },
         { href: "/costs", label: "Costs", icon: Receipt, badge: "costs" },
-        { href: "/billing", label: "Billing", icon: CreditCard },
+        { href: "/billing", label: "Billing", icon: CreditCard, hidden: true },
         { href: "/tm", label: "T&M billing", icon: Clock },
         { href: "/reports", label: "Reports", icon: BarChart3 },
-        { href: "/money/cashflow", label: "Cash flow", icon: TrendingUp },
-        { href: "/money/review", label: "Monthly review", icon: CalendarCheck },
+        { href: "/money/cashflow", label: "Cash flow", icon: TrendingUp, hidden: true },
+        { href: "/money/review", label: "Monthly review", icon: CalendarCheck, hidden: true },
         { href: "/money/pay", label: "My pay", icon: Gauge },
       ] },
       { key: "tasks", href: "/tasks", label: "Tasks", icon: ListChecks, tabs: [
         { href: "/tasks", label: "Tasks", icon: ListChecks, badge: "tasks" },
-        { href: "/marketing/tasks", label: "Marketing to-dos", icon: ListChecks, badge: "mkttasks" },
+        { href: "/marketing/tasks", label: "Marketing to-dos", icon: ListChecks, badge: "mkttasks", hidden: true },
       ] },
     ],
   },
@@ -92,24 +93,26 @@ export const GROUPS: NavGroup[] = [
         { href: "/marketing", label: "Overview", icon: Gauge },
         { href: "/marketing/approvals", label: "Approvals", icon: ShieldCheck, badge: "approvals" },
         { href: "/marketing/targets", label: "Prospects & targets", icon: Target, badge: "targets" },
-        { href: "/marketing/pipeline", label: "Commercial pipeline", icon: Contact },
+        { href: "/marketing/pipeline", label: "Commercial pipeline", icon: Contact, hidden: true },
         { href: "/marketing/outreach", label: "Campaign studio", icon: Workflow, badge: "outreach" },
-        { href: "/marketing/inbox", label: "Inbox", icon: Mail },
+        { href: "/marketing/inbox", label: "Inbox", icon: Mail, hidden: true },
         { href: "/marketing/reviews", label: "Reviews & referrals", icon: Star, badge: "reviews" },
         { href: "/marketing/seo", label: "SEO & competitors", icon: Search },
-        { href: "/marketing/local", label: "Local presence", icon: MapPin },
-        { href: "/marketing/ai-search", label: "AI search", icon: Sparkles },
+        { href: "/marketing/local", label: "Local presence", icon: MapPin, hidden: true },
+        { href: "/marketing/ai-search", label: "AI search", icon: Sparkles, hidden: true },
         { href: "/marketing/paid", label: "Paid media & LinkedIn", icon: BadgeDollarSign },
-        { href: "/marketing/calls", label: "Calls & attribution", icon: PhoneCall },
-        { href: "/marketing/playbook", label: "Calendar & playbook", icon: CalendarRange },
-        { href: "/marketing/integrations", label: "Integrations & audit", icon: PlugZap },
+        { href: "/marketing/calls", label: "Calls & attribution", icon: PhoneCall, hidden: true },
+        { href: "/marketing/playbook", label: "Calendar & playbook", icon: CalendarRange, hidden: true },
+        { href: "/marketing/integrations", label: "Integrations & audit", icon: PlugZap, hidden: true },
       ] },
     ],
   },
 ];
 
 // The screens under a menu entry (an entry without tabs is its own single screen).
-export const screensOf = (entry: NavItem): NavItem[] => entry.tabs ?? [entry];
+// screensOf = what the menu and tab strips show; allScreensOf also has the hidden ones.
+export const allScreensOf = (entry: NavItem): NavItem[] => entry.tabs ?? [entry];
+export const screensOf = (entry: NavItem): NavItem[] => allScreensOf(entry).filter((s) => !s.hidden);
 
 // Phone bottom bar — `match` lists menu-entry keys. v8.0: Home · Pipeline · Projects · Accounting · Menu.
 export const TABS: { key: string; label: string; icon: LucideIcon; href: string; match: string[] }[] = [
@@ -124,8 +127,8 @@ export const HUBS = GROUPS;
 
 // Every screen, flat (search palette, pins, settings). Shape: { group, item }.
 export const ALL_ITEMS: { group: NavGroup | null; item: NavItem }[] = [
-  ...screensOf(HOME).map((item) => ({ group: null, item })),
-  ...GROUPS.flatMap((g) => g.items.flatMap((e) => screensOf(e).map((item) => ({ group: g, item })))),
+  ...allScreensOf(HOME).map((item) => ({ group: null, item })),
+  ...GROUPS.flatMap((g) => g.items.flatMap((e) => allScreensOf(e).map((item) => ({ group: g, item })))),
   { group: null, item: SETTINGS },
 ];
 
@@ -142,9 +145,9 @@ export function activeItem(path: string): { hub: NavGroup | null; entry: NavItem
     const len = item.href === "/" ? 1 : item.href.length;
     if (len > bestLen) { best = { hub, entry, item }; bestLen = len; }
   };
-  for (const s of screensOf(HOME)) consider(null, HOME, s);
+  for (const s of allScreensOf(HOME)) consider(null, HOME, s);
   consider(null, SETTINGS, SETTINGS);
-  for (const g of GROUPS) for (const e of g.items) for (const s of screensOf(e)) consider(g, e, s);
+  for (const g of GROUPS) for (const e of g.items) for (const s of allScreensOf(e)) consider(g, e, s);
   return best;
 }
 

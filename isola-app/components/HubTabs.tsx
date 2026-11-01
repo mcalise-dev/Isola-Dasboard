@@ -13,7 +13,8 @@ export default function HubTabs() {
   useEffect(() => {
     strip.current?.querySelector<HTMLElement>("[data-on='1']")?.scrollIntoView({ block: "nearest", inline: "center" });
   }, [path]);
-  const tabs = hit?.entry.tabs;
+  // hidden screens stay off the strip, except the one you're on (reached from search)
+  const tabs = hit?.entry.tabs?.filter((t) => !t.hidden || t.href === hit.item.href);
   if (!hit || !tabs || tabs.length < 2 || path.startsWith("/jobs/")) return null;
   return (
     <div ref={strip} className="-mx-4 mb-4 flex gap-1.5 overflow-x-auto px-4 no-scrollbar md:mx-0 md:mb-6 md:flex-wrap md:px-0">
