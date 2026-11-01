@@ -164,7 +164,7 @@ export default function PayScreen() {
                     <Link href={`/jobs/${r.id}`} className="min-w-0 flex-1">
                       <div className="truncate font-semibold text-white">{r.name}</div>
                       <div className="truncate text-sm text-neutral-400">
-                        {f$(r.price)}{r.partner ? ` · ${r.partner} 50/50` : ""}{r.completed_date ? ` · ${fmtDate(r.completed_date)}` : ""}
+                        {f$(r.price)}{r.partner ? (r.split ? ` · ${r.partner} 50/50` : ` · ${r.partner} reimbursed`) : ""}{r.completed_date ? ` · ${fmtDate(r.completed_date)}` : ""}
                       </div>
                     </Link>
                     <div className="shrink-0 text-right">
@@ -175,7 +175,7 @@ export default function PayScreen() {
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-3 text-xs text-neutral-400">
                     <span className="min-w-0">
-                      Costs {f$(r.direct)}{r.partner ? ` · your half ${f$(r.share)}` : ` · left ${f$(r.share)}`}
+                      Costs {f$(r.direct)}{r.split ? ` · your half ${f$(r.share)}` : ` · left ${f$(r.share)}`}
                       {r.days ? <> · overhead {f$(r.overhead)} · <span className={r.company >= 0 ? "text-emerald-300" : "text-red-300"}>company {f$(r.company)}</span></> : null}
                     </span>
                     <label className="flex shrink-0 items-center gap-1.5">

@@ -477,7 +477,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             <Button size="sm" variant="ghost" className="mt-2 h-10 w-full" onClick={() => setTab("money")}>Payments & change orders <ArrowRight size={14} /></Button>
             {job.qbo_invoice_ref ? <KV k="QuickBooks invoice" className="mt-2">#{job.qbo_invoice_ref}</KV> : null}
             {job.contract_holder === "thm" ? <KV k="Contract holder">THM</KV> : null}
-            {withThm ? <KV k="THM deal"><button className="hover:underline" onClick={() => setTab("thm")}>{job.thm_deal === "split" ? (job.partner_share ? `${job.partner_share}% of net` : "50/50 of net") : "Reimburse time + equipment"}</button></KV> : null}
+            {withThm ? <KV k="THM deal"><button className="hover:underline" onClick={() => setTab("thm")}>{job.thm_deal === "split" ? (job.partner_share ? `50/50 of net · THM $${Math.round(Number(job.partner_share)).toLocaleString()}` : "50/50 of net") : "Reimburse time + equipment"}</button></KV> : null}
           </Card>
 
           <Card className="p-4">

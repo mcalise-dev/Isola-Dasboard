@@ -2,7 +2,9 @@
 //
 // Per completed job:
 //   share      = contract − direct costs            (solo job)
-//              = (contract − direct costs) ÷ 2      (THM job — 50% of NET, Isola keeps half)
+//              = (contract − direct costs) ÷ 2      (THM SPLIT job — 50% of NET, Isola keeps half)
+//              = contract − direct costs            (THM REIMBURSE job — THM's time + equipment is already a
+//                                                    cost line, Isola keeps all of the rest)
 //   overhead   = Mike's days × overhead per day     (fixed monthly costs ÷ billable days)
 //   per day    = (share − overhead) ÷ Mike's days   ← "what you're making per day"
 //   company    = share − overhead − days × target   ← what's left after paying Mike his target
@@ -44,7 +46,7 @@ export const overheadPerDay = (m: PayModel) => overheadMonthly(m) / Math.max(1, 
 
 export type PayRow = {
   id: string; name: string; customer: string; completed_date: string | null;
-  price: number; direct: number; partner: string | null; share: number;
+  price: number; direct: number; partner: string | null; split: boolean; isolaPct: number; share: number;
   days: number | null; est: boolean; hasCosts: boolean;
   overhead: number; available: number; perDay: number | null; myPay: number; company: number;
   counted: boolean; reason: string | null;
@@ -66,7 +68,12 @@ export function payRows(model: PayModel, jobs: any[], costs: any[]): PayRow[] {
     const cj = byJob.get(j.id);
     const direct = cj?.direct ?? 0;
     const hasCosts = !!cj && cj.n > 0;
-    const share = j.partner ? (price - direct) / 2 : price - direct;
+    // only a "split" deal halves the net. partner_share is THM's settled dollar amount when one is
+    // recorded; otherwise THM gets half the net. Reimburse deals: THM is already a cost line.
+    const split = !!j.partner && j.thm_deal === "split";
+    const isolaPct = split ? 0.5 : 1;
+    const net = price - direct;
+    const share = !split ? net : Number(j.partner_share) > 0 ? net - Number(j.partner_share) : net / 2;
     const days = j.mike_days == null || !(Number(j.mike_days) > 0) ? null : Number(j.mike_days);
     const overhead = days ? days * ohd : 0;
     const available = share - overhead;
@@ -76,7 +83,7 @@ export function payRows(model: PayModel, jobs: any[], costs: any[]): PayRow[] {
     const reason = !hasCosts ? "No costs logged" : !days ? "Add your days" : null;
     return {
       id: j.id, name: j.job_name || j.customer || "Job", customer: j.customer ?? "", completed_date: j.completed_date ?? null,
-      price, direct, partner: j.partner ?? null, share, days, est: !!j.mike_days_est, hasCosts,
+      price, direct, partner: j.partner ?? null, split, isolaPct, share, days, est: !!j.mike_days_est, hasCosts,
       overhead, available, perDay, myPay, company, counted: !reason, reason,
     };
   });
@@ -86,7 +93,7 @@ export function payTotals(rows: PayRow[]) {
   const c = rows.filter((r) => r.counted);
   const s = (f: (r: PayRow) => number) => c.reduce((a, r) => a + f(r), 0);
   const days = s((r) => r.days ?? 0);
-  const revenue = s((r) => (r.partner ? r.price / 2 : r.price)); // Isola's side of the contract
+  const revenue = s((r) => r.price * r.isolaPct); // Isola's side of the contract
   const available = s((r) => r.available);
   const myPay = s((r) => r.myPay);
   const company = s((r) => r.company);
@@ -111,12 +118,12 @@ export async function loadPay(sb: any) {
   const [s, f, j] = await Promise.all([
     sb.from("app_settings").select("value").eq("key", PAY_KEY).maybeSingle(),
     sb.from("job_financials").select("job_id,job_name,customer,completed_date,contract_total,partner,status").eq("status", "complete"),
-    sb.from("jobs").select("id,mike_days,mike_days_est").eq("status", "complete"),
+    sb.from("jobs").select("id,mike_days,mike_days_est,thm_deal,partner_share").eq("status", "complete"),
   ]);
   const bad = s.error?.message || f.error?.message || j.error?.message;
   if (bad) throw new Error(bad);
   const days = new Map<string, any>((j.data ?? []).map((x: any) => [x.id, x]));
-  const jobs = (f.data ?? []).map((x: any) => ({ ...x, id: x.job_id, mike_days: days.get(x.job_id)?.mike_days ?? null, mike_days_est: days.get(x.job_id)?.mike_days_est ?? false }));
+  const jobs = (f.data ?? []).map((x: any) => ({ ...x, id: x.job_id, mike_days: days.get(x.job_id)?.mike_days ?? null, mike_days_est: days.get(x.job_id)?.mike_days_est ?? false, thm_deal: days.get(x.job_id)?.thm_deal ?? null, partner_share: days.get(x.job_id)?.partner_share ?? null }));
   const ids = jobs.map((x: any) => x.id);
   let costs: any[] = [];
   if (ids.length) {
