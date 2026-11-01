@@ -1,8 +1,9 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Bell, Plus, Briefcase, UserPlus, Camera, ListChecks, Target, LogOut, CircleDot } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, Bell, Plus, Briefcase, UserPlus, Camera, ListChecks, Target, LogOut, CircleDot } from "lucide-react";
 import { SearchButton, openNew } from "@/components/SearchPalette";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/bits";
@@ -15,13 +16,40 @@ import ThemeToggle from "@/components/ThemeToggle";
 
 const DOT = { high: "bg-red-400", mid: "bg-amber-400", low: "bg-neutral-500" } as const;
 
+// v8.3: back arrow — returns to the screen you were just on. It only steps back inside the app;
+// opened straight from a link or bookmark (nothing to go back to), it goes Home instead.
+function BackButton() {
+  const router = useRouter();
+  const path = usePathname();
+  const first = useRef<string | null>(null);
+  const [moved, setMoved] = useState(false);
+  useEffect(() => {
+    if (first.current === null) {
+      first.current = path;
+      try { if (sessionStorage.getItem("isola:moved") === "1") setMoved(true); } catch { /* private mode */ }
+    } else if (path !== first.current) {
+      setMoved(true);
+      try { sessionStorage.setItem("isola:moved", "1"); } catch { /* private mode */ }
+    }
+  }, [path]);
+  if (path === "/home" && !moved) return null;
+  return (
+    <button type="button" aria-label="Back" title="Back"
+      onClick={() => (moved && window.history.length > 1 ? router.back() : router.push("/home"))}
+      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-neutral-200 hover:bg-accent hover:text-white">
+      <ArrowLeft size={22} strokeWidth={2.4} />
+    </button>
+  );
+}
+
 export default function TopBar() {
   const a = useAttention();
   const router = useRouter();
   const n = a ? a.items.filter((i) => i.level !== "low").length : 0;
   return (
     <header className="sticky top-0 z-40 border-b-2 border-brand bg-background/90 backdrop-blur-md pt-[env(safe-area-inset-top)]">
-      <div className="flex h-14 items-center gap-3 px-3 md:px-4">
+      <div className="flex h-14 items-center gap-2 px-2 md:gap-3 md:px-4">
+        <BackButton />
         <Link href="/home" className="flex shrink-0 items-center gap-2.5 md:w-[212px]">
           <Image src="/isola-badge.png" alt="Isola" width={32} height={32} className="rounded-full ring-1 ring-white/15" />
           <span className="flex flex-col leading-none">
