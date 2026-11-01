@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Textarea, Field, NativeSelect } from "@/components/ui/input";
 import { PageHeader, SectionTitle, Stat, Empty, ListSkeleton, LoadError } from "@/components/ui/bits";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Eye, Copy, Pencil, Link2, Check, X, RotateCcw, FileText, Plus, Mail, Download, PenLine, Upload, Trash2, Archive } from "lucide-react";
+import { Eye, Copy, Pencil, Link2, Check, X, RotateCcw, FileText, Plus, Mail, Download, PenLine, Upload, Trash2, Archive, MessageSquare } from "lucide-react";
 import { downloadSignedCopy } from "@/lib/signedPdf";
 import { newToken, nextCoNumber } from "@/lib/esign";
 
@@ -317,7 +317,7 @@ export default function ProposalsTab() {
         A signature link shows the client your proposal PDF, has them draw their signature and agree to sign electronically, and records their name, email, IP address, time, and a fingerprint of exactly what they signed. Signed documents lock. Changes after that go on a change order. You get a push the moment someone signs. Nothing goes out until you copy or email the link yourself.
       </p>
 
-      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) { setEditing(null); load(); } }}>
         {editing ? (
           <LinkEditor key={editing.link?.id ?? editing.job.id + (editing.kind ?? "")} supabase={supabase} job={editing.job} link={editing.link}
             kind={editing.link?.kind ?? editing.kind ?? "proposal"}
@@ -344,6 +344,9 @@ export function LinkEditor({ supabase, job, link, kind, onClose, onSaved }: any)
   const [docs, setDocs] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [upBusy, setUpBusy] = useState(false);
+  // v8.5: after a new link is created, show it right here (copy / text / email / open) instead of
+  // closing with a toast and leaving you to hunt for it
+  const [made, setMade] = useState<string | null>(null);
   const set = (k: string) => (e: any) => setF((s) => ({ ...s, [k]: e.target.value }));
 
   async function loadDocs() {
@@ -395,6 +398,7 @@ export function LinkEditor({ supabase, job, link, kind, onClose, onSaved }: any)
 
   async function save() {
     setBusy(true);
+    let newUrl: string | null = null;
     const p = f.price === "" ? null : Number(f.price);
     const pct = isCO ? null : (Number(f.deposit_pct) || null);
     const row: any = {
@@ -427,7 +431,15 @@ export function LinkEditor({ supabase, job, link, kind, onClose, onSaved }: any)
         }
       }
       if (link) ({ error } = await supabase.from("proposal_links").update(row).eq("id", link.id));
-      else ({ error } = await supabase.from("proposal_links").insert({ ...row, token: newToken(), terms: isCO ? null : (job.terms?.trim() || (await getPaymentTerms())) }));
+      else {
+        const token = newToken();
+        ({ error } = await supabase.from("proposal_links").insert({ ...row, token, terms: isCO ? null : (job.terms?.trim() || (await getPaymentTerms())) }));
+        if (!error) {
+          // the client gets the job's SiteLine page (sign + scope + schedule in one place) when it has one
+          const { data: sh } = await supabase.from("siteline_shares").select("token").eq("job_id", job.id).maybeSingle();
+          newUrl = sh?.token ? `${window.location.origin}/site/${sh.token}` : `${window.location.origin}/p/${token}`;
+        }
+      }
       // v7.0: a new proposal link puts the job in "Proposals sent" (and a lead becomes awaiting)
       if (!error && !link && !isCO && !["sent", "signed", "accepted"].includes(job.proposal_status)) {
         const jp: any = { proposal_status: "sent", updated_at: new Date().toISOString() };
@@ -438,7 +450,34 @@ export function LinkEditor({ supabase, job, link, kind, onClose, onSaved }: any)
     } catch (e: any) { error = e; }
     setBusy(false);
     if (error) showError("Save failed: " + error.message);
-    else { showToast(link ? "Saved" : "Signature link created — copy or email it when you're ready"); onSaved(); }
+    else if (!link && newUrl) {
+      setMade(newUrl);
+      try { await navigator.clipboard.writeText(newUrl); showToast("Link created and copied"); } catch { showToast("Link created"); }
+    }
+    else { showToast("Saved"); onSaved(); }
+  }
+
+  if (made) {
+    const subject = `${isCO ? "Change order" : "Proposal"}: ${f.title || job.job_name || "Isola"}`;
+    const body = `Here's the ${isCO ? "change order" : "proposal"} to review and sign:\n${made}\n\nThank you,\nMike Calise\nIsola LLC`;
+    return (
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Link ready</DialogTitle>
+          <DialogDescription>Nothing has been sent. Copy it, or open a text or email with it filled in. You hit send.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="break-all rounded-lg border border-border bg-black/30 px-3 py-2.5 font-mono text-[13px] text-neutral-200">{made}</div>
+          <div className="grid grid-cols-2 gap-2">
+            <Button type="button" className="h-11" onClick={() => copyText(made, "Link copied")}><Copy size={15} /> Copy link</Button>
+            <Button asChild variant="outline" className="h-11"><a href={made} target="_blank" rel="noopener noreferrer"><Eye size={15} /> See what they see</a></Button>
+            <Button asChild variant="outline" className="h-11"><a href={`sms:?&body=${encodeURIComponent(made)}`}><MessageSquare size={15} /> Text it</a></Button>
+            <Button asChild variant="outline" className="h-11"><a href={`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}><Mail size={15} /> Email it</a></Button>
+          </div>
+        </div>
+        <DialogFooter><Button type="button" variant="outline" onClick={onSaved}>Done</Button></DialogFooter>
+      </DialogContent>
+    );
   }
 
   return (

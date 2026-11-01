@@ -333,7 +333,7 @@ export function ProposalPanel({ jobId }: { jobId: string }) {
         ) : null}
       </Card>
     ) : null}
-    <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+    <Dialog open={!!editing} onOpenChange={(o) => { if (!o) { setEditing(null); load(); } }}>
       {editing && job ? (
         <LinkEditor key={(editing.link?.id ?? "") + editing.kind} supabase={sb} job={job} link={editing.link} kind={editing.kind}
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
