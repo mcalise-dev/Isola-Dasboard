@@ -16,6 +16,7 @@ import { Camera, Images, HardHat, Trash2, Plus, Receipt, CalendarPlus, FileSprea
 import { stampSafe } from "@/lib/stamp";
 import ScheduleItemDialog from "@/components/schedule/ScheduleItemDialog";
 import PhotoMarkup from "@/components/markup/PhotoMarkup";
+import { fullImage, isStored, kickMediaSync, useFallbackImages, useSignedUrls } from "@/lib/media";
 import { ITEM_TYPES, NEXT_STATUS, SCHED_STATUS, byTime, detailLine, isOutside, timeWindow, typeOf, whoOn, type SchedItem } from "@/lib/schedule";
 
 // Isola's own truck/equipment time: billed to the customer, never a cost (job_costs.bill_amount, amount = 0).
@@ -57,14 +58,29 @@ export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () =
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState("");
   const load = async () => {
-    const { data } = await sb.from("job_costs").select("id,entry_date,vendor,category,amount,bill_amount,notes,status,receipt_b64,cost_code").eq("job_id", jobId).neq("category", "Labor").order("entry_date", { ascending: false });
+    const { data } = await sb.from("job_costs").select("id,entry_date,vendor,category,amount,bill_amount,notes,status,has_receipt,receipt_path,receipt_thumb_path,cost_code").eq("job_id", jobId).neq("category", "Labor").order("entry_date", { ascending: false });
     // receipts saved without a category are pending rows from the camera
-    const { data: pend } = await sb.from("job_costs").select("id,entry_date,vendor,category,amount,bill_amount,notes,status,receipt_b64").eq("job_id", jobId).is("category", null);
+    const { data: pend } = await sb.from("job_costs").select("id,entry_date,vendor,category,amount,bill_amount,notes,status,has_receipt,receipt_path,receipt_thumb_path").eq("job_id", jobId).is("category", null);
     const all = [...(data ?? []), ...(pend ?? []).filter((p: any) => !(data ?? []).some((d: any) => d.id === p.id))];
     setRows(all);
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [jobId]);
+  useEffect(() => {
+    load();
+    const on = () => load();
+    window.addEventListener("isola:media-synced", on);
+    return () => window.removeEventListener("isola:media-synced", on);
+    /* eslint-disable-next-line */
+  }, [jobId]);
   const total = (rows ?? []).reduce((a, c) => a + Number(c.amount ?? 0), 0);
+  const withRcpt = (rows ?? []).filter((c) => c.has_receipt);
+  const rThumbs = useSignedUrls("receipts", withRcpt.map((c) => c.receipt_thumb_path));
+  const rFallback = useFallbackImages(withRcpt.map((c) => ({ id: c.id, thumb: c.receipt_thumb_path })), "job_costs", "receipt_b64");
+  const rThumb = (c: any) => (isStored(c.receipt_thumb_path) ? rThumbs[c.receipt_thumb_path] : rFallback[c.id]) ?? "";
+  async function openReceipt(c: any) {
+    setView(rThumb(c));
+    const full = await fullImage({ bucket: "receipts", path: c.receipt_path, table: "job_costs", id: c.id, b64Col: "receipt_b64" });
+    if (full) setView(full);
+  }
 
   async function many(files: File[]) {
     if (files.length === 1) { setReceipt(await shrink(files[0])); return; }
@@ -75,7 +91,7 @@ export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () =
     setBusy(false);
     if (error) { showError("Save failed: " + error.message); return; }
     showToast(`${imgs.length} receipts saved as pending`);
-    load(); onChange?.(); changed();
+    load(); onChange?.(); changed(); kickMediaSync();
   }
   async function add() {
     const amt = Number(f.amount);
@@ -88,7 +104,7 @@ export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () =
     if (error) { showError("Save failed: " + error.message); return; }
     setF({ vendor: "", category: f.category, amount: "", entry_date: todayISO(), notes: "", own: f.own, cost_code: f.cost_code }); setReceipt("");
     showToast(own ? "Trucking logged: billed to the customer, not a cost" : "Cost logged");
-    load(); onChange?.(); changed();
+    load(); onChange?.(); changed(); if (receipt) kickMediaSync();
   }
   function remove(c: any) {
     const prev = rows ?? [];
@@ -104,7 +120,7 @@ export function CostsPanel({ jobId, onChange }: { jobId: string; onChange?: () =
           <div className="mb-3 space-y-1.5">
             {rows.map((c) => (
               <Row key={c.id}>
-                {c.receipt_b64 ? <button onClick={() => setView(c.receipt_b64)} className="shrink-0"><img src={c.receipt_b64} alt="receipt" className="h-9 w-9 rounded-md border border-white/10 object-cover" /></button> : <Receipt size={18} className="shrink-0 text-neutral-500" />}
+                {c.has_receipt ? <button onClick={() => openReceipt(c)} className="shrink-0">{rThumb(c) ? <img src={rThumb(c)} alt="receipt" loading="lazy" className="h-9 w-9 rounded-md border border-white/10 object-cover" /> : <span className="skeleton block h-9 w-9 rounded-md" />}</button> : <Receipt size={18} className="shrink-0 text-neutral-500" />}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-white">{c.vendor ?? "Receipt, needs details"}</div>
                   <div className="truncate text-xs text-neutral-400">{fmtDate(c.entry_date)} · {c.category ?? "—"}{c.cost_code ? ` · ${c.cost_code}` : ""}{c.notes ? ` · ${c.notes}` : ""}</div>
@@ -345,16 +361,26 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
   // v7.2: markup runs right here on the job, full screen — { photoId } opens a photo, {} opens the upload picker
   const [mark, setMark] = useState<{ photoId?: string } | null>(null);
   const load = async () => {
-    const { data } = await sb.from("job_photos").select("id,phase,caption,photo_b64,source_photo_id,created_at").eq("job_id", jobId).order("created_at");
+    // v7.5: thumbnails from Storage — never pull every full image into the list
+    const { data } = await sb.from("job_photos").select("id,phase,caption,photo_path,thumb_path,source_photo_id,created_at").eq("job_id", jobId).order("created_at");
     setRows(data ?? []);
   };
   useEffect(() => {
     load();
     const on = () => load();
     window.addEventListener("isola:changed", on);
-    return () => window.removeEventListener("isola:changed", on);
+    window.addEventListener("isola:media-synced", on);
+    return () => { window.removeEventListener("isola:changed", on); window.removeEventListener("isola:media-synced", on); };
     /* eslint-disable-next-line */
   }, [jobId]);
+  const thumbs = useSignedUrls("job-photos", (rows ?? []).map((p) => p.thumb_path));
+  const fallback = useFallbackImages((rows ?? []).map((p) => ({ id: p.id, thumb: p.thumb_path })), "job_photos", "photo_b64");
+  const thumbOf = (p: any) => (isStored(p.thumb_path) ? thumbs[p.thumb_path] : fallback[p.id]) ?? "";
+  async function openBig(p: any) {
+    setBig({ ...p, src: thumbOf(p) });
+    const full = await fullImage({ bucket: "job-photos", path: p.photo_path, table: "job_photos", id: p.id, b64Col: "photo_b64" });
+    if (full) setBig((cur: any) => (cur?.id === p.id ? { ...cur, src: full } : cur));
+  }
   // lock the page behind the full-screen markup so the canvas gets every touch
   useEffect(() => {
     if (!mark) return;
@@ -372,7 +398,7 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
       const { error } = await sb.from("job_photos").insert({ job_id: jobId, phase, photo_b64: b64 });
       if (error) { showError("Photo save failed: " + error.message); break; }
     }
-    setBusy(false); load();
+    setBusy(false); load(); kickMediaSync();
   }
   async function cycle(p: any) {
     const next = p.phase === "before" ? "during" : p.phase === "during" ? "after" : "before";
@@ -405,7 +431,7 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
                 {list.map((p) => (
                   <div key={p.id} className="group relative">
-                    <button onClick={() => setBig(p)} className="block w-full"><img src={p.photo_b64} alt={p.phase} className="h-28 w-full rounded-lg border border-white/[0.08] object-cover" /></button>
+                    <button onClick={() => openBig(p)} className="block w-full">{thumbOf(p) ? <img src={thumbOf(p)} alt={p.phase} loading="lazy" className="h-28 w-full rounded-lg border border-white/[0.08] object-cover" /> : <div className="skeleton h-28 w-full rounded-lg" />}</button>
                     <button onClick={() => remove(p)} aria-label="Delete photo" className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-neutral-300"><X size={13} /></button>
                     <button onClick={() => cycle(p)} className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 text-xs font-semibold capitalize text-neutral-200">{p.phase}</button>
                     <button onClick={() => setMark({ photoId: p.id })} aria-label="Mark up photo" className="absolute bottom-1 right-1 inline-flex min-h-[24px] items-center gap-1 rounded bg-brand px-1.5 text-xs font-bold text-neutral-950"><PenTool size={11} />{p.source_photo_id ? "Edit" : "Mark up"}</button>
@@ -417,7 +443,7 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
         })}
       {big ? (
         <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center gap-3 bg-black/90 p-4 anim-fade" onClick={() => setBig(null)}>
-          <img src={big.photo_b64} alt={big.phase} className="max-h-[80vh] max-w-full rounded-lg" />
+          {big.src ? <img src={big.src} alt={big.phase} className="max-h-[80vh] max-w-full rounded-lg" /> : <div className="skeleton h-64 w-64 rounded-lg" />}
           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
             <Button onClick={() => { const id = big.id; setBig(null); setMark({ photoId: id }); }}><PenTool size={15} /> {big.source_photo_id ? "Edit markup" : "Mark up"}</Button>
             <Button variant="outline" onClick={() => setBig(null)}><X size={15} /> Close</Button>
@@ -427,7 +453,7 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
       {mark ? (
         <div className="fixed inset-0 z-[65] overflow-y-auto bg-background px-3 pb-6 pt-[max(12px,env(safe-area-inset-top))] anim-fade md:px-6">
           <div className="mx-auto max-w-5xl">
-            <PhotoMarkup lockJobId={jobId} photoId={mark.photoId} onClose={() => { setMark(null); load(); }} />
+            <PhotoMarkup lockJobId={jobId} photoId={mark.photoId} onClose={() => { setMark(null); load(); kickMediaSync(); }} />
           </div>
         </div>
       ) : null}

@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { kickMediaSync } from "@/lib/media";
 import { todayISO } from "@/lib/format";
 import JobPicker from "@/components/JobPicker";
 import { showToast, showError } from "@/components/Toaster";
@@ -118,6 +119,7 @@ export default function QuickAdd() {
     setBusy(false);
     if (error) { showError("Save failed: " + error.message); return; }
     close();
+    kickMediaSync();
     showToast(rows.length === 1 ? (rows[0].status === "ok" ? "Receipt saved" : "Receipt saved — Claude can read the rest") : `${rows.length} receipts saved`);
     window.dispatchEvent(new Event("isola:changed"));
   }

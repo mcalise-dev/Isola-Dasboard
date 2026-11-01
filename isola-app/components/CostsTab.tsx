@@ -16,6 +16,10 @@ import { cn } from "@/lib/utils";
 import { Plus, HardHat, Camera, Images, Download, Check, Receipt, X, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Job, jobLabel, money, fmtDate, todayISO } from "@/lib/format";
+import { fullImage, isStored, kickMediaSync, useFallbackImages, useSignedUrls } from "@/lib/media";
+
+// every column except receipt_b64 — the receipt image comes from Storage as a thumbnail
+const COST_COLS = "id,job_id,entry_date,vendor,category,amount,notes,status,by_claude,created_at,updated_at,worker,hours,rate,paid,has_receipt,thm_item_id,rate_type,days,bill_amount,cost_code,receipt_path,receipt_thumb_path";
 
 const CATS = ["Materials", "Fuel", "Equipment / Rental", "Dump / Disposal", "Trucking", "Subcontractor", "Labor", "Permits", "Other"];
 const OVERHEAD = "__overhead__";
@@ -51,7 +55,10 @@ type Cost = {
   notes: string | null;
   status: "ok" | "pending";
   by_claude: boolean;
-  receipt_b64: string | null;
+  // v7.5: the image itself lives in Storage; the list never loads receipt_b64
+  has_receipt: boolean;
+  receipt_path: string | null;
+  receipt_thumb_path: string | null;
   worker: string | null;
   hours: number | null;
   rate: number | null;
@@ -74,6 +81,15 @@ export default function CostsTab() {
   const [workerFilter, setWorkerFilter] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Cost | "new" | null>(null);
   const [viewer, setViewer] = useState<string | null>(null);
+  const withRcpt = useMemo(() => costs.filter((c) => c.has_receipt), [costs]);
+  const rThumbs = useSignedUrls("receipts", withRcpt.map((c) => c.receipt_thumb_path));
+  const rFallback = useFallbackImages(withRcpt.map((c) => ({ id: c.id, thumb: c.receipt_thumb_path })), "job_costs", "receipt_b64");
+  const rThumb = (c: Cost) => (isStored(c.receipt_thumb_path) ? rThumbs[c.receipt_thumb_path] : rFallback[c.id]) ?? "";
+  async function openViewer(c: Cost) {
+    setViewer(rThumb(c) || null);
+    const full = await fullImage({ bucket: "receipts", path: c.receipt_path, table: "job_costs", id: c.id, b64Col: "receipt_b64" });
+    if (full) setViewer(full);
+  }
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<any>({});
   const camRef = useRef<HTMLInputElement>(null);
@@ -84,7 +100,7 @@ export default function CostsTab() {
     try {
       const [j, c] = await withTimeout(Promise.all([
         supabase.from("jobs").select("id,job_name,customer,location,job,status").order("customer"),
-        supabase.from("job_costs").select("*").order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(500),
+        supabase.from("job_costs").select(COST_COLS).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(500),
       ]));
       const e = firstError(j, c);
       if (e) throw new Error(e);
@@ -95,7 +111,14 @@ export default function CostsTab() {
     }
     setLoading(false);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    // a receipt just copied to Storage: reload so its thumbnail comes from there
+    const on = () => load();
+    window.addEventListener("isola:media-synced", on);
+    return () => window.removeEventListener("isola:media-synced", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Completed jobs never show in the picker — only open work.
   const activeJobs = jobs.filter((j) => j.status !== "complete");
@@ -152,9 +175,13 @@ export default function CostsTab() {
 
   function openSheet(c: Cost | "new", kind: "receipt" | "labor" = "receipt") {
     setSheet(c);
+    if (c !== "new" && c.has_receipt) {
+      fullImage({ bucket: "receipts", path: c.receipt_path, table: "job_costs", id: c.id, b64Col: "receipt_b64" })
+        .then((u) => { if (u) setForm((s: any) => (s && s.receipt_b64 === undefined ? { ...s, receipt_preview: u } : s)); });
+    }
     setForm(c === "new"
       ? { kind, job_id: filter !== "all" && filter !== OVERHEAD ? filter : (activeJobs[0]?.id ?? OVERHEAD), entry_date: todayISO(), vendor: "", category: kind === "labor" ? "Labor" : "", amount: "", notes: "", receipt_b64: null, worker: "", hours: "", days: "1", rate: "", rate_type: "hourly", paid: true, own: false }
-      : { kind: c.hours != null || c.worker ? "labor" : "receipt", job_id: c.job_id ?? OVERHEAD, entry_date: c.entry_date, vendor: c.vendor ?? "", category: c.category ?? "", amount: (c.bill_amount != null && !Number(c.amount) ? c.bill_amount : c.amount) ?? "", own: c.bill_amount != null && !Number(c.amount), notes: c.notes ?? "", receipt_b64: c.receipt_b64, worker: c.worker ?? "", hours: c.hours ?? "", days: c.days ?? "1", rate: c.rate ?? "", rate_type: c.rate_type ?? "hourly", paid: c.paid !== false });
+      : { kind: c.hours != null || c.worker ? "labor" : "receipt", job_id: c.job_id ?? OVERHEAD, entry_date: c.entry_date, vendor: c.vendor ?? "", category: c.category ?? "", amount: (c.bill_amount != null && !Number(c.amount) ? c.bill_amount : c.amount) ?? "", own: c.bill_amount != null && !Number(c.amount), notes: c.notes ?? "", receipt_b64: undefined, receipt_keep: !!c.has_receipt, receipt_preview: rThumb(c) || null, worker: c.worker ?? "", hours: c.hours ?? "", days: c.days ?? "1", rate: c.rate ?? "", rate_type: c.rate_type ?? "hourly", paid: c.paid !== false });
   }
 
   // One handler for both inputs. One photo fills the open form; several from the
@@ -182,6 +209,7 @@ export default function CostsTab() {
     setSheet(null);
     setPendingOnly(true);
     load();
+    kickMediaSync();
     showToast(rows.length + " receipts saved as pending — ask Claude to read them and it'll fill in vendor, amount and category.", 6000);
   }
 
@@ -207,7 +235,6 @@ export default function CostsTab() {
       category: form.category || null,
       amount,
       notes: form.notes?.trim() || null,
-      receipt_b64: form.receipt_b64 || null,
       worker: isLabor ? String(form.worker).trim() : null,
       hours: daily ? null : hours,
       days: daily ? days : null,
@@ -217,20 +244,24 @@ export default function CostsTab() {
       updated_at: new Date().toISOString(),
     };
     if (isLabor) { payload.category = "Labor"; payload.vendor = payload.vendor || String(form.worker).trim(); }
+    // receipt: only written when it was added, replaced or removed — editing other fields keeps the stored one
+    if (form.receipt_b64 !== undefined) payload.receipt_b64 = form.receipt_b64 || null;
+    const hasRcpt = form.receipt_b64 !== undefined ? !!form.receipt_b64 : !!form.receipt_keep;
     // Isola's own truck: billed to the customer, not money spent
     const own = !isLabor && !!form.own && payload.category === "Trucking" && amount != null;
     payload.bill_amount = own ? amount : null;
     // THM lines carry their own customer bill (synced from the THM panel) — never wipe it from here
     if (!own && payload.category === "THM") delete payload.bill_amount;
     if (own) payload.amount = 0;
-    payload.status = !isLabor && payload.receipt_b64 && (amount == null || !payload.vendor || !payload.category) ? "pending" : "ok";
-    if (!isLabor && !payload.receipt_b64 && amount == null) { showError("Add a receipt photo or an amount."); return; }
+    payload.status = !isLabor && hasRcpt && (amount == null || !payload.vendor || !payload.category) ? "pending" : "ok";
+    if (!isLabor && !hasRcpt && amount == null) { showError("Add a receipt photo or an amount."); return; }
     setBusy(true);
     const res = sheet === "new"
       ? await supabase.from("job_costs").insert(payload)
       : await supabase.from("job_costs").update(payload).eq("id", (sheet as Cost).id);
     setBusy(false);
     if (res.error) { showError("Save failed: " + res.error.message); return; }
+    if (form.receipt_b64) kickMediaSync();
     showToast(sheet === "new" ? (isLabor ? "Labor logged" : "Cost saved") : "Cost updated");
     setSheet(null);
     load();
@@ -272,9 +303,10 @@ export default function CostsTab() {
     : c.status === "pending" ? <Badge variant="warning">Claude to fill</Badge>
     : c.by_claude ? <Badge variant="success">Read by Claude</Badge>
     : null;
-  const thumb = (c: Cost, size = "h-12 w-12") => c.receipt_b64 ? (
-    <img src={c.receipt_b64} alt="Receipt" className={cn(size, "shrink-0 cursor-zoom-in rounded-lg border border-border object-cover")}
-      onClick={(e) => { e.stopPropagation(); setViewer(c.receipt_b64); }} />
+  const thumb = (c: Cost, size = "h-12 w-12") => c.has_receipt ? (
+    rThumb(c) ? <img src={rThumb(c)} alt="Receipt" loading="lazy" className={cn(size, "shrink-0 cursor-zoom-in rounded-lg border border-border object-cover")}
+      onClick={(e) => { e.stopPropagation(); openViewer(c); }} />
+      : <span className={cn(size, "skeleton shrink-0 rounded-lg")} />
   ) : (
     <span className={cn(size, "flex shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-neutral-500")}>
       {isLaborRow(c) ? <HardHat size={18} /> : <span className="text-[11px] leading-tight text-center">no rcpt</span>}
@@ -479,9 +511,9 @@ export default function CostsTab() {
                 </button>
               ))}
             </div>
-            {form.kind !== "labor" && form.receipt_b64 ? (
+            {form.kind !== "labor" && (form.receipt_b64 || (form.receipt_b64 === undefined && form.receipt_keep)) ? (
               <div className="relative mb-3">
-                <img src={form.receipt_b64} alt="Receipt preview" className="max-h-56 w-full rounded-xl bg-white/[0.05] object-contain" />
+                <img src={form.receipt_b64 || form.receipt_preview || ""} alt="Receipt preview" className="max-h-56 w-full rounded-xl bg-white/[0.05] object-contain" />
                 <Button size="sm" variant="secondary" onClick={() => setForm({ ...form, receipt_b64: null })} className="absolute right-2 top-2 bg-black/70">
                   <X size={14} /> Remove
                 </Button>

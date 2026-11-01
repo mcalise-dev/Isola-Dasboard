@@ -17,6 +17,7 @@ import { NativeSelect } from "@/components/ui/input";
 import { showError, showToast } from "@/components/Toaster";
 import { ask, askText } from "@/components/Dialogs";
 import { drawStamp, stampSafe } from "@/lib/stamp";
+import { isStored, kickMediaSync, useFallbackImages, useSignedUrls } from "@/lib/media";
 
 type P = { x: number; y: number };
 type Shape = {
@@ -539,9 +540,13 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   useEffect(() => {
     if (!jobId || img) { setJobPhotos(null); return; }
     setJobPhotos(null);
-    sb.from("job_photos").select("id,phase,caption,photo_b64,source_photo_id,created_at").eq("job_id", jobId).order("created_at", { ascending: false })
+    // v7.5: the picker shows Storage thumbnails; the editor still loads the one full photo it opens
+    sb.from("job_photos").select("id,phase,caption,thumb_path,source_photo_id,created_at").eq("job_id", jobId).order("created_at", { ascending: false })
       .then(({ data, error }) => { if (error) showError(error.message); setJobPhotos(data ?? []); });
   }, [jobId, img, sb]);
+  const pickThumbs = useSignedUrls("job-photos", (jobPhotos ?? []).map((p: any) => p.thumb_path));
+  const pickFallback = useFallbackImages((jobPhotos ?? []).map((p: any) => ({ id: p.id, thumb: p.thumb_path })), "job_photos", "photo_b64");
+  const pickSrc = (p: any) => (isStored(p.thumb_path) ? pickThumbs[p.thumb_path] : pickFallback[p.id]) ?? "";
 
   // v8.0: prepared step lists saved on the job ("what's this photo?") — pick one and each dot preloads its line
   const [lists, setLists] = useState<any[]>([]);
@@ -937,6 +942,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
         setEditRow(data);
       }
       window.dispatchEvent(new Event("isola:changed"));
+      kickMediaSync();
       showToast("Saved to " + (jobs.find((j) => j.id === jobId)?.job_name || "the job"));
     } catch (e: any) { showError("Save failed: " + (e?.message || e)); } finally { setBusy(false); }
   }
@@ -988,7 +994,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
                   {jobPhotos.map((p) => (
                     <button key={p.id} onClick={() => openJobPhoto(p.id)} className="group relative block overflow-hidden rounded-lg border border-white/[0.08] hover:border-brand">
-                      <img src={p.photo_b64} alt={p.phase} className="h-28 w-full object-cover" />
+                      {pickSrc(p) ? <img src={pickSrc(p)} alt={p.phase} loading="lazy" className="h-28 w-full object-cover" /> : <div className="skeleton h-28 w-full" />}
                       <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 text-xs font-semibold capitalize text-neutral-200">{p.source_photo_id ? "Marked up" : p.phase}</span>
                     </button>
                   ))}
