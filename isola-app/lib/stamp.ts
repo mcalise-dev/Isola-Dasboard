@@ -3,22 +3,29 @@
 // Sized off the photo's short side, so stamping an already-stamped photo of the same size
 // lands exactly on top of the old one (no doubled mark).
 
-let logoP: Promise<HTMLImageElement | null> | null = null;
-function logo(): Promise<HTMLImageElement | null> {
-  if (!logoP) {
-    logoP = new Promise((res) => {
+// v5.3 (11/2/26): the markup screen can swap the corner badge (Isola or Clear Path Construction).
+export type Brand = "isola" | "cpc";
+export const BRANDS: { v: Brand; n: string; src: string; fill: string }[] = [
+  { v: "isola", n: "Isola", src: "/isola-badge.png", fill: "#000" },
+  { v: "cpc", n: "Clear Path Construction", src: "/cpc-badge.png", fill: "#fff" },
+];
+const logoP: Partial<Record<Brand, Promise<HTMLImageElement | null>>> = {};
+function logo(brand: Brand): Promise<HTMLImageElement | null> {
+  if (!logoP[brand]) {
+    const src = (BRANDS.find((b) => b.v === brand) ?? BRANDS[0]).src;
+    logoP[brand] = new Promise((res) => {
       const i = new Image();
       i.onload = () => res(i);
       i.onerror = () => res(null);
-      i.src = "/isola-badge.png";
+      i.src = src;
     });
   }
-  return logoP;
+  return logoP[brand]!;
 }
 
 /** Draw the original round Isola logo in the bottom-right corner of a w×h image (image pixel space). */
-export async function drawStamp(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  const lg = await logo();
+export async function drawStamp(ctx: CanvasRenderingContext2D, w: number, h: number, brand: Brand = "isola") {
+  const lg = await logo(brand);
   if (!lg) return;
   const short = Math.min(w, h);
   const D = Math.round(Math.max(40, Math.min(220, short * 0.14)));
@@ -27,7 +34,7 @@ export async function drawStamp(ctx: CanvasRenderingContext2D, w: number, h: num
   ctx.save();
   // soft shadow so it lifts off busy photos
   ctx.shadowColor = "rgba(0,0,0,0.45)"; ctx.shadowBlur = D * 0.12; ctx.shadowOffsetY = D * 0.02;
-  ctx.beginPath(); ctx.arc(x + D / 2, y + D / 2, D / 2, 0, Math.PI * 2); ctx.fillStyle = "#000"; ctx.fill();
+  ctx.beginPath(); ctx.arc(x + D / 2, y + D / 2, D / 2, 0, Math.PI * 2); ctx.fillStyle = (BRANDS.find((b) => b.v === brand) ?? BRANDS[0]).fill; ctx.fill();
   ctx.shadowColor = "transparent";
   ctx.beginPath(); ctx.arc(x + D / 2, y + D / 2, D / 2, 0, Math.PI * 2); ctx.clip();
   // v5.2 (10/31/26): logo.png is now a 1024px clean master; downscale it smoothly so the

@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/input";
 import { showError, showToast } from "@/components/Toaster";
 import { ask, askText } from "@/components/Dialogs";
-import { drawStamp, stampSafe } from "@/lib/stamp";
+import { BRANDS, drawStamp, stampSafe, type Brand } from "@/lib/stamp";
 import { isStored, kickMediaSync, useFallbackImages, useSignedUrls } from "@/lib/media";
 
 type P = { x: number; y: number };
@@ -36,7 +36,14 @@ type Shape = {
 type Tool = "select" | Shape["type"];
 // v5.4: caption = "what we're looking at", saved as the photo's caption and (optionally) printed along the bottom
 type Panel = { side: "right" | "bottom"; title: string; items: string[]; titleScale?: number };
-type Markup = { v: 1; w: number; h: number; shapes: Shape[]; caption?: string; showCap?: boolean; capScale?: number; panel?: Panel | null };
+type Markup = { v: 1; w: number; h: number; shapes: Shape[]; caption?: string; showCap?: boolean; capScale?: number; panel?: Panel | null; brand?: Brand };
+// v7.4 (11/2/26): the corner logo is picked per markup, and the steps panel + caption accent follow that brand's colors
+type Theme = { bg: string; bar: string; title: string; dot: string; text: string; note: string; rule: string; accent: string };
+const THEMES: Record<Brand, Theme> = {
+  isola: { bg: "#0E1114", bar: "#F2C230", title: "#F2C230", dot: "#F2C230", text: "#FFFFFF", note: "#B4BAC0", rule: "rgba(255,255,255,0.18)", accent: "#F2C230" },
+  // Clear Path Construction logo: white field, dark green ring #013F01, bright green #288402, charcoal #252520
+  cpc: { bg: "#FFFFFF", bar: "#013F01", title: "#288402", dot: "#288402", text: "#252520", note: "#5E5E58", rule: "rgba(37,37,32,0.18)", accent: "#288402" },
+};
 
 const COLORS = [
   { v: "#F2C230", n: "Yellow" },
@@ -263,7 +270,7 @@ function drawTextBox(ctx: CanvasRenderingContext2D, s: Shape, base: number) {
   ctx.restore();
 }
 // caption strip along the bottom of the photo, kept left of the Isola logo (same size/margin as lib/stamp)
-function drawCaption(ctx: CanvasRenderingContext2D, text: string, W: number, H: number, scale = 1) {
+function drawCaption(ctx: CanvasRenderingContext2D, text: string, W: number, H: number, scale = 1, th: Theme = THEMES.isola) {
   const t = text.trim(); if (!t) return;
   const short = Math.min(W, H), D = Math.max(40, Math.min(220, short * 0.14)), m = short * 0.025, gap = short * 0.015;
   const f = Math.max(14, short * 0.038) * scale, padX = f * 0.7, padY = f * 0.45, lh = f * 1.25;
@@ -278,7 +285,7 @@ function drawCaption(ctx: CanvasRenderingContext2D, text: string, W: number, H: 
   ctx.shadowColor = "rgba(0,0,0,0.35)"; ctx.shadowBlur = f * 0.4;
   rrect(ctx, x, y, w, h, f * 0.3); ctx.fillStyle = "rgba(11,13,14,0.80)"; ctx.fill();
   ctx.shadowColor = "transparent";
-  ctx.fillStyle = "#F2C230"; ctx.fillRect(x, y + f * 0.3, Math.max(3, f * 0.14), h - f * 0.6);
+  ctx.fillStyle = th.accent; ctx.fillRect(x, y + f * 0.3, Math.max(3, f * 0.14), h - f * 0.6);
   ctx.fillStyle = "#FFFFFF"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
   lines.forEach((l, i) => ctx.fillText(l, x + padX, y + padY + lh * (i + 0.5)));
   ctx.restore();
@@ -327,38 +334,38 @@ function panelLayout(p: Panel, W: number, H: number) {
   }
   throw new Error("unreachable");
 }
-function drawPanel(ctx: CanvasRenderingContext2D, p: Panel, W: number, H: number, ox: number, oy: number) {
+function drawPanel(ctx: CanvasRenderingContext2D, p: Panel, W: number, H: number, ox: number, oy: number, th: Theme = THEMES.isola) {
   const L = panelLayout(p, W, H);
   ctx.save();
   ctx.translate(ox, oy);
-  ctx.fillStyle = "#0E1114"; ctx.fillRect(0, 0, L.pw, L.ph);
-  ctx.fillStyle = "#F2C230";
+  ctx.fillStyle = th.bg; ctx.fillRect(0, 0, L.pw, L.ph);
+  ctx.fillStyle = th.bar;
   if (p.side === "right") ctx.fillRect(0, 0, Math.max(3, L.f * 0.18), L.ph);
   else ctx.fillRect(0, 0, L.pw, Math.max(3, L.f * 0.18));
   ctx.textBaseline = "middle"; ctx.textAlign = "left";
   let y = L.pad + L.titleF * 0.6;
   ctx.font = `800 ${L.titleF}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
-  ctx.fillStyle = "#F2C230";
+  ctx.fillStyle = th.title;
   const title = (p.title || "Scope of work").toUpperCase();
   ctx.fillText(title, L.pad, y);
   y += L.titleF * 0.6 + L.f * 0.9;
   ctx.font = `600 ${L.f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
   L.rows.forEach((lines, i) => {
     const rowH = Math.max(L.r * 2, lines.length * L.lh);
-    numDot(ctx, L.nums[i], L.pad + L.r, y + Math.min(rowH, L.lh) / 2 + (lines.length > 1 ? 0 : (rowH - L.lh) / 2), L.r, "#F2C230");
+    numDot(ctx, L.nums[i], L.pad + L.r, y + Math.min(rowH, L.lh) / 2 + (lines.length > 1 ? 0 : (rowH - L.lh) / 2), L.r, th.dot);
     ctx.font = `600 ${L.f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
-    ctx.fillStyle = "#FFFFFF"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillStyle = th.text; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     const top = lines.length > 1 ? y : y + (rowH - L.lh) / 2;
     lines.forEach((ln, j) => ctx.fillText(ln, L.textX, top + L.lh * (j + 0.5)));
     y += rowH + L.gap;
   });
   // ** notes: thin rule, then small italic gray lines with no number, like a disclosure
   if (L.noteRows.length) {
-    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    ctx.fillStyle = th.rule;
     ctx.fillRect(L.pad, y + L.f * 0.05, L.pw - L.pad * 2, Math.max(1, L.f * 0.06));
     y += L.f * 0.7;
     ctx.font = `italic 500 ${L.noteF}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
-    ctx.fillStyle = "#B4BAC0"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillStyle = th.note; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     L.noteRows.forEach((lines) => {
       lines.forEach((ln, j) => ctx.fillText(ln, L.pad, y + L.noteLh * (j + 0.5)));
       y += lines.length * L.noteLh + L.noteF * 0.35;
@@ -464,6 +471,8 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const [showCap, setShowCap] = useState(true);
   const [capScale, setCapScale] = useState(1);     // caption text size (1 = default)
   const [titleScale, setTitleScale] = useState(1); // steps-panel title size (1 = default)
+  const [brand, setBrand] = useState<Brand>("isola"); // logo in the corner + steps panel colors
+  const theme = THEMES[brand];
   const [panelOn, setPanelOn] = useState(false);
   const [panelSide, setPanelSide] = useState<"right" | "bottom">("right");
   const [panelTitle, setPanelTitle] = useState("Scope of work");
@@ -582,14 +591,14 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           setImg(await loadImg(orig.photo_b64));
           setSrcPhoto(orig); setEditRow(row); reset((row.markup as Markup).shapes || []);
           const mk = row.markup as Markup;
-          setCaption(mk.caption ?? (row.caption && row.caption !== "Marked up" ? row.caption : "")); setShowCap(mk.showCap ?? true); setCapScale(mk.capScale ?? 1); loadPanel(mk.panel);
+          setCaption(mk.caption ?? (row.caption && row.caption !== "Marked up" ? row.caption : "")); setShowCap(mk.showCap ?? true); setCapScale(mk.capScale ?? 1); setBrand(mk.brand ?? "isola"); loadPanel(mk.panel);
           // v8.x: reopening a saved markup lands in Move so a tap selects an existing box instead of drawing a new mark
           setTool("select");
           return;
         }
       }
       setImg(await loadImg(row.photo_b64)); setSrcPhoto(row); setEditRow(null); reset([]);
-      setCaption(row.caption && !["Original", "Marked up"].includes(row.caption) ? row.caption : ""); setShowCap(true); setCapScale(1); loadPanel(null);
+      setCaption(row.caption && !["Original", "Marked up"].includes(row.caption) ? row.caption : ""); setShowCap(true); setCapScale(1); setBrand("isola"); loadPanel(null);
     } catch (e: any) { showError(e.message); } finally { setBusy(false); }
   }
   async function openFile(f?: File) {
@@ -597,7 +606,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     setBusy(true);
     try {
       const b64 = await stampSafe(await compressImage(f, 1600, 0.85), 0.88);
-      setImg(await loadImg(b64)); setSrcPhoto(null); setEditRow(null); reset([]); setCaption(""); setShowCap(true); setCapScale(1); loadPanel(null);
+      setImg(await loadImg(b64)); setSrcPhoto(null); setEditRow(null); reset([]); setCaption(""); setShowCap(true); setCapScale(1); setBrand("isola"); loadPanel(null);
     } catch { showError("Could not open that photo."); } finally { setBusy(false); }
   }
   function reset(s: Shape[]) { setShapes(s); setPast([]); setFuture([]); setDraft(null); setSel(null); }
@@ -647,7 +656,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
     ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
     shapes.forEach((s) => drawShape(ctx, s, base));
-    if (showCap && caption.trim()) drawCaption(ctx, caption, img.naturalWidth, img.naturalHeight, capScale);
+    if (showCap && caption.trim()) drawCaption(ctx, caption, img.naturalWidth, img.naturalHeight, capScale, theme);
     if (draft) {
       if (draft.type === "path" && hover && draft.points?.length) {
         const last = draft.points[draft.points.length - 1];
@@ -664,16 +673,16 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       handles(s, base).forEach((h) => { ctx.beginPath(); ctx.arc(h.x, h.y, 7 / scale, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill(); ctx.lineWidth = 2.5 / scale; ctx.strokeStyle = "#F2C230"; ctx.stroke(); });
     }
     // v5.5: show the clean Isola badge live (it covers any older stamp baked into the photo, same spot and size)
-    drawStamp(ctx, img.naturalWidth, img.naturalHeight).catch(() => {});
+    drawStamp(ctx, img.naturalWidth, img.naturalHeight, brand).catch(() => {});
     const pc = panelRef.current;
     if (pc && panel) {
       const PL = panelLayout(panel, img.naturalWidth, img.naturalHeight);
       pc.width = Math.round(PL.pw * scale * dpr); pc.height = Math.round(PL.ph * scale * dpr);
       pc.style.width = Math.round(PL.pw * scale) + "px"; pc.style.height = Math.round(PL.ph * scale) + "px";
       const pctx = pc.getContext("2d")!; pctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
-      drawPanel(pctx, panel, img.naturalWidth, img.naturalHeight, 0, 0);
+      drawPanel(pctx, panel, img.naturalWidth, img.naturalHeight, 0, 0, theme);
     }
-  }, [img, view, shapes, draft, hover, sel, scale, base, caption, showCap, capScale, panelOn, panelSide, panelText, panelTitle, titleScale]);
+  }, [img, view, shapes, draft, hover, sel, scale, base, caption, showCap, capScale, panelOn, panelSide, panelText, panelTitle, titleScale, brand]);
 
   function toImg(e: React.PointerEvent): P {
     const r = canvasRef.current!.getBoundingClientRect();
@@ -906,9 +915,9 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     ctx.drawImage(img!, 0, 0);
     const all = draft && draft.type === "path" && (draft.points?.length || 0) >= 2 ? [...shapes, draft] : shapes;
     all.forEach((s) => drawShape(ctx, s, base));
-    if (showCap && caption.trim()) drawCaption(ctx, caption, W, H, capScale);
-    await drawStamp(ctx, W, H).catch(() => {}); // Isola badge, bottom-right of the photo, on top of the markup
-    if (PL) drawPanel(ctx, panel!, W, H, panel!.side === "right" ? W : 0, panel!.side === "right" ? 0 : H);
+    if (showCap && caption.trim()) drawCaption(ctx, caption, W, H, capScale, theme);
+    await drawStamp(ctx, W, H, brand).catch(() => {}); // chosen badge, bottom-right of the photo, on top of the markup
+    if (PL) drawPanel(ctx, panel!, W, H, panel!.side === "right" ? W : 0, panel!.side === "right" ? 0 : H, theme);
     return c.toDataURL("image/jpeg", 0.85);
   }
   async function download() {
@@ -923,7 +932,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     try {
       const all = draft && draft.type === "path" && (draft.points?.length || 0) >= 2 ? [...shapes, draft] : shapes;
       const cap = caption.trim();
-      const markup: Markup = { v: 1, w: img!.naturalWidth, h: img!.naturalHeight, shapes: all, caption: cap, showCap, capScale, panel };
+      const markup: Markup = { v: 1, w: img!.naturalWidth, h: img!.naturalHeight, shapes: all, caption: cap, showCap, capScale, panel, brand };
       const out = await render();
       let source = srcPhoto;
       if (!source || source.job_id !== jobId) {
@@ -1152,6 +1161,14 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
         </div>
       ) : null}
 
+      <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/[0.09] bg-card p-2.5">
+        <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Logo</span>
+        <NativeSelect aria-label="Logo on the photo" value={brand} onChange={(e) => setBrand(e.target.value as Brand)} className="min-w-0 flex-1 sm:max-w-xs">
+          {BRANDS.map((b) => <option key={b.v} value={b.v}>{b.n}</option>)}
+        </NativeSelect>
+        <span className="hidden text-xs text-neutral-500 sm:inline">Bottom-right badge · steps panel colors follow it</span>
+      </div>
+
       <div className="mt-3 rounded-lg border border-white/[0.09] bg-card p-2.5">
         <label className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
           What are we looking at?
@@ -1214,7 +1231,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
               <p className="text-xs text-neutral-500">Step 1 matches dot 1. Start a line with ** for a note with no number — it prints at the bottom like a disclosure.</p>
             </div>
           </>
-        ) : <p className="text-xs text-neutral-500">Split a dark section off the photo that lists numbered steps — what will be done.</p>}
+        ) : <p className="text-xs text-neutral-500">Split a section off the photo that lists numbered steps — what will be done.</p>}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
