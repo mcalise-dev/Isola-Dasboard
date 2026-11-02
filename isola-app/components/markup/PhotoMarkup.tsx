@@ -35,7 +35,8 @@ type Shape = {
 };
 type Tool = "select" | Shape["type"];
 // v5.4: caption = "what we're looking at", saved as the photo's caption and (optionally) printed along the bottom
-type Panel = { side: "right" | "bottom"; title: string; items: string[]; titleScale?: number };
+type Panel = { side: "right" | "bottom"; title: string; items: string[]; titleScale?: number; colors?: Record<number, string> };
+// v8.2: colors = step number -> the color of numbered dot N on the photo, so the panel dots match
 type Markup = { v: 1; w: number; h: number; shapes: Shape[]; caption?: string; showCap?: boolean; capScale?: number; panel?: Panel | null; brand?: Brand };
 // v7.4 (11/2/26): the corner logo is picked per markup, and the steps panel + caption accent follow that brand's colors
 type Theme = { bg: string; bar: string; title: string; dot: string; text: string; note: string; rule: string; accent: string };
@@ -352,7 +353,11 @@ function drawPanel(ctx: CanvasRenderingContext2D, p: Panel, W: number, H: number
   ctx.font = `600 ${L.f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
   L.rows.forEach((lines, i) => {
     const rowH = Math.max(L.r * 2, lines.length * L.lh);
-    numDot(ctx, L.nums[i], L.pad + L.r, y + Math.min(rowH, L.lh) / 2 + (lines.length > 1 ? 0 : (rowH - L.lh) / 2), L.r, th.dot);
+    const dcx = L.pad + L.r, dcy = y + Math.min(rowH, L.lh) / 2 + (lines.length > 1 ? 0 : (rowH - L.lh) / 2);
+    const fill = p.colors?.[L.nums[i]] ?? th.dot;
+    // black or white dots get a thin ring so they still show on a dark or white panel
+    if (isDark(fill) || fill === "#FFFFFF") { ctx.beginPath(); ctx.arc(dcx, dcy, L.r * 1.1, 0, Math.PI * 2); ctx.fillStyle = isDark(fill) ? "#FFFFFF" : th.text; ctx.fill(); }
+    numDot(ctx, L.nums[i], dcx, dcy, L.r, fill);
     ctx.font = `600 ${L.f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
     ctx.fillStyle = th.text; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     const top = lines.length > 1 ? y : y + (rowH - L.lh) / 2;
@@ -478,7 +483,10 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const [panelTitle, setPanelTitle] = useState("Scope of work");
   const [steps, setSteps] = useState<string[]>([]);   // step N lines up with dot N
   const panelText = steps.join("\n");
-  const panel: Panel | null = panelOn && steps.some((x) => x.trim()) ? { side: panelSide, title: panelTitle, items: steps, titleScale } : null;
+  // each step's number takes the color of the matching numbered dot on the photo
+  const dotColors: Record<number, string> = {};
+  shapes.forEach((x) => { if (x.type === "num" && x.num != null && !(x.num in dotColors)) dotColors[x.num] = x.color; });
+  const panel: Panel | null = panelOn && steps.some((x) => x.trim()) ? { side: panelSide, title: panelTitle, items: steps, titleScale, colors: dotColors } : null;
   // dropping dot N opens the steps list (below the photo) with lines 1..N ready to fill
   function ensureStep(n: number, note?: string, overwrite = false) {
     setSteps((prev) => {
@@ -1234,7 +1242,8 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
                 <div key={i} className="flex items-center gap-2">
                   {nums[i] === null
                     ? <span title="Note — no number, printed at the bottom" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 text-[13px] font-extrabold text-neutral-400">*</span>
-                    : <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-extrabold text-neutral-950">{nums[i]}</span>}
+                    : <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 text-[13px] font-extrabold"
+                        style={{ background: dotColors[nums[i]!] ?? "#F2C230", color: contrast(dotColors[nums[i]!] ?? "#F2C230") }}>{nums[i]}</span>}
                   <input value={st} onChange={(e) => { const v = e.target.value; setSteps((prev) => { const a = prev.length ? [...prev] : [""]; a[i] = v; return a; }); }}
                     placeholder={i === 0 ? "e.g. Remove loose brick and failed mortar" : nums[i] === null ? "Note" : `Step ${nums[i]}`}
                     className="min-w-0 flex-1 rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
