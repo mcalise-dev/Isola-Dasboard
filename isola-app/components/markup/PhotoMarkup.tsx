@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MousePointer2, Pencil, Minus, MoveUpRight, Spline, Ruler, Square, Circle, Type, Hash, Ban,
-  Undo2, Redo2, Trash2, Download, Save, Upload, ImagePlus, X, Check, Camera,
+  Undo2, Redo2, Trash2, Download, Save, Upload, ImagePlus, X, Check, Camera, Copy,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/image";
@@ -844,6 +844,21 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   }
 
   function deleteSel() { if (!sel) return; commit(shapes.filter((s) => s.id !== sel)); setSel(null); }
+  // v8.1 (11/2/26): Duplicate — copy the selected mark a little down-right and select the copy,
+  // so tapping it again keeps stamping out more. A numbered dot copy takes the next number.
+  function duplicateSel() {
+    const s = shapes.find((x) => x.id === sel); if (!s || !img) return;
+    const W = img.naturalWidth, H = img.naturalHeight, off = base * 8;
+    const b = bbox(s, base);
+    const dx = b.x1 + off <= W ? off : -off, dy = b.y1 + off <= H ? off : -off;
+    let copy: Shape = { ...moved(s, dx, dy), id: uid(), ref: undefined };
+    if (s.type === "num") copy.num = nextNum(shapes);
+    else if (s.type === "text" && s.num != null) copy.num = nextNum(shapes, "text");
+    copy = clampBox(copy);
+    commit([...shapes, copy]);
+    setTool("select"); setSel(copy.id);
+    if (copy.type === "num") ensureStep(copy.num!);
+  }
   async function editSelText() { if (sel) await editTextOf(sel); }
   async function editTextOf(id: string) {
     const s = shapes.find((x) => x.id === id); if (!s || (s.type !== "text" && s.type !== "dim")) return;
@@ -897,6 +912,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     const k = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest("input,textarea,select,[role=dialog]")) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+      else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d" && sel) { e.preventDefault(); duplicateSel(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && sel) { e.preventDefault(); deleteSel(); }
       else if (e.key === "Enter" && draft?.type === "path") finishOrDropDraft();
       else if (e.key === "Escape") { if (draft) { setDraft(null); setHover(null); } else setSel(null); }
@@ -964,7 +980,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const selShape = shapes.find((x) => x.id === sel);
   const hint =
     tool === "path" ? (draft ? `${draft.points?.length} point${draft.points?.length === 1 ? "" : "s"} · tap to add more · tap the first point to close it · Done to finish` : "Tap to drop each point — lines connect as you go")
-    : tool === "select" ? (selShape ? (selShape.type === "text" ? (isBox(selShape) ? "Tap again to edit the words · drag to move · drag a corner dot to resize" : "Tap again to edit the words · drag to move · restyle below") : "Drag to move · drag a white dot to reshape · color and size buttons restyle it") : "Tap any box or mark to select it · tap a selected box again to edit its words")
+    : tool === "select" ? (selShape ? (selShape.type === "text" ? (isBox(selShape) ? "Tap again to edit the words · drag to move · drag a corner dot to resize" : "Tap again to edit the words · drag to move · restyle below") : "Drag to move · drag a white dot to reshape · color and size buttons restyle it · Duplicate makes a copy") : "Tap any box or mark to select it · tap a selected box again to edit its words")
     : tool === "dim" ? "Drag from one end to the other, then type the measurement"
     : tool === "text" ? "Tap empty space for a new box (or drag to size it) · tap an existing box to edit it"
     : tool === "num" ? `Tap to drop numbered dots (next: ${nextNum(shapes)})${pinNotes ? " · type a note and it goes in a box beside the dot" : ""}`
@@ -1125,6 +1141,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           <>
             {selShape.type === "text" || selShape.type === "dim" ? <Button variant="outline" size="sm" onClick={editSelText}>Edit {selShape.type === "dim" ? "measurement" : "text"}</Button> : null}
             {selShape.num != null ? <Button variant="outline" size="sm" onClick={editSelNum}>Change #{selShape.num}</Button> : null}
+            <Button variant="outline" size="sm" onClick={duplicateSel}><Copy size={15} /> Duplicate</Button>
             <Button variant="destructive" size="sm" onClick={deleteSel}><Trash2 size={15} /> Delete</Button>
           </>
         ) : null}
