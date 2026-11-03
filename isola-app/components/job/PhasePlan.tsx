@@ -14,7 +14,7 @@ import { withTimeout, firstError } from "@/lib/load";
 import { telHref } from "@/lib/phoneLinks";
 import { money, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Package, HardHat, Truck, Ellipsis, Plus, Phone, Pencil, Trash2, ArrowUp, ArrowDown, CalendarDays, KeyRound, Users, X, Check, type LucideIcon } from "lucide-react";
+import { Package, HardHat, Truck, Ellipsis, Plus, Phone, Pencil, Trash2, ArrowUp, ArrowDown, CalendarDays, KeyRound, Users, X, Check, MapPin, type LucideIcon } from "lucide-react";
 
 type Kind = "material" | "sub" | "rental" | "equipment" | "other";
 const KINDS: { k: Kind; label: string; icon: LucideIcon; statuses: string[] }[] = [
@@ -34,7 +34,8 @@ const PHASE_STATUS = ["planned", "in progress", "done"];
 const SUGGEST = ["Demo & removal", "Excavation", "Base & prep", "Forms", "Pour", "Masonry", "Drainage", "Backfill", "Restoration", "Cleanup"];
 
 type Row = { id: string; phase_id: string; kind: Kind; material_vendor_id: string | null; vendor_id: string | null; name: string | null; what: string | null; needed_date: string | null; status: string; est_cost: number | null; notes: string | null; sort: number };
-const BLANK = { kind: "material" as Kind, name: "", what: "", needed_date: "", status: "0", est_cost: "", notes: "" };
+const BLANK = { kind: "material" as Kind, name: "", what: "", needed_date: "", status: "0", est_cost: "", notes: "", p_phone: "", p_contact: "", p_address: "", p_extra: "", p_email: "", p_save: false };
+const mapsHref = (a: string) => "https://maps.google.com/?q=" + encodeURIComponent(a);
 
 export default function PhasePlan({ jobId }: { jobId: string }) {
   const sb = useMemo(() => createClient(), []);
@@ -54,8 +55,8 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
       const [p, r, m, v, wk] = await withTimeout(Promise.all([
         sb.from("job_phases").select("*").eq("job_id", jobId).order("sort").order("created_at"),
         sb.from("job_phase_vendors").select("*").eq("job_id", jobId).order("sort").order("created_at"),
-        sb.from("material_vendors").select("id,name,phone,carries").order("name"),
-        sb.from("vendors").select("id,company,trade,phone,status").order("company"),
+        sb.from("material_vendors").select("*").order("name"),
+        sb.from("vendors").select("id,company,contact_name,trade,phone,email,address,status").order("company"),
         sb.from("workers").select("name").eq("active", true).order("name"),
       ]));
       const e = firstError(p, r, m, v); if (e) throw new Error(e);
@@ -66,10 +67,24 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
   useEffect(() => { load(); }, [jobId]);
 
   const who = (r: Row) => {
-    if (r.material_vendor_id) { const s = suppliers.find((x) => x.id === r.material_vendor_id); if (s) return { name: s.name, phone: s.phone }; }
-    if (r.vendor_id) { const s = subs.find((x) => x.id === r.vendor_id); if (s) return { name: s.company, phone: s.phone }; }
-    return { name: r.name || "Not picked yet", phone: null };
+    if (r.material_vendor_id) { const s = suppliers.find((x) => x.id === r.material_vendor_id); if (s) return { name: s.name, phone: s.phone, address: s.address }; }
+    if (r.vendor_id) { const s = subs.find((x) => x.id === r.vendor_id); if (s) return { name: s.company, phone: s.phone, address: s.address }; }
+    return { name: r.name || "Not picked yet", phone: null, address: null };
   };
+  // the phone-book record a typed name matches: subs → vendors, everything else → material_vendors (then vendors)
+  const matchOf = (kind: Kind, name: string): { table: "material_vendors" | "vendors"; rec: any } | null => {
+    const nm = name.trim().toLowerCase(); if (!nm) return null;
+    if (kind !== "sub") { const m = suppliers.find((x) => String(x.name).toLowerCase() === nm); if (m) return { table: "material_vendors", rec: m }; }
+    const v = subs.find((x) => String(x.company).toLowerCase() === nm); if (v) return { table: "vendors", rec: v };
+    if (kind === "sub") { const m = suppliers.find((x) => String(x.name).toLowerCase() === nm); if (m) return { table: "material_vendors", rec: m }; }
+    return null;
+  };
+  const profileFields = (m: { table: string; rec: any } | null) => m ? (m.table === "vendors"
+    ? { p_phone: m.rec.phone ?? "", p_contact: m.rec.contact_name ?? "", p_address: m.rec.address ?? "", p_extra: m.rec.trade ?? "", p_email: m.rec.email ?? "" }
+    : { p_phone: m.rec.phone ?? "", p_contact: m.rec.contact ?? "", p_address: m.rec.address ?? "", p_extra: m.rec.carries ?? "", p_email: "" })
+    : { p_phone: "", p_contact: "", p_address: "", p_extra: "", p_email: "" };
+  const rowToEdit = (r: Row) => { const w = who(r); const nm = w.name === "Not picked yet" ? "" : w.name;
+    return { ...BLANK, id: r.id, phase_id: r.phase_id, kind: r.kind, name: nm, what: r.what ?? "", needed_date: r.needed_date ?? "", status: r.status, est_cost: r.est_cost != null ? String(r.est_cost) : "", notes: r.notes ?? "", ...profileFields(matchOf(r.kind, nm)) }; };
 
   async function addPhase(name?: string) {
     const n = name ?? (await askText({ title: "New phase", placeholder: "e.g. Excavation, Pour, Masonry" }));
@@ -103,12 +118,31 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
   }
   async function saveRow() {
     if (!edit) return;
-    const nm = edit.name.trim().toLowerCase();
-    const sup = edit.kind !== "sub" ? suppliers.find((x) => x.name.toLowerCase() === nm) : null;
-    const sb2 = edit.kind === "sub" || !sup ? subs.find((x) => String(x.company).toLowerCase() === nm) : null;
+    const m = matchOf(edit.kind, edit.name);
+    let mvId: string | null = m?.table === "material_vendors" ? m.rec.id : null;
+    let vId: string | null = m?.table === "vendors" ? m.rec.id : null;
+    const t = (x: string) => x.trim() || null;
+    if (m) {
+      // update the phone-book profile if anything in it was changed here
+      const cur = profileFields(m);
+      if (["p_phone", "p_contact", "p_address", "p_extra", "p_email"].some((k) => (cur as any)[k] !== (edit as any)[k])) {
+        const patch = m.table === "vendors"
+          ? { phone: t(edit.p_phone), contact_name: t(edit.p_contact), address: t(edit.p_address), trade: t(edit.p_extra), email: t(edit.p_email), updated_at: new Date().toISOString() }
+          : { phone: t(edit.p_phone), contact: t(edit.p_contact), address: t(edit.p_address), carries: t(edit.p_extra), updated_at: new Date().toISOString() };
+        const { error } = await sb.from(m.table).update(patch).eq("id", m.rec.id);
+        if (error) { showError("Couldn't update the vendor profile: " + error.message); return; }
+      }
+    } else if (edit.p_save && edit.name.trim()) {
+      // new vendor → into the phone book (subs into the vendor list, everyone else into material vendors)
+      const ins = edit.kind === "sub"
+        ? await sb.from("vendors").insert({ company: edit.name.trim(), status: "approved", phone: t(edit.p_phone), contact_name: t(edit.p_contact), address: t(edit.p_address), trade: t(edit.p_extra), email: t(edit.p_email) }).select("id").single()
+        : await sb.from("material_vendors").insert({ name: edit.name.trim(), phone: t(edit.p_phone), contact: t(edit.p_contact), address: t(edit.p_address), carries: t(edit.p_extra) }).select("id").single();
+      if (ins.error) { showError("Couldn't add to the phone book: " + ins.error.message); return; }
+      if (edit.kind === "sub") vId = ins.data.id; else mvId = ins.data.id;
+    }
     const row = {
       phase_id: edit.phase_id, job_id: jobId, kind: edit.kind,
-      material_vendor_id: sup?.id ?? null, vendor_id: sup ? null : sb2?.id ?? null,
+      material_vendor_id: mvId, vendor_id: mvId ? null : vId,
       name: edit.name.trim() || null, what: edit.what.trim() || null, needed_date: edit.needed_date || null,
       status: edit.status, est_cost: edit.est_cost === "" ? null : Number(String(edit.est_cost).replace(/[$,]/g, "")) || null, notes: edit.notes.trim() || null,
     };
@@ -157,10 +191,11 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
               <div className="divide-y divide-white/[0.05]">
                 {list.map((r) => { const w = who(r); const ph = phases.find((p) => p.id === r.phase_id); const st = KMETA[r.kind].statuses; return (
                   <div key={r.id} className="flex min-h-[52px] items-center gap-2 py-1.5">
-                    <button className="min-w-0 flex-1 text-left" onClick={() => setEdit({ id: r.id, phase_id: r.phase_id, kind: r.kind, name: w.name === "Not picked yet" ? "" : w.name, what: r.what ?? "", needed_date: r.needed_date ?? "", status: r.status, est_cost: r.est_cost != null ? String(r.est_cost) : "", notes: r.notes ?? "" })}>
+                    <button className="min-w-0 flex-1 text-left" onClick={() => setEdit(rowToEdit(r))}>
                       <div className="truncate text-sm font-semibold text-white">{w.name}{r.what ? <span className="font-normal text-neutral-400"> · {r.what}</span> : null}</div>
                       <div className="truncate text-xs text-neutral-500">{[ph?.name, r.needed_date ? fmtDate(r.needed_date) : "no date", r.est_cost ? `est. ${money(Number(r.est_cost))}` : null].filter(Boolean).join(" · ")}</div>
                     </button>
+                    {w.address ? <a href={mapsHref(w.address)} target="_blank" rel="noreferrer" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-300 hover:bg-white/[0.06]" aria-label="Directions"><MapPin size={16} /></a> : null}
                     {w.phone ? <a href={telHref(w.phone)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-300 hover:bg-white/[0.06]"><Phone size={16} /></a> : null}
                     <button onClick={() => bump(r)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold", stTone(r.kind, r.status))}>{st[stIdx(r.status)] ?? st[0]}</button>
                   </div>
@@ -231,11 +266,12 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
                         const w = who(r);
                         return (
                           <div key={r.id} className="flex min-h-[48px] items-center gap-2 py-1.5">
-                            <button className="min-w-0 flex-1 text-left" onClick={() => setEdit({ id: r.id, phase_id: r.phase_id, kind: r.kind, name: w.name === "Not picked yet" ? "" : w.name, what: r.what ?? "", needed_date: r.needed_date ?? "", status: r.status, est_cost: r.est_cost != null ? String(r.est_cost) : "", notes: r.notes ?? "" })}>
+                            <button className="min-w-0 flex-1 text-left" onClick={() => setEdit(rowToEdit(r))}>
                               <div className={cn("truncate text-sm font-semibold", w.name === "Not picked yet" ? "text-amber-300" : "text-white")}>{w.name}</div>
                               <div className="truncate text-xs text-neutral-500">{[r.what, r.needed_date ? fmtDate(r.needed_date) : null, r.est_cost ? `est. ${money(Number(r.est_cost))}` : null, r.notes].filter(Boolean).join(" · ") || "Tap to add details"}</div>
                             </button>
-                            {w.phone ? <a href={telHref(w.phone)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-300 hover:bg-white/[0.06]" aria-label={`Call ${w.name}`}><Phone size={16} /></a> : null}
+                            {w.address ? <a href={mapsHref(w.address)} target="_blank" rel="noreferrer" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-300 hover:bg-white/[0.06]" aria-label="Directions"><MapPin size={16} /></a> : null}
+                    {w.phone ? <a href={telHref(w.phone)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-300 hover:bg-white/[0.06]" aria-label={`Call ${w.name}`}><Phone size={16} /></a> : null}
                             <button onClick={() => bump(r)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold", stTone(r.kind, r.status))} title="Tap to move to the next step">
                               {statuses[stIdx(r.status)] ?? statuses[0]}
                             </button>
@@ -274,10 +310,30 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
               <Segmented value={edit.kind} onChange={(v) => setEdit({ ...edit, kind: v as Kind, status: "0" })}
                 options={KINDS.map((x) => ({ value: x.k, label: SINGULAR[x.k] }))} />
               <Field label={edit.kind === "sub" ? "Sub (from your vendor list, or type a name)" : "Who (from your phone book, or type a name)"}>
-                <Input list="phase-who" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder={edit.kind === "sub" ? "e.g. Jimmy's Concrete" : edit.kind === "rental" ? "e.g. Sunbelt, Pro Tool" : edit.kind === "equipment" ? "e.g. THM excavator, our dump trailer" : "e.g. Concrete plant"} autoFocus />
+                <Input list="phase-who" value={edit.name} onChange={(e) => { const nm = e.target.value; const m = matchOf(edit.kind, nm); setEdit({ ...edit, name: nm, ...(m ? profileFields(m) : {}) }); }} placeholder={edit.kind === "sub" ? "e.g. Jimmy's Concrete" : edit.kind === "rental" ? "e.g. Sunbelt, Pro Tool" : edit.kind === "equipment" ? "e.g. THM excavator, our dump trailer" : "e.g. Concrete plant"} autoFocus />
                 <datalist id="phase-who">{names.map((n) => <option key={n} value={n} />)}</datalist>
               </Field>
               <Field label="What for"><Input value={edit.what} onChange={(e) => setEdit({ ...edit, what: e.target.value })} placeholder={edit.kind === "material" ? "e.g. 6 yd 4000 psi, 20 tons crushed stone" : edit.kind === "sub" ? "e.g. finish the slab" : edit.kind === "rental" ? "e.g. plate compactor, 2 days" : "e.g. mini excavator, 3 days"} /></Field>
+              {(() => { const m = matchOf(edit.kind, edit.name); const show = !!m || edit.p_save; const sub = m ? m.table === "vendors" : edit.kind === "sub"; return (
+                <div className="space-y-2 rounded-xl border border-white/[0.08] p-3">
+                  {m ? <div className="text-xs font-semibold text-emerald-300">In your phone book — changes here update their profile</div>
+                    : edit.name.trim() ? (
+                      <label className="flex min-h-[32px] cursor-pointer items-center gap-2 text-sm text-neutral-300">
+                        <input type="checkbox" checked={edit.p_save} onChange={(e) => setEdit({ ...edit, p_save: e.target.checked })} className="h-4 w-4 accent-white" />
+                        Save {edit.name.trim()} to my {edit.kind === "sub" ? "vendor list" : "phone book"}
+                      </label>
+                    ) : <div className="text-xs text-neutral-500">Type a name to pick from your phone book or add a new one.</div>}
+                  {show ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Field label="Phone"><Input type="tel" value={edit.p_phone} onChange={(e) => setEdit({ ...edit, p_phone: e.target.value })} /></Field>
+                      <Field label="Contact"><Input value={edit.p_contact} onChange={(e) => setEdit({ ...edit, p_contact: e.target.value })} /></Field>
+                      <div className="col-span-2"><Field label="Address (pickup / yard)"><Input value={edit.p_address} onChange={(e) => setEdit({ ...edit, p_address: e.target.value })} /></Field></div>
+                      <Field label={sub ? "Trade" : "Carries"}><Input value={edit.p_extra} onChange={(e) => setEdit({ ...edit, p_extra: e.target.value })} placeholder={sub ? "e.g. concrete finishing" : "e.g. stone, loam, block"} /></Field>
+                      {sub ? <Field label="Email"><Input type="email" value={edit.p_email} onChange={(e) => setEdit({ ...edit, p_email: e.target.value })} /></Field> : null}
+                    </div>
+                  ) : null}
+                </div>
+              ); })()}
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Needed / coming"><Input type="date" value={edit.needed_date} onChange={(e) => setEdit({ ...edit, needed_date: e.target.value })} /></Field>
                 <Field label="Est. cost"><Input inputMode="decimal" value={edit.est_cost} onChange={(e) => setEdit({ ...edit, est_cost: e.target.value })} placeholder="$" /></Field>
