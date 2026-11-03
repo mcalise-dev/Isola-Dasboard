@@ -39,3 +39,7 @@ end $$;
 drop trigger if exists trg_phase_item_schedule on public.job_phase_vendors;
 create trigger trg_phase_item_schedule after insert or update or delete on public.job_phase_vendors
   for each row execute function public.sync_phase_item_schedule();
+
+-- v88 (11/3/26): crew days picked inside a phase are schedule_entries (item_type 'crew', assignees) tagged with phase_id.
+alter table public.schedule_entries add column if not exists phase_id uuid references public.job_phases(id) on delete set null;
+create index if not exists schedule_entries_phase_idx on public.schedule_entries (phase_id) where phase_id is not null;

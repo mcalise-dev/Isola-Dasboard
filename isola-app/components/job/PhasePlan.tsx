@@ -45,6 +45,8 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
   const [subs, setSubs] = useState<any[]>([]);
   const [workers, setWorkers] = useState<string[]>([]);
   const [crewFor, setCrewFor] = useState<string | null>(null);
+  const [days, setDays] = useState<any[]>([]);
+  const [dayEdit, setDayEdit] = useState<{ phase_id: string; id?: string; date: string; people: string[]; start: string; end: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [edit, setEdit] = useState<(typeof BLANK & { id?: string; phase_id: string }) | null>(null);
   const [view, setView] = useState<"phases" | Kind>("phases");
@@ -52,15 +54,17 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
   async function load() {
     setErr(null);
     try {
-      const [p, r, m, v, wk] = await withTimeout(Promise.all([
+      const [p, r, m, v, wk, dy] = await withTimeout(Promise.all([
         sb.from("job_phases").select("*").eq("job_id", jobId).order("sort").order("created_at"),
         sb.from("job_phase_vendors").select("*").eq("job_id", jobId).order("sort").order("created_at"),
         sb.from("material_vendors").select("*").order("name"),
         sb.from("vendors").select("id,company,contact_name,trade,phone,email,address,status").order("company"),
         sb.from("workers").select("name").eq("active", true).order("name"),
+        sb.from("schedule_entries").select("id,entry_date,assignee,assignees,phase_id,start_time,end_time,status").eq("job_id", jobId).not("phase_id", "is", null).neq("status", "cancelled").order("entry_date"),
       ]));
       const e = firstError(p, r, m, v); if (e) throw new Error(e);
       setWorkers(((wk as any).data ?? []).map((x: any) => x.name));
+      setDays((dy as any).data ?? []);
       setPhases(p.data ?? []); setRows((r.data ?? []) as Row[]); setSuppliers(m.data ?? []); setSubs((v.data ?? []).filter((x: any) => x.status !== "rejected"));
     } catch (e: any) { setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message); }
   }
@@ -85,6 +89,41 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
     : { p_phone: "", p_contact: "", p_address: "", p_extra: "", p_email: "" };
   const rowToEdit = (r: Row) => { const w = who(r); const nm = w.name === "Not picked yet" ? "" : w.name;
     return { ...BLANK, id: r.id, phase_id: r.phase_id, kind: r.kind, name: nm, what: r.what ?? "", needed_date: r.needed_date ?? "", status: r.status, est_cost: r.est_cost != null ? String(r.est_cost) : "", notes: r.notes ?? "", ...profileFields(matchOf(r.kind, nm)) }; };
+
+  const iso = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  const nextDay = (d: string) => { const [y, m, dd] = d.split("-").map(Number); const t = new Date(y, m - 1, dd + 1); if (t.getDay() === 0) t.setDate(t.getDate() + 1); return iso(t); };
+  // keep the phase's date range and crew in step with its work days
+  async function syncPhase(phaseId: string, list: any[]) {
+    const ds = list.filter((x) => x.phase_id === phaseId).map((x) => x.entry_date).sort();
+    const ph = (phases ?? []).find((x) => x.id === phaseId);
+    const people = [...new Set([...(ph?.crew ?? []), ...list.filter((x) => x.phase_id === phaseId).flatMap((x) => x.assignees ?? [])])];
+    if (ds.length) await updPhase(phaseId, { start_date: ds[0], end_date: ds[ds.length - 1], crew: people });
+  }
+  function openNewDay(p: any) {
+    const mine = days.filter((x) => x.phase_id === p.id).map((x) => x.entry_date).sort();
+    const date = mine.length ? nextDay(mine[mine.length - 1]) : p.start_date || iso(new Date());
+    const last = days.filter((x) => x.phase_id === p.id).slice(-1)[0];
+    setDayEdit({ phase_id: p.id, date, people: last?.assignees?.length ? [...last.assignees] : [...(p.crew ?? [])], start: last?.start_time?.slice(0, 5) ?? "", end: last?.end_time?.slice(0, 5) ?? "" });
+  }
+  async function saveDay() {
+    if (!dayEdit) return;
+    if (!dayEdit.date) { showError("Pick a day."); return; }
+    const ph = (phases ?? []).find((x) => x.id === dayEdit.phase_id);
+    const row: any = { entry_date: dayEdit.date, job_id: jobId, phase_id: dayEdit.phase_id, item_type: "crew", label: ph?.name ?? null,
+      assignees: dayEdit.people, assignee: dayEdit.people[0] ?? null, start_time: dayEdit.start || null, end_time: dayEdit.end || null, updated_at: new Date().toISOString() };
+    const res = dayEdit.id ? await sb.from("schedule_entries").update(row).eq("id", dayEdit.id).select("*").single()
+      : await sb.from("schedule_entries").insert(row).select("*").single();
+    if (res.error) { showError(res.error.message); return; }
+    const list = dayEdit.id ? days.map((x) => (x.id === dayEdit.id ? res.data : x)) : [...days, res.data];
+    setDays(list); await syncPhase(dayEdit.phase_id, list);
+    showToast(`${fmtDate(dayEdit.date)} on the schedule`);
+    setDayEdit(null);
+  }
+  async function delDay(id: string, phaseId: string) {
+    const { error } = await sb.from("schedule_entries").delete().eq("id", id);
+    if (error) { showError(error.message); return; }
+    const list = days.filter((x) => x.id !== id); setDays(list); await syncPhase(phaseId, list); setDayEdit(null);
+  }
 
   async function addPhase(name?: string) {
     const n = name ?? (await askText({ title: "New phase", placeholder: "e.g. Excavation, Pour, Masonry" }));
@@ -231,6 +270,51 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
               </div>
             </div>
             <div className="space-y-3 p-3">
+              <div>
+                <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500"><CalendarDays size={13} />Work days{days.filter((x) => x.phase_id === p.id).length ? ` · ${days.filter((x) => x.phase_id === p.id).length}` : ""}</div>
+                <div className="divide-y divide-white/[0.05]">
+                  {days.filter((x) => x.phase_id === p.id).map((dd) => (
+                    <button key={dd.id} onClick={() => setDayEdit({ phase_id: p.id, id: dd.id, date: dd.entry_date, people: [...(dd.assignees ?? (dd.assignee ? [dd.assignee] : []))], start: dd.start_time?.slice(0, 5) ?? "", end: dd.end_time?.slice(0, 5) ?? "" })}
+                      className="flex min-h-[44px] w-full items-center gap-3 py-1.5 text-left hover:bg-white/[0.02]">
+                      <span className="w-28 shrink-0 text-sm font-semibold text-white">{fmtDate(dd.entry_date)}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-neutral-400">
+                        {(dd.assignees ?? []).length ? dd.assignees.join(", ") : <span className="text-amber-300">no one yet</span>}
+                        {dd.start_time ? ` · ${dd.start_time.slice(0, 5)}${dd.end_time ? "–" + dd.end_time.slice(0, 5) : ""}` : ""}
+                      </span>
+                      <Pencil size={14} className="shrink-0 text-neutral-500" />
+                    </button>
+                  ))}
+                </div>
+                {dayEdit && dayEdit.phase_id === p.id ? (
+                  <div className="mt-2 space-y-2 rounded-xl border border-white/[0.1] bg-white/[0.02] p-3">
+                    <div className="flex flex-wrap items-end gap-2">
+                      <Field label="Day"><Input type="date" value={dayEdit.date} onChange={(e) => setDayEdit({ ...dayEdit, date: e.target.value })} className="h-10 w-[160px]" /></Field>
+                      <Field label="Start"><Input type="time" value={dayEdit.start} onChange={(e) => setDayEdit({ ...dayEdit, start: e.target.value })} className="h-10 w-[120px]" /></Field>
+                      <Field label="End"><Input type="time" value={dayEdit.end} onChange={(e) => setDayEdit({ ...dayEdit, end: e.target.value })} className="h-10 w-[120px]" /></Field>
+                    </div>
+                    <div className="text-xs font-semibold text-neutral-400">Who's working ({dayEdit.people.length})</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[...new Set([...workers, ...dayEdit.people])].map((n) => { const on = dayEdit.people.includes(n); return (
+                        <button key={n} onClick={() => setDayEdit({ ...dayEdit, people: on ? dayEdit.people.filter((x) => x !== n) : [...dayEdit.people, n] })}
+                          className={cn("min-h-[36px] rounded-full border px-3 text-xs font-semibold", on ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-200" : "border-white/10 text-neutral-300 hover:border-white/25")}>
+                          {on ? <Check size={12} className="mr-1 inline" /> : null}{n}
+                        </button>
+                      ); })}
+                      <button onClick={async () => { const n = await askText({ title: "Add a name", placeholder: "Someone not on your crew list" }); if (n?.trim()) setDayEdit((de) => de && ({ ...de, people: [...de.people, n.trim()] })); }}
+                        className="min-h-[36px] rounded-full border border-dashed border-white/20 px-3 text-xs text-neutral-400 hover:text-white">+ Other name</button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button size="sm" onClick={saveDay}>{dayEdit.id ? "Save day" : "Add day"}</Button>
+                      {dayEdit.id ? <Button size="sm" variant="ghost" onClick={() => delDay(dayEdit.id!, p.id)}><Trash2 size={14} className="mr-1" />Remove day</Button> : null}
+                      <Button size="sm" variant="ghost" onClick={() => setDayEdit(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    <button onClick={() => openNewDay(p)} className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-dashed border-white/20 px-3 text-xs text-neutral-300 hover:text-white"><Plus size={12} />Add a day</button>
+                  </div>
+                )}
+              </div>
               <div>
                 <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500"><Users size={13} />Crew{(p.crew ?? []).length ? ` · ${(p.crew ?? []).length}` : ""}</div>
                 <div className="flex flex-wrap gap-1.5">
