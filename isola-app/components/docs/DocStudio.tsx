@@ -2,6 +2,7 @@
 // Document Studio (v84): invoices, proposals and change orders for a job, in the Isola v3 look.
 // Every part of a document is editable here; the preview on the right is exactly what prints.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import { getSetting, setSetting } from "@/lib/settings";
 import { showError, showToast } from "@/components/Toaster";
@@ -27,6 +28,13 @@ const todayIso = () => { const t = new Date(); return `${t.getFullYear()}-${Stri
 
 async function loadSettings(): Promise<StudioSettings> {
   try { const raw = await getSetting("doc_studio"); return mergeSettings(raw ? JSON.parse(raw) : null); } catch { return DEFAULT_SETTINGS; }
+}
+
+// Full-screen layers render into <body> so the app's sidebar / frame can't sit on top of them.
+function Layer({ children }: { children: React.ReactNode }) {
+  const [el, setEl] = useState<HTMLElement | null>(null);
+  useEffect(() => { setEl(document.body); const o = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = o; }; }, []);
+  return el ? createPortal(children, el) : null;
 }
 
 // ======================= job page panel =======================
@@ -141,7 +149,7 @@ function Editor({ job, id: initialId, initial, settings, onSettings, onClose, on
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-background">
+    <Layer><div className="fixed inset-0 z-[60] flex flex-col bg-background">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 sm:px-4">
         <Button size="icon" variant="ghost" onClick={close} aria-label="Close"><X size={18} /></Button>
         <div className="min-w-0 flex-1">
@@ -165,7 +173,7 @@ function Editor({ job, id: initialId, initial, settings, onSettings, onClose, on
           <iframe title="Preview" srcDoc={html} className="h-full w-full border-0" />
         </div>
       </div>
-    </div>
+    </div></Layer>
   );
 }
 
@@ -476,7 +484,7 @@ function SettingsSheet({ job, settings, onClose, onSaved }: { job: any; settings
     try { await setSetting("doc_studio", JSON.stringify(s)); onSaved(s); showToast("Studio settings saved"); onClose(); } catch (e: any) { showError(e.message); }
   }
   return (
-    <div className="fixed inset-0 z-[100] overflow-y-auto bg-background">
+    <Layer><div className="fixed inset-0 z-[60] overflow-y-auto bg-background">
       <div className="mx-auto max-w-2xl space-y-3 p-4 pb-24">
         <div className="flex items-center gap-2">
           <Button size="icon" variant="ghost" onClick={onClose}><X size={18} /></Button>
@@ -526,6 +534,6 @@ function SettingsSheet({ job, settings, onClose, onSaved }: { job: any; settings
           <Button size="sm" variant="outline" onClick={() => set((x) => { x.proposalTerms.push({ id: uid(), title: "New clause", body: "" }); })}><Plus size={14} className="mr-1" />Clause</Button>
         </Group>
       </div>
-    </div>
+    </div></Layer>
   );
 }
