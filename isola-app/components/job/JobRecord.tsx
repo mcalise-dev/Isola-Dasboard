@@ -26,6 +26,7 @@ import ThmPanel from "@/components/job/ThmPanel";
 import SiteLinePanel from "@/components/job/SiteLinePanel";
 import JobTimeline from "@/components/job/JobTimeline";
 import BudgetPanel from "@/components/field/BudgetPanel";
+import DocStudioPanel from "@/components/docs/DocStudio";
 import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -72,7 +73,7 @@ const TAB_ALIAS: Record<string, string> = {
 const SECTION_TAB: Record<string, (typeof TABS)[number]> = {
   tasks: "overview", activity: "overview",
   crew: "schedule",
-  thm: "money",
+  thm: "money", studio: "money", invoice: "money", invoices: "money",
   docs: "proposal", siteline: "proposal",
 };
 const resolve = (t: string | null | undefined): { tab: string; section: string | null } | null => {
@@ -385,6 +386,10 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             {/* Tyler (partner) never sees sell price or cost — no Proposal tab for him */}
             {partner ? null : <TabsContent value="proposal" className="space-y-8">
               <JobBuild jobId={job.id} />
+              <section className="space-y-3">
+                <h2 className="text-[17px] font-semibold text-white">Proposal & document studio</h2>
+                <DocStudioPanel job={job} />
+              </section>
               <section id="sec-proposal-links" className="scroll-mt-24 space-y-3">
                 <h2 className="text-[17px] font-semibold text-white">Client link, signature & change orders</h2>
                 <ProposalPanel jobId={job.id} />
@@ -419,6 +424,12 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
                 <CostsPanel jobId={job.id} onChange={load} />
                 <LaborPanel jobId={job.id} onChange={load} />
               </section>
+              {partner ? null : (
+                <section id="sec-studio" className="scroll-mt-24 space-y-3">
+                  <h2 className="text-[17px] font-semibold text-white">Invoices, proposals & change orders</h2>
+                  <DocStudioPanel job={job} />
+                </section>
+              )}
               <section className="space-y-6">
                 <h2 className="text-[17px] font-semibold text-white">Payments & change orders</h2>
                 <MoneyPanel job={job} />
