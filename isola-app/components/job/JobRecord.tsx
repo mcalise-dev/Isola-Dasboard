@@ -27,6 +27,7 @@ import SiteLinePanel from "@/components/job/SiteLinePanel";
 import JobTimeline from "@/components/job/JobTimeline";
 import BudgetPanel from "@/components/field/BudgetPanel";
 import DocStudioPanel from "@/components/docs/DocStudio";
+import PhasePlan from "@/components/job/PhasePlan";
 import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -73,7 +74,7 @@ const TAB_ALIAS: Record<string, string> = {
 const SECTION_TAB: Record<string, (typeof TABS)[number]> = {
   tasks: "overview", activity: "overview",
   crew: "schedule",
-  thm: "money", studio: "money", invoice: "money", invoices: "money",
+  thm: "money", studio: "money", invoice: "money", invoices: "money", plan: "schedule", phases: "schedule", rentals: "schedule", equipment: "schedule",
   docs: "proposal", siteline: "proposal",
 };
 const resolve = (t: string | null | undefined): { tab: string; section: string | null } | null => {
@@ -408,6 +409,12 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
                 </button>
               )}
               <SchedulePanel job={job} entries={sched} crew={crew} onChange={load} />
+              {partner ? null : (
+                <section id="sec-plan" className="scroll-mt-24 space-y-3">
+                  <h2 className="text-[17px] font-semibold text-white">Phase plan — suppliers, subs, rentals & equipment</h2>
+                  <PhasePlan jobId={job.id} />
+                </section>
+              )}
               <section id="sec-crew" className="scroll-mt-24 space-y-6">
                 <h2 className="text-[17px] font-semibold text-white">Crew plan</h2>
                 <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5"><JobChecklist jobId={job.id} jobType={job.job} /></section>
