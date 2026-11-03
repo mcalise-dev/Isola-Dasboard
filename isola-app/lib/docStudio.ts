@@ -264,7 +264,7 @@ export function invoiceSection(d: JobData, o: FillOpts): Section {
     const desc = /dump|disposal/i.test(cat) ? `${items.length} dump run${items.length > 1 ? "s" : ""}` : items.length > 1 ? `${items.length} items` : materialName(items[0]);
     lines.push({ id: uid(), kind: "item", name, desc: desc + (markup ? " · at cost plus handling" : ""), amount: r2(items.reduce((a, c) => a + billedOf(c, markup), 0)) });
   }
-  return { id: uid(), title: `${job.job_name ?? "Job"}${job.location ? " · " + job.location : ""}`.toUpperCase(), lines, showSubtotal: true, subtotalLabel: `${job.job_name ?? "Job"} subtotal` };
+  return { id: uid(), title: `${job.job_name ?? "Job"}`.toUpperCase(), lines, showSubtotal: true, subtotalLabel: `${job.job_name ?? "Job"} subtotal` };
 }
 
 export function fillInvoice(base: StudioDoc, jobs: JobData[], o: FillOpts, s: StudioSettings, due: string): StudioDoc {
