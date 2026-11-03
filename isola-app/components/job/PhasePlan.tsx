@@ -335,7 +335,7 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
                 </div>
               ); })()}
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Needed / coming"><Input type="date" value={edit.needed_date} onChange={(e) => setEdit({ ...edit, needed_date: e.target.value })} /></Field>
+                <Field label={edit.kind === "rental" || edit.kind === "equipment" ? "Date (puts it on the Schedule)" : "Needed / coming"}><Input type="date" value={edit.needed_date} onChange={(e) => setEdit({ ...edit, needed_date: e.target.value })} /></Field>
                 <Field label="Est. cost"><Input inputMode="decimal" value={edit.est_cost} onChange={(e) => setEdit({ ...edit, est_cost: e.target.value })} placeholder="$" /></Field>
               </div>
               <Field label="Status">

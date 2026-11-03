@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 // Today's visits on top (what we're doing, what to load), then what's coming up, then punch list / tasks.
 type Visit = {
   date: string; job_id: string; job_name: string; location: string | null; work_type: string | null; crew: string | null; mine: boolean; notes: string | null;
-  steps_total: number; steps_done: number; mats_total: number; mats_got: number; tools_total: number; tools_got: number; day_no: number; day_count: number;
+  steps_total: number; steps_done: number; mats_total: number; mats_got: number; tools_total: number; tools_got: number; day_no: number; day_count: number; phase?: { name: string; mine: boolean; crew: string[] } | null;
 };
 
 export default function FieldToday() {
@@ -152,7 +152,7 @@ function VisitCard({ v, big }: { v: Visit; big?: boolean }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[15px] font-semibold text-white">{v.job_name}</div>
-          <div className="truncate text-[13px] text-neutral-400">Day {v.day_no} of {v.day_count}{v.steps_total ? ` · ${v.steps_total} to do` : ""}</div>
+          <div className="truncate text-[13px] text-neutral-400">Day {v.day_no} of {v.day_count}{v.phase ? ` · ${v.phase.name}` : ""}{v.steps_total ? ` · ${v.steps_total} to do` : ""}</div>
         </div>
         <ChevronRight size={18} className="shrink-0 text-neutral-500" />
       </Link>
@@ -164,6 +164,7 @@ function VisitCard({ v, big }: { v: Visit; big?: boolean }) {
         <div className="min-w-0 flex-1">
           <div className="text-[12px] font-bold uppercase tracking-wide text-neutral-400">Day {v.day_no} of {v.day_count}{v.work_type ? ` · ${v.work_type}` : ""}</div>
           <div className="mt-0.5 text-[18px] font-bold leading-tight text-white">{v.job_name}</div>
+          {v.phase ? <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-brand/15 px-2.5 py-0.5 text-[12px] font-bold text-brand">Phase: {v.phase.name}{v.phase.mine ? " · you're on it" : ""}</div> : null}
           {v.location ? <div className="mt-1 flex items-start gap-1 text-[14px] text-neutral-300"><MapPin size={14} className="mt-0.5 shrink-0 text-neutral-500" />{v.location}</div> : null}
           {v.crew ? <div className="mt-1 flex items-center gap-1 text-[13px] text-neutral-400"><Users size={13} className="shrink-0" /><span className="truncate">{v.crew}</span></div> : null}
         </div>

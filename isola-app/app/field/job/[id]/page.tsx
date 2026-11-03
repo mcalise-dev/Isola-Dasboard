@@ -7,6 +7,7 @@ import { CheckRow, Empty, H, dayLabel } from "@/components/field/shared";
 import { showError, undoable } from "@/components/Toaster";
 import { PlanView, LoadOut, Ring, splitPhase, phaseTitle, isHeadsUp, Pill, DayPicker, pickDefaultDay, dayTitle, fmtTime, type DayKey } from "@/components/field/jobkit";
 import { cn } from "@/lib/utils";
+import CrewPhases from "@/components/field/CrewPhases";
 
 // v5.4 crew job screen: Plan / Materials / Tools / Info tabs.
 // Plan of action grouped by phase with progress; materials & tools as a load-out checklist
@@ -182,6 +183,8 @@ export default function FieldJob() {
           </div>
         );
       })()}
+
+      {d.phases?.length ? <div className="mt-3"><CrewPhases phases={d.phases} me={d.me} /></div> : null}
 
       {/* Tabs */}
       <div className="sticky top-[calc(60px+env(safe-area-inset-top))] z-20 -mx-4 mt-3 bg-black/90 px-4 py-2 backdrop-blur-md">
