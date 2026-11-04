@@ -1,6 +1,10 @@
 "use client";
 // v85 Phase plan — for each phase of a job: who supplies the materials, which subs, which equipment.
 // Suppliers come from material_vendors, subs from vendors; any name can be typed in instead.
+// v90: each phase is one collapsible card holding everything for that phase, in this order:
+//   Tasks (who's doing what) · Work days & crew · Tools & materials to bring · Vendors, subs & rentals.
+// Tasks are job_checklist rows (phase_id + "PHASE: text" label so the crew app groups them);
+// tools/materials are job_needs rows (phase_id) so they land on the crew's load-out.
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { showError, showToast } from "@/components/Toaster";
@@ -14,7 +18,14 @@ import { withTimeout, firstError } from "@/lib/load";
 import { telHref } from "@/lib/phoneLinks";
 import { money, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Package, HardHat, Truck, Ellipsis, Plus, Phone, Pencil, Trash2, ArrowUp, ArrowDown, CalendarDays, KeyRound, Users, X, Check, MapPin, type LucideIcon } from "lucide-react";
+import { Package, HardHat, Truck, Ellipsis, Plus, Phone, Pencil, Trash2, ArrowUp, ArrowDown, CalendarDays, KeyRound, Users, X, Check, MapPin, ListChecks, Wrench, ChevronDown, ChevronRight, type LucideIcon } from "lucide-react";
+import { splitPhase } from "@/components/field/jobkit";
+
+// "Pour & finish" -> "POUR FINISH" (fits the crew app's "PHASE: step" label pattern)
+const phaseKey = (name: string) => { const k = String(name ?? "").toUpperCase().replace(/[^A-Z ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 15).trim(); return k.length >= 2 ? k : "STEP"; };
+const Head = ({ icon: Icon, children, right }: { icon: LucideIcon; children: React.ReactNode; right?: React.ReactNode }) => (
+  <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500"><Icon size={13} />{children}{right ? <span className="ml-auto normal-case tracking-normal">{right}</span> : null}</div>
+);
 
 type Kind = "material" | "sub" | "rental" | "equipment" | "other";
 const KINDS: { k: Kind; label: string; icon: LucideIcon; statuses: string[] }[] = [
@@ -50,10 +61,20 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [edit, setEdit] = useState<(typeof BLANK & { id?: string; phase_id: string }) | null>(null);
   const [view, setView] = useState<"phases" | Kind>("phases");
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [needs, setNeeds] = useState<any[]>([]);
+  const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
+  const [tDraft, setTDraft] = useState<{ phase_id: string; text: string; who: string; date: string } | null>(null);
+  const [nDraft, setNDraft] = useState<{ phase_id: string; kind: "tool" | "material"; item: string; qty: string; bring_by: string } | null>(null);
 
   async function load() {
     setErr(null);
     try {
+      const [tk, nd] = await Promise.all([
+        sb.from("job_checklist").select("id,label,done,assignee,work_date,phase_id,sort").eq("job_id", jobId).not("phase_id", "is", null).order("sort").order("created_at"),
+        sb.from("job_needs").select("id,kind,item,qty,bring_by,got,phase_id,sort").eq("job_id", jobId).not("phase_id", "is", null).order("sort", { nullsFirst: false }).order("created_at"),
+      ]);
+      setTasks(tk.data ?? []); setNeeds(nd.data ?? []);
       const [p, r, m, v, wk, dy] = await withTimeout(Promise.all([
         sb.from("job_phases").select("*").eq("job_id", jobId).order("sort").order("created_at"),
         sb.from("job_phase_vendors").select("*").eq("job_id", jobId).order("sort").order("created_at"),
@@ -197,6 +218,53 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
     setEdit(null); load();
   }
 
+  // ---- tasks (who's doing what) ----
+  async function addTask() {
+    if (!tDraft?.text.trim()) return;
+    const ph = (phases ?? []).find((x) => x.id === tDraft.phase_id);
+    const mine = tasks.filter((t) => t.phase_id === tDraft.phase_id);
+    const row = { job_id: jobId, phase_id: tDraft.phase_id, label: `${phaseKey(ph?.name ?? "")}: ${tDraft.text.trim()}`,
+      assignee: tDraft.who || null, work_date: tDraft.date || null, sort: (mine.length ? Math.max(...mine.map((t) => t.sort ?? 0)) : (ph?.sort ?? 0) * 10) + 1, added_by: "Mike" };
+    const { data, error } = await sb.from("job_checklist").insert(row).select("id,label,done,assignee,work_date,phase_id,sort").single();
+    if (error) { showError(error.message); return; }
+    setTasks((ts) => [...ts, data]);
+    setTDraft({ ...tDraft, text: "" });
+  }
+  async function updTask(id: string, patch: any) {
+    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    const { error } = await sb.from("job_checklist").update(patch).eq("id", id);
+    if (error) { showError(error.message); load(); }
+  }
+  async function delTask(id: string) {
+    setTasks((ts) => ts.filter((t) => t.id !== id));
+    const { error } = await sb.from("job_checklist").delete().eq("id", id);
+    if (error) { showError(error.message); load(); }
+  }
+  async function pickWho(t: any) {
+    const n = await askText({ title: "Who's doing it?", initial: t.assignee ?? "", placeholder: workers.join(", ") });
+    if (n === null) return;
+    updTask(t.id, { assignee: n.trim() || null });
+  }
+  // ---- tools & materials to bring ----
+  async function addNeed() {
+    if (!nDraft?.item.trim()) return;
+    const row = { job_id: jobId, phase_id: nDraft.phase_id, kind: nDraft.kind, item: nDraft.item.trim(), qty: nDraft.qty.trim() || null, bring_by: nDraft.bring_by || null, got: false, sort: needs.length + 1 };
+    const { data, error } = await sb.from("job_needs").insert(row).select("id,kind,item,qty,bring_by,got,phase_id,sort").single();
+    if (error) { showError(error.message); return; }
+    setNeeds((ns) => [...ns, data]);
+    setNDraft({ ...nDraft, item: "", qty: "" });
+  }
+  async function updNeed(id: string, patch: any) {
+    setNeeds((ns) => ns.map((n) => (n.id === id ? { ...n, ...patch } : n)));
+    const { error } = await sb.from("job_needs").update(patch).eq("id", id);
+    if (error) { showError(error.message); load(); }
+  }
+  async function delNeed(id: string) {
+    setNeeds((ns) => ns.filter((n) => n.id !== id));
+    const { error } = await sb.from("job_needs").delete().eq("id", id);
+    if (error) { showError(error.message); load(); }
+  }
+
   if (err) return <LoadError message={err} onRetry={load} />;
   if (!phases) return <ListSkeleton rows={2} />;
   const open = rows.filter((r) => stIdx(r.status) === 0).length;
@@ -214,7 +282,7 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
           {est ? <span>est. {money(est)}</span> : null}
         </div>
       ) : (
-        <p className="text-sm text-neutral-500">Add the phases of this job, then who's supplying each one's materials, which subs are coming, and what equipment you need.</p>
+        <p className="text-sm text-neutral-500">Break the job into phases. Each phase holds its tasks and who's doing them, the work days and crew, the tools and materials to bring, and which suppliers, subs and rentals are coming when.</p>
       )}
 
       {phases.length ? (
@@ -248,32 +316,72 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
 
       {view === "phases" && phases.map((p, i) => {
         const pr = rows.filter((r) => r.phase_id === p.id);
+        const pt = tasks.filter((t) => t.phase_id === p.id);
+        const pn = needs.filter((n) => n.phase_id === p.id);
+        const pd = days.filter((x) => x.phase_id === p.id);
+        const isOpen = openMap[p.id] ?? p.status !== "done";
+        const tOpen = pt.filter((t) => !t.done).length;
+        const vOpen = pr.filter((r) => stIdx(r.status) === 0).length;
+        const range = p.start_date ? `${fmtDate(p.start_date)}${p.end_date && p.end_date !== p.start_date ? " – " + fmtDate(p.end_date) : ""}` : "no dates yet";
+        const summary = [range, pt.length ? `${tOpen ? tOpen + " of " + pt.length : "all " + pt.length} task${pt.length > 1 ? "s" : ""}${tOpen ? " open" : " done"}` : null,
+          (p.crew ?? []).length ? `${(p.crew ?? []).length} on crew` : null, pn.length ? `${pn.length} to bring` : null,
+          pr.length ? `${pr.length} vendor${pr.length > 1 ? "s" : ""}${vOpen ? ` (${vOpen} to line up)` : ""}` : null].filter(Boolean).join(" · ");
         return (
-          <section key={p.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.02]">
-            <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] p-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-xs font-bold text-neutral-300">{i + 1}</span>
-              <Input defaultValue={p.name} onBlur={(e) => e.target.value.trim() && e.target.value !== p.name && updPhase(p.id, { name: e.target.value.trim() })}
-                className="h-9 min-w-[140px] flex-1 border-transparent bg-transparent text-[15px] font-semibold text-white hover:border-border" />
-              <NativeSelect value={p.status} onChange={(e) => updPhase(p.id, { status: e.target.value })} className={cn("h-9 w-auto text-xs", p.status === "done" && "text-emerald-300", p.status === "in progress" && "text-sky-300")}>
+          <section key={p.id} className={cn("rounded-2xl border bg-white/[0.02]", p.status === "done" ? "border-emerald-500/20" : p.status === "in progress" ? "border-sky-500/25" : "border-white/[0.08]")}>
+            <div className="flex items-center gap-2 p-3">
+              <button onClick={() => setOpenMap((m) => ({ ...m, [p.id]: !isOpen }))} className="flex min-h-[44px] min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={isOpen}>
+                <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold", p.status === "done" ? "bg-emerald-500/20 text-emerald-300" : "bg-white/[0.06] text-neutral-300")}>{p.status === "done" ? <Check size={14} /> : i + 1}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold text-white">{p.name}</span>
+                  <span className={cn("block truncate text-xs", vOpen || tOpen ? "text-neutral-400" : "text-neutral-500")}>{summary}</span>
+                </span>
+                {isOpen ? <ChevronDown size={16} className="shrink-0 text-neutral-500" /> : <ChevronRight size={16} className="shrink-0 text-neutral-500" />}
+              </button>
+              <NativeSelect value={p.status} onChange={(e) => updPhase(p.id, { status: e.target.value })} className={cn("h-9 w-auto shrink-0 text-xs", p.status === "done" && "text-emerald-300", p.status === "in progress" && "text-sky-300")}>
                 {PHASE_STATUS.map((s) => <option key={s}>{s}</option>)}
               </NativeSelect>
-              <div className="flex items-center">
-                <Button size="icon" variant="ghost" disabled={i === 0} onClick={() => movePhase(i, -1)}><ArrowUp size={15} /></Button>
-                <Button size="icon" variant="ghost" disabled={i === phases.length - 1} onClick={() => movePhase(i, 1)}><ArrowDown size={15} /></Button>
-                <Button size="icon" variant="ghost" onClick={() => delPhase(p)}><Trash2 size={15} /></Button>
-              </div>
-              <div className="flex w-full items-center gap-2 text-xs text-neutral-400 sm:w-auto">
-                <CalendarDays size={14} />
-                <Input type="date" value={p.start_date ?? ""} onChange={(e) => updPhase(p.id, { start_date: e.target.value || null })} className="h-8 w-[138px] text-xs" />
-                <span>to</span>
-                <Input type="date" value={p.end_date ?? ""} onChange={(e) => updPhase(p.id, { end_date: e.target.value || null })} className="h-8 w-[138px] text-xs" />
-              </div>
             </div>
-            <div className="space-y-3 p-3">
+            {isOpen ? (
+            <div className="space-y-5 border-t border-white/[0.06] p-3">
+              {/* 1. tasks — who's doing what */}
               <div>
-                <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500"><CalendarDays size={13} />Work days{days.filter((x) => x.phase_id === p.id).length ? ` · ${days.filter((x) => x.phase_id === p.id).length}` : ""}</div>
+                <Head icon={ListChecks} right={pt.length ? <span className="text-neutral-500">{pt.length - tOpen}/{pt.length} done</span> : null}>Tasks · who's doing what</Head>
                 <div className="divide-y divide-white/[0.05]">
-                  {days.filter((x) => x.phase_id === p.id).map((dd) => (
+                  {pt.map((t) => (
+                    <div key={t.id} className="flex min-h-[44px] items-center gap-2 py-1">
+                      <button onClick={() => updTask(t.id, { done: !t.done, done_at: !t.done ? new Date().toISOString() : null, done_by: !t.done ? "Mike" : null })} aria-label={t.done ? "Mark not done" : "Mark done"}
+                        className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md border", t.done ? "border-emerald-400 bg-emerald-400 text-neutral-900" : "border-neutral-600 text-transparent hover:border-white")}><Check size={13} /></button>
+                      <span className={cn("min-w-0 flex-1 text-sm", t.done ? "text-neutral-500 line-through" : "text-white")}>{splitPhase(t.label).text}</span>
+                      {t.work_date ? <span className="shrink-0 text-xs text-neutral-500">{fmtDate(t.work_date).replace(/^\w+, /, "")}</span> : null}
+                      <button onClick={() => pickWho(t)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold", t.assignee ? "border-white/15 bg-white/[0.06] text-white" : "border-dashed border-amber-500/40 text-amber-300")}>{t.assignee || "who?"}</button>
+                      <button onClick={() => delTask(t.id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:text-red-400" aria-label="Delete task"><X size={14} /></button>
+                    </div>
+                  ))}
+                </div>
+                {tDraft?.phase_id === p.id ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Input autoFocus value={tDraft.text} onChange={(e) => setTDraft({ ...tDraft, text: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") addTask(); if (e.key === "Escape") setTDraft(null); }} placeholder="e.g. Clean out cobblestone edges" className="h-10 min-w-[180px] flex-1" />
+                    <NativeSelect value={tDraft.who} onChange={(e) => setTDraft({ ...tDraft, who: e.target.value })} className="h-10 w-auto" aria-label="Who">
+                      <option value="">Who?</option>
+                      {[...new Set([...(p.crew ?? []), ...workers])].map((n) => <option key={n}>{n}</option>)}
+                    </NativeSelect>
+                    <NativeSelect value={tDraft.date} onChange={(e) => setTDraft({ ...tDraft, date: e.target.value })} className="h-10 w-auto" aria-label="Day">
+                      <option value="">Any day</option>
+                      {pd.map((dd) => <option key={dd.id} value={dd.entry_date}>{fmtDate(dd.entry_date)}</option>)}
+                    </NativeSelect>
+                    <Button size="sm" onClick={addTask}>Add</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setTDraft(null)}>Done</Button>
+                  </div>
+                ) : (
+                  <button onClick={() => setTDraft({ phase_id: p.id, text: "", who: "", date: "" })} className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-full border border-dashed border-white/20 px-3 text-xs text-neutral-300 hover:text-white"><Plus size={12} />Add a task</button>
+                )}
+              </div>
+
+              {/* 2. work days & crew */}
+              <div>
+                <Head icon={CalendarDays}>Work days{pd.length ? ` · ${pd.length}` : ""}</Head>
+                <div className="divide-y divide-white/[0.05]">
+                  {pd.map((dd) => (
                     <button key={dd.id} onClick={() => setDayEdit({ phase_id: p.id, id: dd.id, date: dd.entry_date, people: [...(dd.assignees ?? (dd.assignee ? [dd.assignee] : []))], start: dd.start_time?.slice(0, 5) ?? "", end: dd.end_time?.slice(0, 5) ?? "" })}
                       className="flex min-h-[44px] w-full items-center gap-3 py-1.5 text-left hover:bg-white/[0.02]">
                       <span className="w-28 shrink-0 text-sm font-semibold text-white">{fmtDate(dd.entry_date)}</span>
@@ -310,20 +418,16 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    <button onClick={() => openNewDay(p)} className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-dashed border-white/20 px-3 text-xs text-neutral-300 hover:text-white"><Plus size={12} />Add a day</button>
-                  </div>
+                  <button onClick={() => openNewDay(p)} className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-full border border-dashed border-white/20 px-3 text-xs text-neutral-300 hover:text-white"><Plus size={12} />Add a day</button>
                 )}
-              </div>
-              <div>
-                <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500"><Users size={13} />Crew{(p.crew ?? []).length ? ` · ${(p.crew ?? []).length}` : ""}</div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <Users size={13} className="text-neutral-500" />
                   {(p.crew ?? []).map((n: string) => (
                     <span key={n} className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-white/15 bg-white/[0.06] pl-3 pr-1 text-xs font-semibold text-white">
                       {n}<button onClick={() => updPhase(p.id, { crew: (p.crew ?? []).filter((x: string) => x !== n) })} className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:text-white" aria-label={`Take ${n} off`}><X size={12} /></button>
                     </span>
                   ))}
-                  <button onClick={() => setCrewFor(crewFor === p.id ? null : p.id)} className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-dashed border-white/20 px-3 text-xs text-neutral-400 hover:text-white"><Plus size={12} />Add workers</button>
+                  <button onClick={() => setCrewFor(crewFor === p.id ? null : p.id)} className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-dashed border-white/20 px-3 text-xs text-neutral-400 hover:text-white"><Plus size={12} />Crew</button>
                 </div>
                 {crewFor === p.id ? (
                   <div className="mt-2 flex flex-wrap gap-1.5 rounded-xl border border-white/[0.08] p-2">
@@ -339,42 +443,87 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
                   </div>
                 ) : null}
               </div>
-              {KINDS.map(({ k, label, icon: Icon, statuses }) => {
-                const kr = pr.filter((r) => r.kind === k);
-                if (!kr.length) return null;
-                return (
-                  <div key={k}>
-                    <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500"><Icon size={13} />{label}</div>
-                    <div className="divide-y divide-white/[0.05]">
-                      {kr.map((r) => {
-                        const w = who(r);
-                        return (
-                          <div key={r.id} className="flex min-h-[48px] items-center gap-2 py-1.5">
-                            <button className="min-w-0 flex-1 text-left" onClick={() => setEdit(rowToEdit(r))}>
-                              <div className={cn("truncate text-sm font-semibold", w.name === "Not picked yet" ? "text-amber-300" : "text-white")}>{w.name}</div>
-                              <div className="truncate text-xs text-neutral-500">{[r.what, r.needed_date ? fmtDate(r.needed_date) : null, r.est_cost ? `est. ${money(Number(r.est_cost))}` : null, r.notes].filter(Boolean).join(" · ") || "Tap to add details"}</div>
-                            </button>
-                            {w.address ? <a href={mapsHref(w.address)} target="_blank" rel="noreferrer" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-300 hover:bg-white/[0.06]" aria-label="Directions"><MapPin size={16} /></a> : null}
-                    {w.phone ? <a href={telHref(w.phone)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-300 hover:bg-white/[0.06]" aria-label={`Call ${w.name}`}><Phone size={16} /></a> : null}
-                            <button onClick={() => bump(r)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold", stTone(r.kind, r.status))} title="Tap to move to the next step">
-                              {statuses[stIdx(r.status)] ?? statuses[0]}
-                            </button>
-                          </div>
-                        );
-                      })}
+
+              {/* 3. tools & materials to bring (crew load-out) */}
+              <div>
+                <Head icon={Wrench} right={pn.length ? <span className="text-neutral-500">{pn.filter((n) => n.got).length}/{pn.length} loaded</span> : null}>Tools & materials to bring</Head>
+                <div className="divide-y divide-white/[0.05]">
+                  {pn.map((n) => (
+                    <div key={n.id} className="flex min-h-[44px] items-center gap-2 py-1">
+                      <button onClick={() => updNeed(n.id, { got: !n.got, got_at: !n.got ? new Date().toISOString() : null, got_by: !n.got ? "Mike" : null })} aria-label={n.got ? "Not loaded" : "Loaded"}
+                        className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md border", n.got ? "border-emerald-400 bg-emerald-400 text-neutral-900" : "border-neutral-600 text-transparent hover:border-white")}><Check size={13} /></button>
+                      {n.kind === "tool" ? <Wrench size={14} className="shrink-0 text-neutral-500" /> : <Package size={14} className="shrink-0 text-neutral-500" />}
+                      <span className={cn("min-w-0 flex-1 text-sm", n.got ? "text-neutral-500 line-through" : "text-white")}>{n.item}{n.qty ? <span className="text-neutral-400"> · {n.qty}</span> : null}</span>
+                      {n.bring_by ? <span className="shrink-0 text-xs text-neutral-400">{n.bring_by}</span> : null}
+                      <button onClick={() => delNeed(n.id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:text-red-400" aria-label="Remove"><X size={14} /></button>
                     </div>
+                  ))}
+                </div>
+                {nDraft?.phase_id === p.id ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Segmented value={nDraft.kind} onChange={(v) => setNDraft({ ...nDraft, kind: v })} options={[{ value: "tool", label: "Tool" }, { value: "material", label: "Material" }]} />
+                    <Input autoFocus value={nDraft.item} onChange={(e) => setNDraft({ ...nDraft, item: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") addNeed(); if (e.key === "Escape") setNDraft(null); }} placeholder={nDraft.kind === "tool" ? "e.g. Cup grinder, blower" : "e.g. Sikaflex, mortar"} className="h-10 min-w-[160px] flex-1" />
+                    <Input value={nDraft.qty} onChange={(e) => setNDraft({ ...nDraft, qty: e.target.value })} placeholder="Qty" className="h-10 w-20" />
+                    <NativeSelect value={nDraft.bring_by} onChange={(e) => setNDraft({ ...nDraft, bring_by: e.target.value })} className="h-10 w-auto" aria-label="Who brings it">
+                      <option value="">Who brings it?</option>
+                      {[...new Set(["Mike", ...(p.crew ?? []), ...workers])].map((w) => <option key={w}>{w}</option>)}
+                    </NativeSelect>
+                    <Button size="sm" onClick={addNeed}>Add</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setNDraft(null)}>Done</Button>
                   </div>
-                );
-              })}
-              <div className="flex flex-wrap gap-2">
-                {KINDS.slice(0, 4).map(({ k, icon: Icon }) => (
-                  <Button key={k} size="sm" variant="outline" onClick={() => setEdit({ ...BLANK, kind: k, phase_id: p.id })}>
-                    <Icon size={14} className="mr-1.5" />{SINGULAR[k]}
-                  </Button>
-                ))}
-                <Button size="sm" variant="ghost" onClick={() => setEdit({ ...BLANK, kind: "other", phase_id: p.id })}><Plus size={14} className="mr-1" />Other</Button>
+                ) : (
+                  <button onClick={() => setNDraft({ phase_id: p.id, kind: "tool", item: "", qty: "", bring_by: "" })} className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-full border border-dashed border-white/20 px-3 text-xs text-neutral-300 hover:text-white"><Plus size={12} />Add a tool or material</button>
+                )}
+              </div>
+
+              {/* 4. vendors, subs, rentals & equipment — who's coming and when */}
+              <div>
+                <Head icon={Truck}>Vendors, subs & rentals</Head>
+                {KINDS.map(({ k, label, icon: Icon, statuses }) => {
+                  const kr = pr.filter((r) => r.kind === k);
+                  if (!kr.length) return null;
+                  return (
+                    <div key={k} className="mb-1">
+                      <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-neutral-400"><Icon size={13} />{label}</div>
+                      <div className="divide-y divide-white/[0.05]">
+                        {kr.map((r) => {
+                          const w = who(r);
+                          return (
+                            <div key={r.id} className="flex min-h-[48px] items-center gap-2 py-1.5">
+                              <button className="min-w-0 flex-1 text-left" onClick={() => setEdit(rowToEdit(r))}>
+                                <div className={cn("truncate text-sm font-semibold", w.name === "Not picked yet" ? "text-amber-300" : "text-white")}>{w.name}</div>
+                                <div className="truncate text-xs text-neutral-500">{[r.what, r.needed_date ? fmtDate(r.needed_date) : "no date", r.est_cost ? `est. ${money(Number(r.est_cost))}` : null, r.notes].filter(Boolean).join(" · ")}</div>
+                              </button>
+                              {w.address ? <a href={mapsHref(w.address)} target="_blank" rel="noreferrer" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-300 hover:bg-white/[0.06]" aria-label="Directions"><MapPin size={16} /></a> : null}
+                              {w.phone ? <a href={telHref(w.phone)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-300 hover:bg-white/[0.06]" aria-label={`Call ${w.name}`}><Phone size={16} /></a> : null}
+                              <button onClick={() => bump(r)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold", stTone(r.kind, r.status))} title="Tap to move to the next step">
+                                {statuses[stIdx(r.status)] ?? statuses[0]}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {KINDS.map(({ k, icon: Icon }) => (
+                    <button key={k} onClick={() => setEdit({ ...BLANK, kind: k, phase_id: p.id })} className="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-dashed border-white/20 px-3 text-xs text-neutral-300 hover:text-white">
+                      <Icon size={12} />{SINGULAR[k]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* phase housekeeping */}
+              <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
+                <Input defaultValue={p.name} onBlur={(e) => e.target.value.trim() && e.target.value !== p.name && updPhase(p.id, { name: e.target.value.trim() })} className="h-9 min-w-[140px] flex-1 text-sm" aria-label="Phase name" />
+                <Button size="icon-sm" variant="ghost" disabled={i === 0} onClick={() => movePhase(i, -1)} aria-label="Move up"><ArrowUp size={15} /></Button>
+                <Button size="icon-sm" variant="ghost" disabled={i === phases.length - 1} onClick={() => movePhase(i, 1)} aria-label="Move down"><ArrowDown size={15} /></Button>
+                <Button size="icon-sm" variant="ghost" onClick={() => delPhase(p)} aria-label="Delete phase"><Trash2 size={15} /></Button>
               </div>
             </div>
+            ) : null}
           </section>
         );
       })}

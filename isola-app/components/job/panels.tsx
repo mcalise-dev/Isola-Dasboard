@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { Empty, SectionTitle } from "@/components/ui/bits";
-import PunchList from "@/components/PunchList";
 import { cn } from "@/lib/utils";
 import { Camera, Images, HardHat, Trash2, Plus, Receipt, CalendarPlus, FileSpreadsheet, Upload, Download, X, PenTool, Check, ListChecks } from "lucide-react";
 import { stampSafe } from "@/lib/stamp";
@@ -351,10 +350,6 @@ export function TasksPanel({ jobId }: { jobId: string }) {
           </div>
         ) : null}
         {rows?.length ? <p className="mt-2 text-xs text-neutral-500">Tasks here also show on the main Tasks screen. Tap “Me” to show one to the crew.</p> : null}
-      </div>
-      <div>
-        <SectionTitle>Punch list</SectionTitle>
-        <PunchList jobId={jobId} />
       </div>
     </div>
   );

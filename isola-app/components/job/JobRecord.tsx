@@ -28,6 +28,7 @@ import JobTimeline from "@/components/job/JobTimeline";
 import BudgetPanel from "@/components/field/BudgetPanel";
 import DocStudioPanel from "@/components/docs/DocStudio";
 import PhasePlan from "@/components/job/PhasePlan";
+import PunchTab from "@/components/job/PunchTab";
 import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -40,7 +41,7 @@ const addDaysISO = (s: string, n: number) => {
 import {
   Phone, Navigation, Pencil, MoreHorizontal, Star, Trash2, XCircle, ChevronLeft, MapPin, Hammer, ThumbsUp,
   CalendarPlus, Play, CheckCircle2, PauseCircle, FileText, Banknote, ArrowRight, ListChecks, Briefcase, Building2, Camera,
-  Truck,
+  Truck, ChevronDown,
 } from "lucide-react";
 import MaterialVendors from "@/components/MaterialVendors";
 
@@ -57,7 +58,8 @@ const ORDER = ["lead", "quote", "awaiting", "booked", "progress", "complete"];
 // they open the tab that now holds that section and scroll to it.
 // v8.2: five tabs. Costs folded into Money; Field (plans, RFIs, submittals, inspections) hidden —
 // its old links land on Overview.
-const TABS = ["overview", "money", "schedule", "photos", "proposal"] as const;
+// v90: six tabs — Plan (phases: tasks, crew, tools, vendors, schedule) and Punch list (get out & bill) are their own tabs.
+const TABS = ["overview", "plan", "punch", "money", "photos", "proposal"] as const;
 const TAB_ALIAS: Record<string, string> = {
   partner: "thm", tyler: "thm",
   plans: "overview", drawings: "overview", rfi: "overview", rfis: "overview", submittals: "overview", inspections: "overview", forms: "overview",
@@ -66,15 +68,15 @@ const TAB_ALIAS: Record<string, string> = {
   build: "proposal", proposals: "proposal", estimate: "proposal", builder: "proposal",
   files: "photos", markup: "photos", pictures: "photos",
   documents: "docs", log: "docs", logs: "docs", "daily-log": "docs",
-  punch: "tasks", labor: "money",
-  plan: "crew", checklist: "crew", materials: "crew", tools: "crew", field: "crew",
+  labor: "money", schedule: "plan", phases: "plan", punchlist: "punch", "punch-list": "punch", closeout: "punch", "get-out": "punch",
+  checklist: "crew", materials: "crew", tools: "crew", field: "crew",
   site: "siteline", "site-line": "siteline", client: "siteline", updates: "siteline",
 };
 // which of the four tabs each section lives in now
 const SECTION_TAB: Record<string, (typeof TABS)[number]> = {
   tasks: "overview", activity: "overview",
-  crew: "schedule",
-  thm: "money", studio: "money", invoice: "money", invoices: "money", plan: "schedule", phases: "schedule", rentals: "schedule", equipment: "schedule",
+  crew: "plan", dispatch: "plan",
+  thm: "money", studio: "money", invoice: "money", invoices: "money", rentals: "plan", equipment: "plan",
   docs: "proposal", siteline: "proposal",
 };
 const resolve = (t: string | null | undefined): { tab: string; section: string | null } | null => {
@@ -86,6 +88,23 @@ const resolve = (t: string | null | undefined): { tab: string; section: string |
 };
 export const resolveTab = (t: string | null | undefined) => resolve(t)?.tab ?? null;
 
+// a section that folds away — keeps the Plan tab to the phase plan unless you open more
+function Fold({ id, title, hint, defaultOpen = false, children }: { id: string; title: string; hint?: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section id={id} className="scroll-mt-24 rounded-2xl border border-white/[0.08]">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-[52px] w-full items-center gap-3 px-4 py-2 text-left">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold text-white">{title}</span>
+          {hint ? <span className="block truncate text-xs text-neutral-500">{hint}</span> : null}
+        </span>
+        <ChevronDown size={16} className={cn("shrink-0 text-neutral-500 transition-transform", open && "rotate-180")} />
+      </button>
+      {open ? <div className="border-t border-white/[0.06] p-3 sm:p-4">{children}</div> : null}
+    </section>
+  );
+}
+
 export function nextStep(j: any, ctx: { walked: boolean; drafting: boolean; scheduled: boolean }) {
   const today = todayISO();
   if (j.status === "lead") return { label: "Worth pricing, move to Awaiting quote", icon: ThumbsUp, patch: { status: "quote" }, toast: "Moved to Awaiting quote" };
@@ -93,7 +112,7 @@ export function nextStep(j: any, ctx: { walked: boolean; drafting: boolean; sche
     : ctx.drafting ? { label: "Finish the proposal", icon: Hammer, tab: "proposal" } : { label: "Price it, build the proposal", icon: Hammer, tab: "proposal" };
   if (j.status === "future") return { label: "Ready to go, mark Booked", icon: ThumbsUp, patch: { status: "booked", won_date: j.won_date ?? today }, toast: "Moved to Booked" };
   if (j.status === "awaiting") return { label: "They said yes, mark Booked", icon: ThumbsUp, patch: { status: "booked", won_date: j.won_date ?? today }, toast: "Moved to Booked" };
-  if (j.status === "booked") return !ctx.scheduled ? { label: "Put it on the schedule", icon: CalendarPlus, tab: "schedule" }
+  if (j.status === "booked") return !ctx.scheduled ? { label: "Put it on the schedule", icon: CalendarPlus, tab: "plan" }
     : { label: "Crew started, mark In progress", icon: Play, patch: { status: "progress" }, toast: "Moved to In progress" };
   if (j.status === "progress") return { label: "Work's done, mark Complete", icon: CheckCircle2, patch: { status: "complete", completed_date: j.completed_date ?? today }, toast: "Marked Complete" };
   if (j.status === "complete") return !j.invoiced_date ? { label: "Mark invoiced", icon: FileText, patch: { invoiced_date: today }, toast: "Marked invoiced" }
@@ -142,6 +161,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
     } catch { /* ignore */ }
   }, []);
   const [lostPick, setLostPick] = useState(false);
+  const [punchOpen, setPunchOpen] = useState(0);
 
   const load = useCallback(async () => {
     const [j, c, v, s, e] = await Promise.all([
@@ -151,6 +171,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
       sb.from("schedule_entries").select("id,entry_date,job_id,label,notes,assignee,assignees,item_type,vendor_id,company,start_time,end_time,qty,status,sort").eq("job_id", id).order("entry_date").order("start_time", { nullsFirst: false }),
       sb.from("estimates").select("id,sent_at").eq("job_id", id),
     ]);
+    sb.from("punch_list").select("id", { count: "exact", head: true }).eq("job_id", id).eq("done", false).then(({ count }) => setPunchOpen(count ?? 0));
     setJob(j.data ?? null);
     setCosts(c.data ?? []); setVisits(v.data ?? []); setSched(s.data ?? []);
     setDrafting((e.data ?? []).some((x: any) => !x.sent_at));
@@ -217,7 +238,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
   }
   function pickStep(key: string) {
     if (key === "walked") { router.push("/visits"); return; }
-    if (key === "scheduled") { setTab("schedule"); return; }
+    if (key === "scheduled") { setTab("plan"); return; }
     if (key === "invoiced") { patch({ invoiced_date: job.invoiced_date ? null : today }, job.invoiced_date ? "Invoice date cleared" : "Marked invoiced"); return; }
     if (key === "paid") { patch({ paid_date: job.paid_date ? null : today, ...(job.status !== "complete" ? { status: "complete", completed_date: job.completed_date ?? today } : {}) }, job.paid_date ? "Paid date cleared" : "Marked paid"); return; }
     const p: any = { status: key };
@@ -327,14 +348,15 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             {/* v8.1: seven tabs — scrolls sideways on a narrow phone */}
             <TabsList className="flex-nowrap gap-4 sm:gap-5 [&>*]:min-h-[40px]">
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="plan">Plan{schedOpen ? <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 text-[11px] font-bold text-amber-300">{schedOpen}</span> : null}</TabsTrigger>
+              <TabsTrigger value="punch">Punch list{punchOpen ? <span className="ml-1.5 rounded-full bg-white/10 px-1.5 text-[11px] font-bold text-white">{punchOpen}</span> : null}</TabsTrigger>
               <TabsTrigger value="money">Money</TabsTrigger>
-              <TabsTrigger value="schedule">Schedule{schedOpen ? <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 text-[11px] font-bold text-amber-300">{schedOpen}</span> : null}</TabsTrigger>
               <TabsTrigger value="photos">Photos</TabsTrigger>
               {partner ? null : <TabsTrigger value="proposal">Proposal</TabsTrigger>}
             </TabsList>
             <TabsContent value="overview" className="space-y-6">
               {/* v8.4: the shortcut tiles are gone — they repeated the tabs. The supplier phone book moved to Schedule. */}
-              <JobTimeline jobId={job.id} onEditPlan={() => setTab("crew")} />
+              <JobTimeline jobId={job.id} onEditPlan={() => setTab("plan")} />
               <section>
                 <h2 className="mb-2 text-[17px] font-semibold text-white">Scope of work</h2>
                 {job.scope_of_work ? <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-300">{job.scope_of_work}</p>
@@ -367,11 +389,11 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
               </section>
               <section className="grid gap-4 md:grid-cols-2">
                 <div><MyClock jobId={job.id} compact /></div>
-                <button onClick={() => setTab("crew")} className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 text-left hover:border-white/20">
+                <button onClick={() => setTab("plan")} className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 text-left hover:border-white/20">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-white"><ListChecks size={18} /></span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-semibold text-white">Crew plan</span>
-                    <span className="block text-sm text-neutral-400">Plan of action, materials, tools, crew notes</span>
+                    <span className="block text-[15px] font-semibold text-white">Phase plan</span>
+                    <span className="block text-sm text-neutral-400">Tasks, crew, tools, materials, vendors & rentals by phase</span>
                   </span>
                   <ArrowRight size={16} className="shrink-0 text-neutral-500" />
                 </button>
@@ -402,24 +424,33 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
               <section id="sec-docs" className="scroll-mt-24"><DocsPanel jobId={job.id} /></section>
             </TabsContent>}
 
-            <TabsContent value="schedule" className="space-y-8">
-              {partner ? null : (
-                <button onClick={() => setVendorsOpen(true)} className="inline-flex min-h-[40px] items-center gap-2 text-sm font-semibold text-neutral-400 hover:text-white">
-                  <Truck size={16} /> Supplier phone book
-                </button>
-              )}
-              <SchedulePanel job={job} entries={sched} crew={crew} onChange={load} />
-              {partner ? null : (
-                <section id="sec-plan" className="scroll-mt-24 space-y-3">
-                  <h2 className="text-[17px] font-semibold text-white">Phase plan — suppliers, subs, rentals & equipment</h2>
-                  <PhasePlan jobId={job.id} />
-                </section>
-              )}
-              <section id="sec-crew" className="scroll-mt-24 space-y-6">
-                <h2 className="text-[17px] font-semibold text-white">Crew plan</h2>
-                <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5"><JobChecklist jobId={job.id} jobType={job.job} /></section>
-                <CrewSetup jobId={job.id} crewNotes={job.crew_notes ?? null} onSaved={load} />
+            {/* v90: Plan = the phase plan up top (each phase: tasks & who, days & crew, tools & materials,
+                vendors/subs/rentals). The day-by-day schedule and the crew-app setup fold away below it. */}
+            <TabsContent value="plan" className="space-y-4">
+              <section id="sec-plan" className="scroll-mt-24 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-[17px] font-semibold text-white">Phase plan</h2>
+                  {partner ? null : (
+                    <button onClick={() => setVendorsOpen(true)} className="ml-auto inline-flex min-h-[40px] items-center gap-2 text-sm font-semibold text-neutral-400 hover:text-white">
+                      <Truck size={16} /> Supplier phone book
+                    </button>
+                  )}
+                </div>
+                <PhasePlan jobId={job.id} />
               </section>
+              <Fold id="sec-dispatch" title="Schedule — every day on this job" hint={sched.length ? `${sched.length} on the calendar${schedOpen ? ` · ${schedOpen} to confirm` : ""}` : "Nothing scheduled yet"} defaultOpen={schedOpen > 0}>
+                <SchedulePanel job={job} entries={sched} crew={crew} onChange={load} />
+              </Fold>
+              <Fold id="sec-crew" title="Crew app — who's on it, notes & full step list" hint="What the crew sees on their phones">
+                <div className="space-y-6">
+                  <CrewSetup jobId={job.id} crewNotes={job.crew_notes ?? null} onSaved={load} />
+                  <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5"><JobChecklist jobId={job.id} jobType={job.job} /></section>
+                </div>
+              </Fold>
+            </TabsContent>
+
+            <TabsContent value="punch">
+              <PunchTab job={job} onStep={(k) => pickStep(k)} onMoney={() => setTab("money")} onCount={setPunchOpen} />
             </TabsContent>
 
             {/* v8.2: one Money tab — budget, materials & costs, labor (was the Costs tab), then payments and THM */}

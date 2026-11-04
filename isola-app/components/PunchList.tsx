@@ -30,7 +30,7 @@ type Share = { token: string; viewed_at: string | null; signed_off_by: string | 
 
 const COLS = "id,item,raised_by,priority,due_date,done,done_at,notes,photo_b64,fixed_photo_b64,added_via,created_at";
 
-export default function PunchList({ jobId }: { jobId: string }) {
+export default function PunchList({ jobId, onChange }: { jobId: string; onChange?: (items: { done: boolean }[], share: { signed_off_at: string | null; signed_off_by: string | null } | null) => void }) {
   const supabase = useMemo(() => createClient(), []);
   const [rows, setRows] = useState<Item[]>([]);
   const [share, setShare] = useState<Share | null>(null);
@@ -45,6 +45,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
     ]);
     setRows((p.data as Item[]) ?? []);
     setShare((s.data as Share) ?? null);
+    onChange?.((p.data as Item[]) ?? [], (s.data as Share) ?? null);
   }
   useEffect(() => { setForm({ item: "", priority: "normal", due_date: "", raised_by: "", photo: "" }); load(); /* eslint-disable-next-line */ }, [jobId]);
 
@@ -70,7 +71,8 @@ export default function PunchList({ jobId }: { jobId: string }) {
     setRows(rows.map((x) => (x.id === t.id ? { ...x, done, done_at: done ? new Date().toISOString() : null } : x)));
     const { error } = await supabase.from("punch_list")
       .update({ done, done_at: done ? new Date().toISOString() : null }).eq("id", t.id);
-    if (error) { showError("Save failed: " + error.message); load(); }
+    if (error) { showError("Save failed: " + error.message); }
+    load();
   }
 
   async function setPhoto(t: Item, field: "photo_b64" | "fixed_photo_b64", file: File) {
@@ -196,7 +198,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-        <input className={input + " min-w-0 flex-1"} placeholder="What needs fixing before this closes out?" value={form.item}
+        <input className={input + " min-w-0 flex-1"} placeholder="What has to get done before we get out and bill?" value={form.item}
           onChange={(e) => setForm({ ...form, item: e.target.value })}
           onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
         <Dictate hasText={!!form.item} onText={(t) => setForm((p) => ({ ...p, item: p.item + t }))} />
@@ -223,7 +225,7 @@ export default function PunchList({ jobId }: { jobId: string }) {
             className="shrink-0 rounded-lg bg-brand text-neutral-950 px-4 text-xs font-bold disabled:opacity-60">{busy ? "…" : "+ Add"}</button>
         </div>
       </div>
-      <p className="text-xs text-neutral-500 mt-1.5">Anything left to fix before this job closes out. Adding a fixed photo checks the item off.</p>
+      <p className="text-xs text-neutral-500 mt-1.5">Everything left before you pull off the job and send the bill. Adding a fixed photo checks the item off.</p>
     </div>
   );
 }
