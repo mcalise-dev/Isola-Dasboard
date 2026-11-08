@@ -72,3 +72,5 @@ if (!rows) return <ListSkeleton />;
   photos clients submit on public pages.
 - Drawing on photos lives at `/markup` (`components/markup/PhotoMarkup.tsx`). Marked-up copies are
   their own `job_photos` rows with `markup` (the editable drawing) and `source_photo_id` (the original).
+- Legend maps (v9.0): Symbol tool, Line style row (dashed / flow arrows / corner dots), "Add pointer" on text
+  boxes, and the Legend card. The legend is saved in `markup.legend`; its rows come from the shapes on the photo.

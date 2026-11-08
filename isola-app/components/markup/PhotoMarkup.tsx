@@ -3,10 +3,12 @@
 // point-by-point lines (tap each point, tap the first point to close), dimension lines with a
 // label, boxes, circles, freehand and text — then save the marked-up copy back to the job
 // (original stays untouched, the drawing stays editable) or download it.
+// v9.0 (11/7/26): legend maps — Symbol tool (tie-in X, cleanout, DW/CB/MH structures, repair hexagon,
+// G1/G2 tags), dashed runs, flow arrows, pointer lines from text boxes, and a legend box that builds itself.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MousePointer2, Pencil, Minus, MoveUpRight, Spline, Ruler, Square, Circle, Type, Hash, Ban,
-  Undo2, Redo2, Trash2, Download, Save, Upload, ImagePlus, X, Check, Camera, Copy,
+  Undo2, Redo2, Trash2, Download, Save, Upload, ImagePlus, X, Check, Camera, Copy, Shapes, Eye, EyeOff,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/image";
@@ -22,7 +24,7 @@ import { isStored, kickMediaSync, useFallbackImages, useSignedUrls } from "@/lib
 type P = { x: number; y: number };
 type Shape = {
   id: string;
-  type: "pen" | "line" | "arrow" | "path" | "dim" | "rect" | "ellipse" | "text" | "num";
+  type: "pen" | "line" | "arrow" | "path" | "dim" | "rect" | "ellipse" | "text" | "num" | "sym";
   color: string;  // line color / text color / numbered-pin fill
   size: number;   // 1 small, 2 medium, 3 large
   a?: P; b?: P; points?: P[]; closed?: boolean; at?: P; text?: string;
@@ -32,12 +34,21 @@ type Shape = {
   // v5.3: box size set by dragging its corners (text wraps to w; h can add room below), and a text-size nudge
   w?: number; h?: number; ts?: number;
   ref?: string;   // v5.6: a note box points at the numbered dot it explains
+  // v9.0 (11/7/26): legend maps — site symbols, dashed runs, flow arrows, pointer lines from boxes
+  sym?: SymKind;      // which site symbol (type "sym")
+  dash?: boolean;     // dashed run (buried / approximate)
+  flow?: number;      // flow-direction arrows along the run (0-4)
+  nodots?: boolean;   // Points line without the corner dots
+  to?: P;             // text box pointer line tip
 };
+type SymKind = "tiein" | "cleanout" | "struct" | "warn" | "tag" | "dot";
+// v9.0: legend box drawn on the photo — entries build themselves from what's drawn; labels are editable
+type LegendCfg = { on: boolean; pos: "tl" | "tr" | "bl" | "br"; title: string; labels: Record<string, string>; hide: string[]; note: string; scale: number };
 type Tool = "select" | Shape["type"];
 // v5.4: caption = "what we're looking at", saved as the photo's caption and (optionally) printed along the bottom
 type Panel = { side: "right" | "bottom"; title: string; items: string[]; titleScale?: number; colors?: Record<number, string> };
 // v8.2: colors = step number -> the color of numbered dot N on the photo, so the panel dots match
-type Markup = { v: 1; w: number; h: number; shapes: Shape[]; caption?: string; showCap?: boolean; capScale?: number; panel?: Panel | null; brand?: Brand };
+type Markup = { v: 1; w: number; h: number; shapes: Shape[]; caption?: string; showCap?: boolean; capScale?: number; panel?: Panel | null; brand?: Brand; legend?: LegendCfg | null };
 // v7.4 (11/2/26): the corner logo is picked per markup, and the steps panel + caption accent follow that brand's colors
 type Theme = { bg: string; bar: string; title: string; dot: string; text: string; note: string; rule: string; accent: string };
 const THEMES: Record<Brand, Theme> = {
@@ -49,6 +60,7 @@ const THEMES: Record<Brand, Theme> = {
 const COLORS = [
   { v: "#F2C230", n: "Yellow" },
   { v: "#EF4444", n: "Red" },
+  { v: "#2F80FF", n: "Blue" },
   { v: "#F97316", n: "Orange" },
   { v: "#22C55E", n: "Green" },
   { v: "#FFFFFF", n: "White" },
@@ -88,6 +100,7 @@ const TOOLS: { t: Tool; label: string; icon: any }[] = [
   { t: "pen", label: "Draw", icon: Pencil },
   { t: "text", label: "Text box", icon: Type },
   { t: "num", label: "Number", icon: Hash },
+  { t: "sym", label: "Symbol", icon: Shapes },
 ];
 const SIZE_MULT = [0, 0.7, 1.2, 2];
 // v5.7: quick picks for the steps-panel heading (any custom title still works)
@@ -126,8 +139,9 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape, base: number, opts: 
   ctx.save();
   ctx.strokeStyle = s.color; ctx.fillStyle = s.color;
   ctx.lineWidth = lw; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  if (s.dash && s.type !== "text" && s.type !== "sym" && s.type !== "num") { ctx.setLineDash([lw * 2.6, lw * 2]); ctx.lineCap = "butt"; }
   // thin dark halo under light colors so lines read on bright photos
-  const halo = !isDark(s.color) && s.type !== "text";
+  const halo = !isDark(s.color) && s.type !== "text" && s.type !== "sym";
   const stroke = (path: () => void) => {
     if (halo) { ctx.save(); ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = lw + Math.max(1.5, lw * 0.5); path(); ctx.stroke(); ctx.restore(); }
     path(); ctx.stroke();
@@ -139,13 +153,14 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape, base: number, opts: 
       stroke(() => { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y); });
       break;
     }
-    case "line": stroke(() => { ctx.beginPath(); ctx.moveTo(s.a!.x, s.a!.y); ctx.lineTo(s.b!.x, s.b!.y); }); break;
+    case "line": stroke(() => { ctx.beginPath(); ctx.moveTo(s.a!.x, s.a!.y); ctx.lineTo(s.b!.x, s.b!.y); }); flowArrows(ctx, [s.a!, s.b!], s.flow || 0, lw, base, s.color); break;
     case "arrow": {
       const a = s.a!, b = s.b!, ang = Math.atan2(b.y - a.y, b.x - a.x), hl = Math.max(lw * 3.6, base * 4.5);
       const head = () => { ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - hl * Math.cos(ang - 0.45), b.y - hl * Math.sin(ang - 0.45)); ctx.lineTo(b.x - hl * Math.cos(ang + 0.45), b.y - hl * Math.sin(ang + 0.45)); ctx.closePath(); };
       stroke(() => { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x - hl * 0.6 * Math.cos(ang), b.y - hl * 0.6 * Math.sin(ang)); });
       if (halo) { ctx.save(); ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = Math.max(1.5, lw * 0.5); head(); ctx.stroke(); ctx.restore(); }
-      head(); ctx.fill();
+      head(); ctx.setLineDash([]); ctx.fill();
+      flowArrows(ctx, [a, b], s.flow || 0, lw, base, s.color);
       break;
     }
     case "path": {
@@ -153,7 +168,9 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape, base: number, opts: 
       if (!pts.length) break;
       if (pts.length > 1) stroke(() => { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y); if (s.closed) ctx.closePath(); });
       if (s.closed) { ctx.save(); ctx.globalAlpha = 0.14; ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y)); ctx.closePath(); ctx.fill(); ctx.restore(); }
-      if (opts.dots !== false) {
+      if (s.flow && pts.length > 1) flowArrows(ctx, s.closed ? [...pts, pts[0]] : pts, s.flow, lw, base, s.color);
+      ctx.setLineDash([]);
+      if (opts.dots !== false && (!s.nodots || opts.firstRing)) {
         const r = Math.max(lw * 1.15, base * 1.4);
         pts.forEach((p, i) => {
           ctx.beginPath(); ctx.arc(p.x, p.y, i === 0 && opts.firstRing ? r * 1.8 : r, 0, Math.PI * 2);
@@ -177,7 +194,7 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape, base: number, opts: 
     case "rect": stroke(() => { ctx.beginPath(); ctx.rect(Math.min(s.a!.x, s.b!.x), Math.min(s.a!.y, s.b!.y), Math.abs(s.b!.x - s.a!.x), Math.abs(s.b!.y - s.a!.y)); }); break;
     case "ellipse": stroke(() => { ctx.beginPath(); ctx.ellipse((s.a!.x + s.b!.x) / 2, (s.a!.y + s.b!.y) / 2, Math.abs(s.b!.x - s.a!.x) / 2 || 0.5, Math.abs(s.b!.y - s.a!.y) / 2 || 0.5, 0, 0, Math.PI * 2); }); break;
     case "text":
-      if (s.bg !== undefined) { if (s.text) drawTextBox(ctx, s, base); }
+      if (s.bg !== undefined) { if (s.text) { if (s.to) drawLeader(ctx, s, base); drawTextBox(ctx, s, base); } }
       else if (s.text) pill(ctx, s.text, s.at!.x, s.at!.y, base * 6 * (0.7 + (s.size || 2) * 0.25), s.color);
       break;
     case "num": {
@@ -188,7 +205,123 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape, base: number, opts: 
       numDot(ctx, s.num ?? 1, s.at!.x, s.at!.y, r, s.color);
       break;
     }
+    case "sym": drawSym(ctx, s.sym || "dot", s.at!.x, s.at!.y, symR(s, base), s.color, s.text || ""); break;
   }
+  ctx.restore();
+}
+
+// ---------- v9.0 legend-map pieces ----------
+// flow-direction arrowheads spaced evenly along a run
+function flowArrows(ctx: CanvasRenderingContext2D, pts: P[], n: number, lw: number, base: number, color: string) {
+  if (!n || pts.length < 2) return;
+  const segs = pts.slice(1).map((b, i) => ({ a: pts[i], b, L: dist(pts[i], b) }));
+  const total = segs.reduce((t, x) => t + x.L, 0);
+  if (!total) return;
+  const hl = Math.max(lw * 3.2, base * 4);
+  ctx.save(); ctx.setLineDash([]);
+  for (let k = 1; k <= n; k++) {
+    let d = (total * k) / (n + 1);
+    for (const sg of segs) {
+      if (d > sg.L) { d -= sg.L; continue; }
+      const t = sg.L ? d / sg.L : 0, ang = Math.atan2(sg.b.y - sg.a.y, sg.b.x - sg.a.x);
+      const tip = { x: sg.a.x + (sg.b.x - sg.a.x) * t + Math.cos(ang) * hl * 0.5, y: sg.a.y + (sg.b.y - sg.a.y) * t + Math.sin(ang) * hl * 0.5 };
+      ctx.beginPath(); ctx.moveTo(tip.x, tip.y);
+      ctx.lineTo(tip.x - hl * Math.cos(ang - 0.5), tip.y - hl * Math.sin(ang - 0.5));
+      ctx.lineTo(tip.x - hl * Math.cos(ang + 0.5), tip.y - hl * Math.sin(ang + 0.5));
+      ctx.closePath();
+      ctx.lineWidth = Math.max(1.5, lw * 0.35); ctx.strokeStyle = isDark(color) ? "#FFFFFF" : "rgba(0,0,0,0.55)"; ctx.stroke();
+      ctx.fillStyle = color; ctx.fill();
+      break;
+    }
+  }
+  ctx.restore();
+}
+const symR = (s: Shape, base: number) => base * ({ tiein: 3.2, cleanout: 2.4, struct: 4.6, warn: 3.8, tag: 3.4, dot: 2.6 } as Record<SymKind, number>)[s.sym || "dot"] * (0.6 + (s.size || 2) * 0.2);
+const SYMS: { k: SymKind; label: string; color: string; text?: string }[] = [
+  { k: "tiein", label: "Tie-in X", color: "#F2C230" },
+  { k: "cleanout", label: "Cleanout", color: "#FFFFFF" },
+  { k: "struct", label: "Structure", color: "#0B0D0E", text: "DW" },
+  { k: "warn", label: "Repair !", color: "#F97316" },
+  { k: "tag", label: "Tag", color: "#FFFFFF", text: "G1" },
+  { k: "dot", label: "Dot", color: "#EF4444" },
+];
+const hasSymText = (s: Shape) => s.type === "sym" && (s.sym === "struct" || s.sym === "tag");
+const LINE_TYPES = new Set<Shape["type"]>(["line", "arrow", "path", "pen", "rect", "ellipse"]);
+// next tag continues the last one: G1 -> G2, Unit 4 -> Unit 5
+function nextTag(list: Shape[]) {
+  const last = [...list].reverse().find((x) => x.type === "sym" && x.sym === "tag" && x.text);
+  if (!last) return "G1";
+  const m = last.text!.match(/^(.*?)(\d+)$/);
+  return m ? m[1] + (parseInt(m[2], 10) + 1) : last.text!;
+}
+function drawSym(ctx: CanvasRenderingContext2D, k: SymKind, x: number, y: number, r: number, color: string, text: string) {
+  const lw = Math.max(1.5, r * 0.16);
+  ctx.save(); ctx.setLineDash([]); ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.shadowColor = "rgba(0,0,0,0.35)"; ctx.shadowBlur = r * 0.3;
+  const sans = (px: number, w = 800) => `${w} ${px}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  switch (k) {
+    case "tiein": {
+      const X = () => { ctx.beginPath(); ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r); ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r); };
+      ctx.strokeStyle = isDark(color) ? "#FFFFFF" : "#0B0D0E"; ctx.lineWidth = lw * 3.2; X(); ctx.stroke();
+      ctx.shadowColor = "transparent"; ctx.strokeStyle = color; ctx.lineWidth = lw * 1.9; X(); ctx.stroke();
+      break;
+    }
+    case "cleanout": {
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+      ctx.shadowColor = "transparent"; ctx.lineWidth = lw; ctx.strokeStyle = contrast(color); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - r * 0.62, y); ctx.lineTo(x + r * 0.62, y); ctx.moveTo(x, y - r * 0.62); ctx.lineTo(x, y + r * 0.62); ctx.stroke();
+      break;
+    }
+    case "struct": {
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+      ctx.shadowColor = "transparent"; ctx.lineWidth = lw; ctx.strokeStyle = contrast(color); ctx.stroke();
+      const t = (text || "").slice(0, 4), fs = r * (t.length <= 2 ? 0.82 : t.length === 3 ? 0.62 : 0.5);
+      ctx.font = sans(fs); ctx.fillStyle = contrast(color); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(t, x, y + fs * 0.05);
+      break;
+    }
+    case "warn": {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + (i * Math.PI) / 3; i ? ctx.lineTo(x + r * Math.cos(a), y + r * Math.sin(a)) : ctx.moveTo(x + r * Math.cos(a), y + r * Math.sin(a)); }
+      ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+      ctx.shadowColor = "transparent"; ctx.lineWidth = lw; ctx.strokeStyle = contrast(color) === "#FFFFFF" ? "#FFFFFF" : "#0B0D0E"; ctx.stroke();
+      ctx.font = sans(r * 1.15, 900); ctx.fillStyle = contrast(color); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(text || "!", x, y + r * 0.06);
+      break;
+    }
+    case "tag": {
+      const t = text || "", fs = r * 0.95;
+      ctx.font = sans(fs);
+      const w = Math.max(fs * 1.2, ctx.measureText(t).width) + fs * 0.8, h = fs * 1.5;
+      rrect(ctx, x - w / 2, y - h / 2, w, h, fs * 0.28); ctx.fillStyle = color; ctx.fill();
+      ctx.shadowColor = "transparent"; ctx.lineWidth = Math.max(1.2, fs * 0.09); ctx.strokeStyle = contrast(color); ctx.stroke();
+      ctx.fillStyle = contrast(color); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(t, x, y + fs * 0.05);
+      break;
+    }
+    default: {
+      ctx.beginPath(); ctx.arc(x, y, r * 0.75, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+      ctx.shadowColor = "transparent"; ctx.lineWidth = lw; ctx.strokeStyle = contrast(color); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+// pointer line from the nearest edge of a text box to the spot it names
+function drawLeader(ctx: CanvasRenderingContext2D, s: Shape, base: number) {
+  const L = textLayout(s, base, ctx), tip = s.to!;
+  const x1 = L.x0 + L.w, y1 = L.y0 + L.h;
+  const inside = tip.x >= L.x0 && tip.x <= x1 && tip.y >= L.y0 && tip.y <= y1;
+  if (inside) return;
+  const cx = Math.min(Math.max(tip.x, L.x0), x1), cy = Math.min(Math.max(tip.y, L.y0), y1);
+  const cands = [{ x: cx, y: L.y0 }, { x: cx, y: y1 }, { x: L.x0, y: cy }, { x: x1, y: cy }];
+  const start = cands.reduce((m, c) => (dist(c, tip) < dist(m, tip) ? c : m));
+  const w = Math.max(1.5, base * 0.75);
+  ctx.save(); ctx.setLineDash([]); ctx.lineCap = "round";
+  ctx.strokeStyle = "rgba(255,255,255,0.95)"; ctx.lineWidth = w * 2.6;
+  ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+  ctx.strokeStyle = "#0B0D0E"; ctx.lineWidth = w;
+  ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+  ctx.beginPath(); ctx.arc(tip.x, tip.y, w * 1.6, 0, Math.PI * 2); ctx.fillStyle = "#0B0D0E"; ctx.fill();
+  ctx.lineWidth = w * 0.8; ctx.strokeStyle = "#FFFFFF"; ctx.stroke();
   ctx.restore();
 }
 
@@ -380,8 +513,116 @@ function drawPanel(ctx: CanvasRenderingContext2D, p: Panel, W: number, H: number
 }
 const pinR = (s: Shape, base: number) => base * (2.6 + (s.size || 2) * 1.3);
 
+// legend entries: one row per distinct line style / symbol / area on the photo, in the order first drawn
+type LegEntry = { key: string; kind: "line" | "area" | "sym"; color: string; dash?: boolean; sym?: SymKind; text?: string; def: string };
+const colorName = (c: string) => COLORS.find((x) => x.v === c)?.n ?? "Colored";
+const STRUCT_NAMES: Record<string, string> = { DW: "Existing drywell", CB: "Catch basin", MH: "Manhole", DMH: "Drain manhole", SMH: "Sewer manhole", YD: "Yard drain", TD: "Trench drain", LP: "Light pole", HY: "Hydrant", WV: "Water valve" };
+function legendEntries(shapes: Shape[]): LegEntry[] {
+  const out: LegEntry[] = [], seen = new Set<string>();
+  const add = (e: LegEntry) => { if (!seen.has(e.key)) { seen.add(e.key); out.push(e); } };
+  for (const s of shapes) {
+    if (s.type === "line" || s.type === "arrow" || (s.type === "path" && !s.closed) || s.type === "pen") {
+      const nm = colorName(s.color);
+      const def = s.color === "#2F80FF" ? "Existing line" : s.color === "#EF4444" ? "New line" : `${nm} line`;
+      add({ key: `L|${s.color}|${s.dash ? 1 : 0}`, kind: "line", color: s.color, dash: !!s.dash, def: s.dash ? def + " (approx.)" : def });
+    } else if (s.type === "rect" || s.type === "ellipse" || (s.type === "path" && s.closed)) {
+      add({ key: `A|${s.color}|${s.dash ? 1 : 0}`, kind: "area", color: s.color, dash: !!s.dash, def: s.color === "#EF4444" ? "Work area" : `${colorName(s.color)} area` });
+    } else if (s.type === "sym") {
+      const k = s.sym || "dot", t = (s.text || "").toUpperCase();
+      if (k === "struct") add({ key: `S|struct|${t}|${s.color}`, kind: "sym", sym: k, color: s.color, text: s.text, def: STRUCT_NAMES[t] ?? (t ? `${t} structure` : "Structure") });
+      else if (k === "tag") add({ key: `S|tag|${s.color}`, kind: "sym", sym: k, color: s.color, text: (s.text || "").replace(/\d+$/, "#") || "#", def: "Tags" });
+      else add({ key: `S|${k}|${s.color}`, kind: "sym", sym: k, color: s.color, text: s.text, def: { tiein: "Tie in to existing", cleanout: "Cleanout", warn: "Repair / problem spot", dot: "Point of interest" }[k as "tiein"] ?? "Symbol" });
+    }
+  }
+  return out;
+}
+function drawLegendSample(ctx: CanvasRenderingContext2D, e: LegEntry, x: number, cy: number, w: number, f: number) {
+  ctx.save();
+  if (e.kind === "line") {
+    const lw = f * 0.3;
+    ctx.lineCap = e.dash ? "butt" : "round";
+    if (e.dash) ctx.setLineDash([lw * 2.4, lw * 1.8]);
+    ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = lw + Math.max(1.5, lw * 0.5);
+    ctx.beginPath(); ctx.moveTo(x, cy); ctx.lineTo(x + w, cy); ctx.stroke();
+    ctx.strokeStyle = e.color; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.moveTo(x, cy); ctx.lineTo(x + w, cy); ctx.stroke();
+  } else if (e.kind === "area") {
+    const h = f * 0.9;
+    if (e.dash) ctx.setLineDash([f * 0.3, f * 0.22]);
+    ctx.globalAlpha = 0.18; ctx.fillStyle = e.color; ctx.fillRect(x + 1, cy - h / 2, w - 2, h); ctx.globalAlpha = 1;
+    ctx.lineWidth = Math.max(1.5, f * 0.16); ctx.strokeStyle = isDark(e.color) || e.color === "#FFFFFF" ? "#0B0D0E" : e.color;
+    ctx.strokeRect(x + 1, cy - h / 2, w - 2, h);
+  } else {
+    const r = f * (e.sym === "struct" ? 0.62 : e.sym === "cleanout" ? 0.42 : e.sym === "tag" ? 0.55 : 0.5);
+    drawSym(ctx, e.sym!, x + w / 2, cy, r, e.color, e.text || "");
+  }
+  ctx.restore();
+}
+function captionBoxH(text: string, W: number, H: number, scale = 1) {
+  const t = text.trim(); if (!t) return 0;
+  const c = (measureCtx ??= document.createElement("canvas").getContext("2d")!);
+  const short = Math.min(W, H), D = Math.max(40, Math.min(220, short * 0.14)), m = short * 0.025, gap = short * 0.015;
+  const f = Math.max(14, short * 0.038) * scale, padX = f * 0.7, padY = f * 0.45, lh = f * 1.25;
+  c.save(); c.font = `700 ${f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
+  const n = Math.min(3, wrapLines(c, t.split("\n"), W - m - D - gap - m - padX * 2).length); c.restore();
+  return n * lh + padY * 2;
+}
+// white legend box in a corner of the photo — kept clear of the logo badge and the caption strip
+function drawLegend(ctx: CanvasRenderingContext2D, cfg: LegendCfg, shapes: Shape[], W: number, H: number, capH = 0) {
+  if (!cfg.on) return;
+  const rows = legendEntries(shapes).filter((e) => !cfg.hide.includes(e.key));
+  const note = (cfg.note || "").trim();
+  if (!rows.length && !note) return;
+  const short = Math.min(W, H), f = short * 0.021 * (cfg.scale || 1);
+  const pad = f * 0.9, row = f * 1.75, sw = f * 2.3, gap = f * 0.7, titleF = f * 1.15;
+  const sans = (px: number, w = 600) => `${w} ${px}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  ctx.save();
+  ctx.font = sans(titleF, 800);
+  const title = (cfg.title || "Legend").toUpperCase();
+  let w = ctx.measureText(title).width;
+  ctx.font = sans(f);
+  const labels = rows.map((e) => (cfg.labels[e.key] ?? e.def).trim() || e.def);
+  labels.forEach((l) => { w = Math.max(w, sw + gap + ctx.measureText(l).width); });
+  w = Math.max(w, f * 9);
+  const noteF = f * 0.72, noteLh = noteF * 1.35;
+  ctx.font = `italic 500 ${noteF}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
+  let noteLines = note ? wrapLines(ctx, note.split("\n"), w) : [];
+  if (note && noteLines.length > 2 && w < short * 0.42) { w = Math.min(short * 0.42, W * 0.6); noteLines = wrapLines(ctx, note.split("\n"), w); }
+  const bw = w + pad * 2;
+  const bh = pad + titleF * 1.25 + (rows.length ? f * 0.35 + rows.length * row : 0) + (noteLines.length ? f * 0.5 + noteLines.length * noteLh : 0) + pad * 0.8;
+  const m = short * 0.025, D = Math.max(40, Math.min(220, short * 0.14)), cg = short * 0.015;
+  let x0 = cfg.pos.endsWith("r") ? W - m - bw : m;
+  let y0 = cfg.pos.startsWith("t") ? m : H - m - bh;
+  if (cfg.pos === "br") y0 = H - m - D - cg - bh;            // sit above the logo badge
+  if (cfg.pos === "bl" && capH) y0 = H - m - capH - cg - bh;  // sit above the caption strip
+  y0 = Math.max(m, y0); x0 = Math.max(m, x0);
+  ctx.shadowColor = "rgba(0,0,0,0.35)"; ctx.shadowBlur = f * 0.6; ctx.shadowOffsetY = f * 0.1;
+  rrect(ctx, x0, y0, bw, bh, f * 0.45); ctx.fillStyle = "rgba(255,255,255,0.96)"; ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.lineWidth = Math.max(1.5, f * 0.08); ctx.strokeStyle = "#1A1C1E"; ctx.stroke();
+  ctx.textBaseline = "middle"; ctx.textAlign = "left";
+  let y = y0 + pad + titleF * 0.55;
+  ctx.font = sans(titleF, 800); ctx.fillStyle = "#0B0D0E"; ctx.fillText(title, x0 + pad, y);
+  y += titleF * 0.7 + f * 0.35;
+  rows.forEach((e, i) => {
+    const cy = y + row / 2;
+    drawLegendSample(ctx, e, x0 + pad, cy, sw, f);
+    ctx.font = sans(f); ctx.fillStyle = "#1A1C1E"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText(labels[i], x0 + pad + sw + gap, cy);
+    y += row;
+  });
+  if (noteLines.length) {
+    y += f * 0.5;
+    ctx.font = `italic 500 ${noteF}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`; ctx.fillStyle = "#55595E";
+    noteLines.forEach((l) => { ctx.fillText(l, x0 + pad, y + noteLh / 2); y += noteLh; });
+  }
+  ctx.restore();
+}
+const DEFAULT_LEGEND = (): LegendCfg => ({ on: true, pos: "br", title: "Legend", labels: {}, hide: [], note: "Not to scale; locations approx.\nAll depths and grades to be set in the field.", scale: 1 });
+
 function bbox(s: Shape, base: number): { x0: number; y0: number; x1: number; y1: number } {
   if (s.type === "num") { const r = pinR(s, base); return { x0: s.at!.x - r, y0: s.at!.y - r, x1: s.at!.x + r, y1: s.at!.y + r }; }
+  if (s.type === "sym") { const r = symR(s, base) * (s.sym === "tag" ? Math.max(1.3, ((s.text || "").length * 0.55 + 0.8) / 2 + 0.2) : 1.15); return { x0: s.at!.x - r, y0: s.at!.y - r, x1: s.at!.x + r, y1: s.at!.y + r }; }
   if (s.type === "text" && s.bg !== undefined) { const L = textLayout(s, base); return { x0: L.x0, y0: L.y0, x1: L.x0 + L.w, y1: L.y0 + L.h }; }
   if (s.type === "text") {
     const f = base * 6 * (0.7 + (s.size || 2) * 0.25), w = (s.text?.length || 1) * f * 0.6 + f;
@@ -404,7 +645,7 @@ function hit(s: Shape, p: P, tol: number, base: number) {
 }
 const isBox = (s: Shape) => s.type === "text" && s.bg !== undefined;
 function handles(s: Shape, base: number): P[] {
-  if (isBox(s)) { const L = textLayout(s, base); return [{ x: L.x0, y: L.y0 }, { x: L.x0 + L.w, y: L.y0 }, { x: L.x0 + L.w, y: L.y0 + L.h }, { x: L.x0, y: L.y0 + L.h }]; }
+  if (isBox(s)) { const L = textLayout(s, base); const c = [{ x: L.x0, y: L.y0 }, { x: L.x0 + L.w, y: L.y0 }, { x: L.x0 + L.w, y: L.y0 + L.h }, { x: L.x0, y: L.y0 + L.h }]; return s.to ? [...c, s.to] : c; }
   if (s.type === "path") return s.points || [];
   if (s.type === "line" || s.type === "arrow" || s.type === "dim" || s.type === "rect" || s.type === "ellipse") return [s.a!, s.b!];
   return [];
@@ -414,6 +655,7 @@ function moved(s: Shape, dx: number, dy: number): Shape {
   return { ...s, a: m(s.a), b: m(s.b), at: m(s.at), points: s.points?.map((p) => m(p)!) };
 }
 function withHandle(s: Shape, i: number, p: P, base: number): Shape {
+  if (isBox(s) && i === 4) return { ...s, to: p };   // v9.0: drag the pointer tip
   if (isBox(s)) {
     // drag a corner: the opposite corner stays put, text re-wraps to the new width
     const L = textLayout(s, base);
@@ -447,6 +689,21 @@ function SizeStepper({ value, onChange, label, className }: { value: number; onC
   );
 }
 
+
+// v9.0: tiny canvas previews for the symbol picker and the legend editor
+function MiniCanvas({ w, h, draw, deps }: { w: number; h: number; draw: (ctx: CanvasRenderingContext2D) => void; deps: any[] }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    c.width = w * dpr; c.height = h * dpr;
+    const ctx = c.getContext("2d")!; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+    draw(ctx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return <canvas ref={ref} style={{ width: w, height: h }} className="shrink-0" />;
+}
+
 // ---------- screen ----------
 // v7.2: also runs INSIDE a job (CompanyCam-style). Pass lockJobId and it is pinned to that job —
 // no job pickers, Close hands back to the job page, the address bar is left alone.
@@ -472,6 +729,14 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const [bg, setBg] = useState("rgba(11,13,14,0.72)");
   const [numbered, setNumbered] = useState(false);
   const [pinNotes, setPinNotes] = useState(true);   // Number tool: ask for a note and drop a text box beside the dot
+  // v9.0 legend-map tools
+  const [symKind, setSymKind] = useState<SymKind>("tiein");
+  const [structText, setStructText] = useState("DW");
+  const [lineDash, setLineDash] = useState(false);
+  const [lineFlow, setLineFlow] = useState(0);
+  const [lineDots, setLineDots] = useState(true);
+  const [legend, setLegend] = useState<LegendCfg | null>(null);
+  const [leaderFor, setLeaderFor] = useState<string | null>(null);   // next tap sets this box's pointer tip
   const [caption, setCaption] = useState("");
   const [showCap, setShowCap] = useState(true);
   const [capScale, setCapScale] = useState(1);     // caption text size (1 = default)
@@ -521,6 +786,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const [view, setView] = useState({ w: 0, h: 0 });
 
   const selIsText = !!sel && shapes.some((x) => x.id === sel && x.type === "text");
+  const selIsLine = !!sel && shapes.some((x) => x.id === sel && LINE_TYPES.has(x.type));
   // keep a text box fully on the photo
   function clampBox(bx: Shape): Shape {
     if (!img || !isBox(bx)) return bx;
@@ -599,14 +865,14 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           setImg(await loadImg(orig.photo_b64));
           setSrcPhoto(orig); setEditRow(row); reset((row.markup as Markup).shapes || []);
           const mk = row.markup as Markup;
-          setCaption(mk.caption ?? (row.caption && row.caption !== "Marked up" ? row.caption : "")); setShowCap(mk.showCap ?? true); setCapScale(mk.capScale ?? 1); setBrand(mk.brand ?? "isola"); loadPanel(mk.panel);
+          setCaption(mk.caption ?? (row.caption && row.caption !== "Marked up" ? row.caption : "")); setShowCap(mk.showCap ?? true); setCapScale(mk.capScale ?? 1); setBrand(mk.brand ?? "isola"); loadPanel(mk.panel); setLegend(mk.legend ?? null);
           // v8.x: reopening a saved markup lands in Move so a tap selects an existing box instead of drawing a new mark
           setTool("select");
           return;
         }
       }
       setImg(await loadImg(row.photo_b64)); setSrcPhoto(row); setEditRow(null); reset([]);
-      setCaption(row.caption && !["Original", "Marked up"].includes(row.caption) ? row.caption : ""); setShowCap(true); setCapScale(1); setBrand("isola"); loadPanel(null);
+      setCaption(row.caption && !["Original", "Marked up"].includes(row.caption) ? row.caption : ""); setShowCap(true); setCapScale(1); setBrand("isola"); loadPanel(null); setLegend(null);
     } catch (e: any) { showError(e.message); } finally { setBusy(false); }
   }
   async function openFile(f?: File) {
@@ -614,10 +880,10 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     setBusy(true);
     try {
       const b64 = await stampSafe(await compressImage(f, 1600, 0.85), 0.88);
-      setImg(await loadImg(b64)); setSrcPhoto(null); setEditRow(null); reset([]); setCaption(""); setShowCap(true); setCapScale(1); setBrand("isola"); loadPanel(null);
+      setImg(await loadImg(b64)); setSrcPhoto(null); setEditRow(null); reset([]); setCaption(""); setShowCap(true); setCapScale(1); setBrand("isola"); loadPanel(null); setLegend(null);
     } catch { showError("Could not open that photo."); } finally { setBusy(false); }
   }
-  function reset(s: Shape[]) { setShapes(s); setPast([]); setFuture([]); setDraft(null); setSel(null); }
+  function reset(s: Shape[]) { setShapes(s); setPast([]); setFuture([]); setDraft(null); setSel(null); setLeaderFor(null); }
   async function startOver() {
     if ((shapes.length || draft) && !(await ask({ title: "Close this photo?", body: "Anything not saved will be lost.", confirm: "Close", danger: true }))) return;
     setImg(null); setSrcPhoto(null); setEditRow(null); reset([]);
@@ -665,13 +931,14 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
     shapes.forEach((s) => drawShape(ctx, s, base));
     if (showCap && caption.trim()) drawCaption(ctx, caption, img.naturalWidth, img.naturalHeight, capScale, theme);
+    if (legend) drawLegend(ctx, legend, draft ? [...shapes, draft] : shapes, img.naturalWidth, img.naturalHeight, showCap ? captionBoxH(caption, img.naturalWidth, img.naturalHeight, capScale) : 0);
     if (draft) {
       if (draft.type === "path" && hover && draft.points?.length) {
         const last = draft.points[draft.points.length - 1];
         ctx.save(); ctx.setLineDash([base * 2, base * 2]); ctx.strokeStyle = draft.color; ctx.lineWidth = strokeW(draft, base) * 0.7;
         ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(hover.x, hover.y); ctx.stroke(); ctx.restore();
       }
-      drawShape(ctx, draft, base, { firstRing: draft.type === "path" && (draft.points?.length || 0) >= 3 });
+      drawShape(ctx, { ...draft, nodots: undefined }, base, { firstRing: draft.type === "path" && (draft.points?.length || 0) >= 3 });
     }
     const s = shapes.find((x) => x.id === sel);
     if (s) {
@@ -690,7 +957,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       const pctx = pc.getContext("2d")!; pctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
       drawPanel(pctx, panel, img.naturalWidth, img.naturalHeight, 0, 0, theme);
     }
-  }, [img, view, shapes, draft, hover, sel, scale, base, caption, showCap, capScale, panelOn, panelSide, panelText, panelTitle, titleScale, brand]);
+  }, [img, view, shapes, draft, hover, sel, scale, base, caption, showCap, capScale, panelOn, panelSide, panelText, panelTitle, titleScale, brand, legend]);
 
   function toImg(e: React.PointerEvent): P {
     const r = canvasRef.current!.getBoundingClientRect();
@@ -722,7 +989,14 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     const now = Date.now();
     const prevTap = lastTap.current;
     lastTap.current = { t: now, p };
-    const textHit = [...shapes].reverse().find((s) => (s.type === "text" || s.type === "dim") && hit(s, p, tolImg, base));
+    // v9.0: placing a text box's pointer — this tap is the spot it points at
+    if (leaderFor) {
+      const id = leaderFor; setLeaderFor(null); lastTap.current = null;
+      commit(shapes.map((x) => (x.id === id ? { ...x, to: p } : x)));
+      setTool("select"); setSel(id);
+      return;
+    }
+    const textHit = [...shapes].reverse().find((s) => (s.type === "text" || s.type === "dim" || hasSymText(s)) && hit(s, p, tolImg, base));
     // double-tap on a text box from any drawing tool: drop whatever the first tap started and edit the box
     if (tool !== "select" && textHit && prevTap && now - prevTap.t < 400 && dist(prevTap.p, p) < tolImg * 2) {
       lastTap.current = null;
@@ -778,15 +1052,23 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       commit([...cur, box], before);
       return;
     }
+    if (tool === "sym") {
+      const def = SYMS.find((x) => x.k === symKind)!;
+      const text = symKind === "struct" ? (structText.trim().toUpperCase() || "DW") : symKind === "tag" ? nextTag(shapes) : symKind === "warn" ? "!" : undefined;
+      const mark: Shape = { id: uid(), type: "sym", sym: symKind, color: def.color, size, at: p, text };
+      commit([...shapes, mark]);
+      if (!legend) setLegend(DEFAULT_LEGEND());   // first symbol turns the legend on
+      return;
+    }
     if (tool === "path") {
       if (draft?.type === "path" && (draft.points?.length || 0) >= 3 && dist(p, draft.points![0]) < tolImg * 1.6) { closePath(); return; }
-      setDraft((d) => (d?.type === "path" ? { ...d, points: [...(d.points || []), p] } : { id: uid(), type: "path", color, size, points: [p] }));
+      setDraft((d) => (d?.type === "path" ? { ...d, points: [...(d.points || []), p] } : { id: uid(), type: "path", color, size, points: [p], ...lineStyle() }));
       drag.current = { mode: "pathpt" };
       return;
     }
     setSel(null);
-    if (tool === "pen") setDraft({ id: uid(), type: "pen", color, size, points: [p] });
-    else setDraft({ id: uid(), type: tool, color, size, a: p, b: p });
+    if (tool === "pen") setDraft({ id: uid(), type: "pen", color, size, points: [p], ...lineStyle() });
+    else setDraft({ id: uid(), type: tool, color, size, a: p, b: p, ...(tool === "dim" ? {} : lineStyle()) });
     drag.current = { mode: "draw" };
   }
   function onMove(e: React.PointerEvent) {
@@ -817,7 +1099,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       if (d.before && d.before !== shapes) { setPast((p) => [...p.slice(-60), d.before!]); setFuture([]); return; }
       // tap (no drag) on a box that was already selected: open its text, like Canva / Keynote
       const s = shapes.find((x) => x.id === sel);
-      if (d.mode === "move" && d.wasSel && s && (s.type === "text" || s.type === "dim")) editTextOf(s.id);
+      if (d.mode === "move" && d.wasSel && s && (s.type === "text" || s.type === "dim" || hasSymText(s))) editTextOf(s.id);
       return;
     }
     if (d.mode === "tbdraw" && draft) {
@@ -851,6 +1133,19 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     commit([...shapes, dr]);
   }
 
+  // v9.0: line style (dashed / flow arrows / corner dots) — default for new lines, restyles the selected one
+  function lineStyle(): Partial<Shape> { return { dash: lineDash || undefined, flow: lineFlow || undefined, nodots: lineDots ? undefined : true }; }
+  function styleLine(patch: { dash?: boolean; flow?: number; dots?: boolean }) {
+    if (patch.dash !== undefined) setLineDash(patch.dash);
+    if (patch.flow !== undefined) setLineFlow(patch.flow);
+    if (patch.dots !== undefined) setLineDots(patch.dots);
+    if (sel && selIsLine) commit(shapes.map((x) => (x.id !== sel ? x : {
+      ...x,
+      ...(patch.dash !== undefined ? { dash: patch.dash || undefined } : {}),
+      ...(patch.flow !== undefined ? { flow: patch.flow || undefined } : {}),
+      ...(patch.dots !== undefined ? { nodots: patch.dots ? undefined : true } : {}),
+    })));
+  }
   function deleteSel() { if (!sel) return; commit(shapes.filter((s) => s.id !== sel)); setSel(null); }
   // v8.1 (11/2/26): Duplicate — copy the selected mark a little down-right and select the copy,
   // so tapping it again keeps stamping out more. A numbered dot copy takes the next number.
@@ -869,12 +1164,13 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   }
   async function editSelText() { if (sel) await editTextOf(sel); }
   async function editTextOf(id: string) {
-    const s = shapes.find((x) => x.id === id); if (!s || (s.type !== "text" && s.type !== "dim")) return;
-    const t = await askText({ title: s.type === "dim" ? "Measurement" : "Edit text", initial: s.text || "", confirm: "Save", multiline: s.type === "text" });
+    const s = shapes.find((x) => x.id === id); if (!s || (s.type !== "text" && s.type !== "dim" && !hasSymText(s))) return;
+    const t = await askText({ title: s.type === "dim" ? "Measurement" : s.sym === "struct" ? "Letters (e.g. DW, CB, MH)" : s.sym === "tag" ? "Tag (e.g. G1, Unit 4)" : "Edit text", initial: s.text || "", confirm: "Save", multiline: s.type === "text" });
     if (t === null) return;
     // the dialog is async, so build on the latest shapes, not the ones captured at tap time
     const cur = shapesRef.current;
-    commit(cur.map((x) => (x.id === id ? (isBox(x) ? clampBox({ ...x, text: t.trim() }) : { ...x, text: t.trim() }) : x)), cur);
+    const nt = s.sym === "struct" ? t.trim().toUpperCase().slice(0, 4) : t.trim();
+    commit(cur.map((x) => (x.id === id ? (isBox(x) ? clampBox({ ...x, text: nt }) : { ...x, text: nt }) : x)), cur);
   }
   async function editSelNum() {
     const s = shapes.find((x) => x.id === sel); if (!s) return;
@@ -923,7 +1219,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d" && sel) { e.preventDefault(); duplicateSel(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && sel) { e.preventDefault(); deleteSel(); }
       else if (e.key === "Enter" && draft?.type === "path") finishOrDropDraft();
-      else if (e.key === "Escape") { if (draft) { setDraft(null); setHover(null); } else setSel(null); }
+      else if (e.key === "Escape") { if (leaderFor) setLeaderFor(null); else if (draft) { setDraft(null); setHover(null); } else setSel(null); }
     };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
@@ -940,6 +1236,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     const all = draft && draft.type === "path" && (draft.points?.length || 0) >= 2 ? [...shapes, draft] : shapes;
     all.forEach((s) => drawShape(ctx, s, base));
     if (showCap && caption.trim()) drawCaption(ctx, caption, W, H, capScale, theme);
+    if (legend) drawLegend(ctx, legend, all, W, H, showCap ? captionBoxH(caption, W, H, capScale) : 0);
     await drawStamp(ctx, W, H, brand).catch(() => {}); // chosen badge, bottom-right of the photo, on top of the markup
     if (PL) drawPanel(ctx, panel!, W, H, panel!.side === "right" ? W : 0, panel!.side === "right" ? 0 : H, theme);
     return c.toDataURL("image/jpeg", 0.85);
@@ -956,7 +1253,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     try {
       const all = draft && draft.type === "path" && (draft.points?.length || 0) >= 2 ? [...shapes, draft] : shapes;
       const cap = caption.trim();
-      const markup: Markup = { v: 1, w: img!.naturalWidth, h: img!.naturalHeight, shapes: all, caption: cap, showCap, capScale, panel, brand };
+      const markup: Markup = { v: 1, w: img!.naturalWidth, h: img!.naturalHeight, shapes: all, caption: cap, showCap, capScale, panel, brand, legend };
       const out = await render();
       let source = srcPhoto;
       if (!source || source.job_id !== jobId) {
@@ -987,10 +1284,12 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
 
   const selShape = shapes.find((x) => x.id === sel);
   const hint =
-    tool === "path" ? (draft ? `${draft.points?.length} point${draft.points?.length === 1 ? "" : "s"} · tap to add more · tap the first point to close it · Done to finish` : "Tap to drop each point — lines connect as you go")
+    leaderFor ? "Tap the spot this box points at — drag its round end later to move it"
+    : tool === "path" ? (draft ? `${draft.points?.length} point${draft.points?.length === 1 ? "" : "s"} · tap to add more · tap the first point to close it · Done to finish` : "Tap to drop each point — lines connect as you go")
     : tool === "select" ? (selShape ? (selShape.type === "text" ? (isBox(selShape) ? "Tap again to edit the words · drag to move · drag a corner dot to resize" : "Tap again to edit the words · drag to move · restyle below") : "Drag to move · drag a white dot to reshape · color and size buttons restyle it · Duplicate makes a copy") : "Tap any box or mark to select it · tap a selected box again to edit its words")
     : tool === "dim" ? "Drag from one end to the other, then type the measurement"
     : tool === "text" ? "Tap empty space for a new box (or drag to size it) · tap an existing box to edit it"
+    : tool === "sym" ? `Tap to drop ${SYMS.find((x) => x.k === symKind)?.label.toLowerCase()}${symKind === "tag" ? ` (next: ${nextTag(shapes)})` : symKind === "struct" ? ` "${structText.toUpperCase() || "DW"}"` : ""} · each kind shows up in the legend`
     : tool === "num" ? `Tap to drop numbered dots (next: ${nextNum(shapes)})${pinNotes ? " · type a note and it goes in a box beside the dot" : ""}`
     : tool === "pen" ? "Draw with your finger" : "Drag to draw";
 
@@ -1137,9 +1436,90 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
         </div>
       ) : null}
 
+
+      {tool === "sym" || selShape?.type === "sym" ? (() => {
+        const curK = selShape?.type === "sym" ? selShape.sym || "dot" : symKind;
+        const pickKind = (k: SymKind) => {
+          setSymKind(k);
+          if (selShape?.type === "sym") {
+            const d = SYMS.find((x) => x.k === k)!;
+            const text = k === "struct" ? (structText.toUpperCase() || "DW") : k === "tag" ? (selShape.sym === "tag" ? selShape.text : nextTag(shapes)) : k === "warn" ? "!" : undefined;
+            commit(shapes.map((x) => (x.id === sel ? { ...x, sym: k, color: d.color, text } : x)));
+          }
+        };
+        const setLetters = (t: string) => {
+          setStructText(t);
+          if (selShape?.type === "sym" && selShape.sym === "struct") commit(shapes.map((x) => (x.id === sel ? { ...x, text: t.toUpperCase().slice(0, 4) } : x)));
+        };
+        return (
+          <div className="mb-2 rounded-lg border border-white/[0.09] bg-card p-2">
+            <div className="no-scrollbar flex gap-1 overflow-x-auto">
+              {SYMS.map((d) => (
+                <button key={d.k} onClick={() => pickKind(d.k)}
+                  className={cn("flex min-h-[52px] min-w-[68px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-2 text-[12px] font-semibold",
+                    curK === d.k ? "border-brand bg-brand/15 text-white" : "border-white/[0.09] text-neutral-300 hover:text-white")}>
+                  <MiniCanvas w={30} h={26} deps={[d.k, structText]} draw={(c) => drawSym(c, d.k, 15, 13, d.k === "struct" ? 11 : d.k === "cleanout" ? 8 : d.k === "tag" ? 8 : 9, d.color, d.k === "struct" ? (structText.toUpperCase() || "DW") : d.k === "tag" ? "G1" : d.k === "warn" ? "!" : "")} />
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            {curK === "struct" ? (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Letters</span>
+                {["DW", "CB", "MH", "YD", "TD"].map((t) => (
+                  <button key={t} onClick={() => setLetters(t)}
+                    className={cn("h-8 rounded-md border px-2.5 text-[13px] font-bold", (selShape?.type === "sym" ? selShape.text : structText.toUpperCase()) === t ? "border-brand bg-brand text-neutral-950" : "border-white/[0.09] text-neutral-300")}>{t}</button>
+                ))}
+                <input value={selShape?.type === "sym" && selShape.sym === "struct" ? selShape.text || "" : structText} maxLength={4}
+                  onChange={(e) => setLetters(e.target.value)} placeholder="Other"
+                  className="h-8 w-20 rounded-md border border-white/[0.09] bg-neutral-950 px-2 text-[14px] font-bold uppercase text-white placeholder:normal-case placeholder:font-normal placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
+              </div>
+            ) : null}
+            {curK === "tag" ? <p className="mt-1.5 text-xs text-neutral-500">Tags count up as you tap — G1, G2, G3… Tap a tag twice to rename it.</p> : null}
+          </div>
+        );
+      })() : null}
+
+      {LINE_TYPES.has(tool as Shape["type"]) || selIsLine ? (() => {
+        const cur = selIsLine ? selShape! : null;
+        const dash = cur ? !!cur.dash : lineDash, flow = cur ? cur.flow || 0 : lineFlow, dots = cur ? !cur.nodots : lineDots;
+        const showDots = cur ? cur.type === "path" : tool === "path";
+        const canFlow = cur ? ["line", "arrow", "path"].includes(cur.type) : ["line", "arrow", "path"].includes(tool);
+        return (
+          <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.09] bg-card p-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Line</span>
+            <div className="inline-flex rounded-lg border border-border bg-neutral-950 p-0.5">
+              {([[false, "Solid"], [true, "Dashed"]] as const).map(([v, l]) => (
+                <button key={l} onClick={() => styleLine({ dash: v })}
+                  className={cn("h-8 rounded-md px-3 text-[13px] font-semibold", dash === v ? "bg-brand text-neutral-950" : "text-neutral-300")}>{l}</button>
+              ))}
+            </div>
+            {canFlow ? (
+              <div className="inline-flex items-center rounded-lg border border-border bg-neutral-950 p-0.5">
+                <span className="px-2 text-[12px] font-semibold text-neutral-400">Flow ➜</span>
+                {[0, 1, 2, 3].map((n) => (
+                  <button key={n} onClick={() => styleLine({ flow: n })}
+                    className={cn("h-8 w-9 rounded-md text-[13px] font-semibold", flow === n ? "bg-brand text-neutral-950" : "text-neutral-300")}>{n === 0 ? "Off" : n}</button>
+                ))}
+              </div>
+            ) : null}
+            {showDots ? (
+              <div className="inline-flex rounded-lg border border-border bg-neutral-950 p-0.5">
+                {([[true, "Corner dots"], [false, "No dots"]] as const).map(([v, l]) => (
+                  <button key={l} onClick={() => styleLine({ dots: v })}
+                    className={cn("h-8 rounded-md px-3 text-[13px] font-semibold", dots === v ? "bg-brand text-neutral-950" : "text-neutral-300")}>{l}</button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        );
+      })() : null}
+
       <div className="mb-2 flex min-h-[36px] flex-wrap items-center gap-2 text-[13px] text-neutral-400">
-        <span className="mr-auto">{hint}</span>
-        {draft?.type === "path" ? (
+        <span className={cn("mr-auto", leaderFor ? "font-semibold text-brand" : "")}>{hint}</span>
+        {leaderFor ? (
+          <Button variant="outline" size="sm" onClick={() => setLeaderFor(null)}>Cancel pointer</Button>
+        ) : draft?.type === "path" ? (
           <>
             <Button variant="outline" size="sm" onClick={() => finishOrDropDraft(true)}>Undo point</Button>
             {(draft.points?.length || 0) >= 3 ? <Button variant="outline" size="sm" onClick={closePath}>Close shape</Button> : null}
@@ -1149,6 +1529,9 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           <>
             {selShape.type === "text" || selShape.type === "dim" ? <Button variant="outline" size="sm" onClick={editSelText}>Edit {selShape.type === "dim" ? "measurement" : "text"}</Button> : null}
             {selShape.num != null ? <Button variant="outline" size="sm" onClick={editSelNum}>Change #{selShape.num}</Button> : null}
+            {isBox(selShape) ? (selShape.to
+              ? <Button variant="outline" size="sm" onClick={() => commit(shapes.map((x) => (x.id === sel ? { ...x, to: undefined } : x)))}><MoveUpRight size={15} /> Remove pointer</Button>
+              : <Button variant="outline" size="sm" onClick={() => setLeaderFor(selShape.id)}><MoveUpRight size={15} /> Add pointer</Button>) : null}
             <Button variant="outline" size="sm" onClick={duplicateSel}><Copy size={15} /> Duplicate</Button>
             <Button variant="destructive" size="sm" onClick={deleteSel}><Trash2 size={15} /> Delete</Button>
           </>
@@ -1192,6 +1575,53 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           {BRANDS.map((b) => <option key={b.v} value={b.v}>{b.n}</option>)}
         </NativeSelect>
         <span className="hidden text-xs text-neutral-500 sm:inline">Bottom-right badge · steps panel colors follow it</span>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-white/[0.09] bg-card p-2.5">
+        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Legend</span>
+          <div className="no-scrollbar inline-flex overflow-x-auto rounded-lg border border-border bg-neutral-950 p-0.5">
+            {([["off", "Off"], ["tl", "Top left"], ["tr", "Top right"], ["bl", "Bottom left"], ["br", "Bottom right"]] as const).map(([k, l]) => {
+              const on = k === "off" ? !legend?.on : !!legend?.on && legend.pos === k;
+              return <button key={k} onClick={() => setLegend((g) => (k === "off" ? (g ? { ...g, on: false } : null) : { ...(g ?? DEFAULT_LEGEND()), on: true, pos: k }))}
+                className={cn("h-8 shrink-0 rounded-md px-2.5 text-[13px] font-semibold", on ? "bg-brand text-neutral-950" : "text-neutral-300")}>{l}</button>;
+            })}
+          </div>
+          {legend?.on ? <SizeStepper className="ml-auto" value={legend.scale || 1} onChange={(v) => setLegend((g) => (g ? { ...g, scale: v } : g))} label="Legend size" /> : null}
+        </div>
+        {legend?.on ? (() => {
+          const entries = legendEntries(shapes);
+          return (
+            <>
+              <input value={legend.title} onChange={(e) => setLegend((g) => (g ? { ...g, title: e.target.value } : g))} placeholder="Legend"
+                className="mb-1.5 w-full rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] font-semibold text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
+              {entries.length ? (
+                <div className="space-y-1.5">
+                  {entries.map((e) => {
+                    const hidden = legend.hide.includes(e.key);
+                    return (
+                      <div key={e.key} className={cn("flex items-center gap-2", hidden && "opacity-45")}>
+                        <span className="flex h-9 w-12 shrink-0 items-center justify-center rounded-md bg-white">
+                          <MiniCanvas w={40} h={26} deps={[e.key, e.text]} draw={(c) => drawLegendSample(c, e, 4, 13, 32, 15)} />
+                        </span>
+                        <input value={legend.labels[e.key] ?? e.def}
+                          onChange={(ev) => { const v = ev.target.value; setLegend((g) => (g ? { ...g, labels: { ...g.labels, [e.key]: v } } : g)); }}
+                          className="min-w-0 flex-1 rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] text-white focus:border-brand focus:outline-none" />
+                        <button aria-label={hidden ? "Show in legend" : "Hide from legend"}
+                          onClick={() => setLegend((g) => (g ? { ...g, hide: hidden ? g.hide.filter((k) => k !== e.key) : [...g.hide, e.key] } : g))}
+                          className="shrink-0 rounded p-2 text-neutral-400 hover:text-white">{hidden ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : <p className="text-xs text-neutral-500">Draw lines or drop symbols — each kind gets a row here to name.</p>}
+              <textarea value={legend.note} onChange={(e) => setLegend((g) => (g ? { ...g, note: e.target.value } : g))} rows={2}
+                placeholder="Small print under the legend, e.g. Not to scale; locations approx."
+                className="mt-1.5 w-full resize-none rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[14px] italic text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
+              <p className="text-xs text-neutral-500">Rows build themselves from what you draw — one per color and line style, one per symbol. Rename them here; the eye hides a row.</p>
+            </>
+          );
+        })() : <p className="text-xs text-neutral-500">A legend box on the photo that names each line color and symbol — like a site plan.</p>}
       </div>
 
       <div className="mt-3 rounded-lg border border-white/[0.09] bg-card p-2.5">
