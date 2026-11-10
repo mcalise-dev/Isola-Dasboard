@@ -21,6 +21,7 @@ import { Table, TableWrap, TBody, TD, TH, THead, TR } from "@/components/ui/tabl
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { editJob } from "@/components/job/JobForm";
+import PeopleList from "@/components/PeopleList";
 import { showToast, undoable, showError } from "@/components/Toaster";
 import {
   ContactDialog, EditCustomerDialog, PropertyDialog, StageChip, TYPES,
@@ -392,6 +393,7 @@ function PropertiesTab({ props, jobs, open, setOpen, onAdd, onEdit, onRemove, on
               <div className="border-t border-border px-3 py-2">
                 {p?.access_notes ? <p className="mb-2 rounded-md bg-amber-500/[0.08] px-2.5 py-1.5 text-xs text-amber-200">Access: {p.access_notes}</p> : null}
                 {p?.notes ? <p className="mb-2 whitespace-pre-wrap text-xs text-neutral-400">{p.notes}</p> : null}
+                {p ? <div className="mb-3"><PeopleList table="property_contacts" fk="property_id" id={p.id} title="People at this property" rolePlaceholder="HOA president, super, board…" /></div> : null}
                 {js.length === 0 ? <p className="py-1.5 text-sm text-neutral-500">No jobs at this address yet.</p> : (
                   <ul className="divide-y divide-white/[0.05]">
                     {js.slice().sort((a, b) => jobDate(b).localeCompare(jobDate(a))).map((j) => (

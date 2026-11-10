@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { cn } from "@/lib/utils";
 import W9YearEnd from "@/components/W9YearEnd";
 import ScheduleItemDialog from "@/components/schedule/ScheduleItemDialog";
+import PeopleList from "@/components/PeopleList";
 import { typeOf } from "@/lib/schedule";
 import { fmtDate, todayISO, jobLabel } from "@/lib/format";
 import { Plus, Link2, Search, ChevronDown, Phone, Mail, Pencil, Trash2, Eye, Paperclip, Check, X, Users, FileText, CalendarPlus, CalendarClock } from "lucide-react";
@@ -428,6 +429,8 @@ export default function VendorsTab() {
                     {v.notes ? <div className="whitespace-pre-wrap text-neutral-400">{v.notes}</div> : null}
                   </div>
 
+                  <PeopleList table="vendor_contacts" fk="vendor_id" id={v.id} title="More people" rolePlaceholder="Office, foreman, billing…" />
+
                   <div className="flex flex-wrap gap-1.5">
                     {needsReview(v) ? <Button variant="success" size="sm" className="h-10 md:h-8" onClick={() => setStatus(v, "approved")}><Check size={14} /> Mark approved</Button> : null}
                     <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => openEdit(v)}><Pencil size={14} /> Edit</Button>
@@ -539,7 +542,7 @@ export default function VendorsTab() {
             <div className="space-y-3">
               <Field label="Company"><Input value={editing.company ?? ""} onChange={(e) => set("company", e.target.value)} /></Field>
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Contact"><Input value={editing.contact_name ?? ""} onChange={(e) => set("contact_name", e.target.value)} /></Field>
+                <Field label="Main contact"><Input value={editing.contact_name ?? ""} onChange={(e) => set("contact_name", e.target.value)} /></Field>
                 <Field label="Trade"><Input value={editing.trade ?? ""} placeholder="Concrete finishing, supplier…" onChange={(e) => set("trade", e.target.value)} /></Field>
               </div>
               <div className="grid grid-cols-2 gap-2">

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea, Field } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { telHref } from "@/lib/phoneLinks";
+import PeopleList from "@/components/PeopleList";
 import { Phone, MapPin, Plus, Pencil, Search, Clock, Truck } from "lucide-react";
 
 type MV = {
@@ -109,6 +110,7 @@ export default function MaterialVendors({ compact = false }: { compact?: boolean
                 {v.hours ? <div className="flex items-center gap-1"><Clock size={12} /> {v.hours}</div> : null}
                 {v.notes ? <div className="text-neutral-400">{v.notes}</div> : null}
               </div>
+              <div className="mt-2"><PeopleList table="vendor_contacts" fk="material_vendor_id" id={v.id} title="People" rolePlaceholder="Counter, dispatch, sales rep…" /></div>
             </div>
           ))}
         </div>
