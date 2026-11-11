@@ -72,7 +72,8 @@ export default function TmTab({ tm, updates = [] }: { tm: any; updates?: any[] }
             </div>
           </div>
         </div>
-        {tm.labor_rate ? <p className="mt-2.5 text-[12px] text-[#777]">Labor billed at {money(tm.labor_rate)}/hr per worker. Materials at cost plus handling.</p> : null}
+        {(tm.combined_jobs ?? []).length ? <p className="mt-2.5 text-[12px] font-semibold text-[#444]">Includes {(tm.combined_jobs as string[]).join(", ")}, billed together on the same invoice.</p> : null}
+        {tm.labor_rate ? <p className="mt-1 text-[12px] text-[#777]">Labor billed at {money(tm.labor_rate)}/hr per worker. Materials at cost plus handling.</p> : null}
 
         <div className="mt-5 space-y-4">
           {shown.map((x) => (
@@ -84,6 +85,7 @@ export default function TmTab({ tm, updates = [] }: { tm: any; updates?: any[] }
               <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px]" style={{ color: YD }}>
                 {Number(x.hours) ? <span className="font-bold">{x.crew > 1 ? `${x.crew} workers · ` : ""}{hrs(Number(x.hours))}</span> : <span className="font-bold">Materials only</span>}
                 {x.invoiced ? <span className="text-[#888]">· Invoiced</span> : <span className="text-[#111]">· On current tab</span>}
+                {(x.jobs ?? []).map((n: string) => <span key={n} className="ml-1 bg-[#111] px-1.5 py-[1px] text-[10px] font-extrabold uppercase tracking-[0.08em] text-white">{n}</span>)}
               </div>
               {x.work ? <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-[#222]">{x.work}</p> : null}
               <Thumbs srcs={updates.filter((u) => String(u.date).slice(0, 10) === String(x.date).slice(0, 10)).flatMap(photosOf)} />
