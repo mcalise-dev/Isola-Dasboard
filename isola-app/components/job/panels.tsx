@@ -436,7 +436,7 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
                 {list.map((p) => (
                   <div key={p.id} className="group relative">
                     <button onClick={() => openBig(p)} className="block w-full">{thumbOf(p) ? <img src={thumbOf(p)} alt={p.phase} loading="lazy" className="h-28 w-full rounded-lg border border-white/[0.08] object-cover" /> : <div className="skeleton h-28 w-full rounded-lg" />}</button>
-                    <button onClick={() => remove(p)} aria-label="Delete photo" className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-neutral-300"><X size={13} /></button>
+                    <button onClick={() => remove(p)} aria-label="Delete photo" title="Delete photo" className="absolute right-1 top-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/75 text-neutral-200 hover:bg-red-600 hover:text-white"><Trash2 size={15} /></button>
                     <button onClick={() => cycle(p)} className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 text-xs font-semibold capitalize text-neutral-200">{p.phase}</button>
                     <button onClick={() => setMark({ photoId: p.id })} aria-label="Mark up photo" className="absolute bottom-1 right-1 inline-flex min-h-[24px] items-center gap-1 rounded bg-brand px-1.5 text-xs font-bold text-neutral-950"><PenTool size={11} />{p.source_photo_id ? "Edit" : "Mark up"}</button>
                   </div>

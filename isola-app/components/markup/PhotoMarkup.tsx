@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { PageHeader, Empty } from "@/components/ui/bits";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/input";
-import { showError, showToast } from "@/components/Toaster";
+import { showError, showToast, undoable } from "@/components/Toaster";
 import { ask, askText } from "@/components/Dialogs";
 import { BRANDS, drawStamp, stampSafe, type Brand } from "@/lib/stamp";
 import { isStored, kickMediaSync, useFallbackImages, useSignedUrls } from "@/lib/media";
@@ -856,6 +856,20 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   }, [jobId, img, sb]);
   const pickThumbs = useSignedUrls("job-photos", (jobPhotos ?? []).map((p: any) => p.thumb_path));
   const pickFallback = useFallbackImages((jobPhotos ?? []).map((p: any) => ({ id: p.id, thumb: p.thumb_path })), "job_photos", "photo_b64");
+  // v9.2: quick delete from the photo list — Undo on the toast brings it back
+  function deletePickPhoto(p: any) {
+    const prev = jobPhotos ?? [];
+    undoable({
+      text: "Photo deleted",
+      hide: () => setJobPhotos(prev.filter((x: any) => x.id !== p.id)),
+      restore: () => setJobPhotos(prev),
+      commit: async () => {
+        const { error } = await sb.from("job_photos").delete().eq("id", p.id);
+        if (error) { setJobPhotos(prev); throw error; }
+        window.dispatchEvent(new Event("isola:changed"));
+      },
+    });
+  }
   const pickSrc = (p: any) => (isStored(p.thumb_path) ? pickThumbs[p.thumb_path] : pickFallback[p.id]) ?? "";
 
   // v8.0: prepared step lists saved on the job ("what's this photo?") — pick one and each dot preloads its line
@@ -1421,10 +1435,16 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
               : (
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
                   {jobPhotos.map((p) => (
-                    <button key={p.id} onClick={() => openJobPhoto(p.id)} className="group relative block overflow-hidden rounded-lg border border-white/[0.08] hover:border-brand">
-                      {pickSrc(p) ? <img src={pickSrc(p)} alt={p.phase} loading="lazy" className="h-28 w-full object-cover" /> : <div className="skeleton h-28 w-full" />}
-                      <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 text-xs font-semibold capitalize text-neutral-200">{p.source_photo_id ? "Marked up" : p.phase}</span>
-                    </button>
+                    <div key={p.id} className="relative">
+                      <button onClick={() => openJobPhoto(p.id)} className="group relative block w-full overflow-hidden rounded-lg border border-white/[0.08] hover:border-brand">
+                        {pickSrc(p) ? <img src={pickSrc(p)} alt={p.phase} loading="lazy" className="h-28 w-full object-cover" /> : <div className="skeleton h-28 w-full" />}
+                        <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 text-xs font-semibold capitalize text-neutral-200">{p.source_photo_id ? "Marked up" : p.phase}</span>
+                      </button>
+                      <button onClick={() => deletePickPhoto(p)} aria-label="Delete photo" title="Delete photo"
+                        className="absolute right-1 top-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/75 text-neutral-200 hover:bg-red-600 hover:text-white">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
