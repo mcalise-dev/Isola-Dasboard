@@ -116,7 +116,7 @@ const isDark = (c: string) => c === "#0B0D0E";
 
 // ---------- drawing (shared by screen + export) ----------
 function baseUnit(w: number, h: number) { return Math.max(w, h) / 300; }
-function strokeW(s: Shape, base: number) { return base * SIZE_MULT[s.size || 2]; }
+function strokeW(s: Shape, base: number) { return base * SIZE_MULT[s.size || 2] * (s.ts || 1); }
 
 function pill(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, fontPx: number, color: string) {
   ctx.font = `700 ${fontPx}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
@@ -188,14 +188,14 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape, base: number, opts: 
         ctx.moveTo(a.x + nx, a.y + ny); ctx.lineTo(a.x - nx, a.y - ny);
         ctx.moveTo(b.x + nx, b.y + ny); ctx.lineTo(b.x - nx, b.y - ny);
       });
-      if (s.text) pill(ctx, s.text, (a.x + b.x) / 2, (a.y + b.y) / 2, base * 5.2 * (0.75 + (s.size || 2) * 0.2), s.color);
+      if (s.text) pill(ctx, s.text, (a.x + b.x) / 2, (a.y + b.y) / 2, base * 5.2 * (0.75 + (s.size || 2) * 0.2) * (s.ts || 1), s.color);
       break;
     }
     case "rect": stroke(() => { ctx.beginPath(); ctx.rect(Math.min(s.a!.x, s.b!.x), Math.min(s.a!.y, s.b!.y), Math.abs(s.b!.x - s.a!.x), Math.abs(s.b!.y - s.a!.y)); }); break;
     case "ellipse": stroke(() => { ctx.beginPath(); ctx.ellipse((s.a!.x + s.b!.x) / 2, (s.a!.y + s.b!.y) / 2, Math.abs(s.b!.x - s.a!.x) / 2 || 0.5, Math.abs(s.b!.y - s.a!.y) / 2 || 0.5, 0, 0, Math.PI * 2); }); break;
     case "text":
       if (s.bg !== undefined) { if (s.text) { if (s.to) drawLeader(ctx, s, base); drawTextBox(ctx, s, base); } }
-      else if (s.text) pill(ctx, s.text, s.at!.x, s.at!.y, base * 6 * (0.7 + (s.size || 2) * 0.25), s.color);
+      else if (s.text) pill(ctx, s.text, s.at!.x, s.at!.y, base * 6 * (0.7 + (s.size || 2) * 0.25) * (s.ts || 1), s.color);
       break;
     case "num": {
       const r = pinR(s, base);
@@ -236,7 +236,7 @@ function flowArrows(ctx: CanvasRenderingContext2D, pts: P[], n: number, lw: numb
   }
   ctx.restore();
 }
-const symR = (s: Shape, base: number) => base * ({ tiein: 3.2, cleanout: 2.4, struct: 4.6, warn: 3.8, tag: 3.4, dot: 2.6, replace: 3.6, repoint: 3.6 } as Record<SymKind, number>)[s.sym || "dot"] * (0.6 + (s.size || 2) * 0.2);
+const symR = (s: Shape, base: number) => base * ({ tiein: 3.2, cleanout: 2.4, struct: 4.6, warn: 3.8, tag: 3.4, dot: 2.6, replace: 3.6, repoint: 3.6 } as Record<SymKind, number>)[s.sym || "dot"] * (0.6 + (s.size || 2) * 0.2) * (s.ts || 1);
 const SYMS: { k: SymKind; label: string; color: string; text?: string }[] = [
   { k: "replace", label: "Replace brick", color: "#EF4444" },
   { k: "repoint", label: "Repoint", color: "#F2C230" },
@@ -526,7 +526,7 @@ function drawPanel(ctx: CanvasRenderingContext2D, p: Panel, W: number, H: number
   }
   ctx.restore();
 }
-const pinR = (s: Shape, base: number) => base * (2.6 + (s.size || 2) * 1.3);
+const pinR = (s: Shape, base: number) => base * (2.6 + (s.size || 2) * 1.3) * (s.ts || 1);
 
 // legend entries: one row per distinct line style / symbol / area on the photo, in the order first drawn
 type LegEntry = { key: string; kind: "line" | "area" | "sym"; color: string; dash?: boolean; sym?: SymKind; text?: string; def: string };
@@ -640,7 +640,7 @@ function bbox(s: Shape, base: number): { x0: number; y0: number; x1: number; y1:
   if (s.type === "sym") { const r = symR(s, base) * (s.sym === "tag" ? Math.max(1.3, ((s.text || "").length * 0.55 + 0.8) / 2 + 0.2) : 1.15); return { x0: s.at!.x - r, y0: s.at!.y - r, x1: s.at!.x + r, y1: s.at!.y + r }; }
   if (s.type === "text" && s.bg !== undefined) { const L = textLayout(s, base); return { x0: L.x0, y0: L.y0, x1: L.x0 + L.w, y1: L.y0 + L.h }; }
   if (s.type === "text") {
-    const f = base * 6 * (0.7 + (s.size || 2) * 0.25), w = (s.text?.length || 1) * f * 0.6 + f;
+    const f = base * 6 * (0.7 + (s.size || 2) * 0.25) * (s.ts || 1), w = (s.text?.length || 1) * f * 0.6 + f;
     return { x0: s.at!.x - w / 2, y0: s.at!.y - f, x1: s.at!.x + w / 2, y1: s.at!.y + f };
   }
   const pts = s.points?.length ? s.points : [s.a!, s.b!];
@@ -691,14 +691,14 @@ function loadImg(src: string): Promise<HTMLImageElement> {
 }
 
 // v7.3: small A- / A+ control for text size (60%-250%); tap the % to reset
-function SizeStepper({ value, onChange, label, className }: { value: number; onChange: (v: number) => void; label: string; className?: string }) {
-  const step = (d: number) => onChange(Math.round(Math.min(2.5, Math.max(0.6, value + d)) * 10) / 10);
+function SizeStepper({ value, onChange, label, className, min = 0.6, max = 2.5 }: { value: number; onChange: (v: number) => void; label: string; className?: string; min?: number; max?: number }) {
+  const step = (d: number) => onChange(Math.round(Math.min(max, Math.max(min, value + d)) * 10) / 10);
   return (
     <div className={cn("inline-flex shrink-0 items-center rounded-lg border border-border bg-neutral-950 p-0.5", className)} aria-label={label}>
-      <button type="button" aria-label={`${label} smaller`} onClick={() => step(-0.1)} disabled={value <= 0.6}
+      <button type="button" aria-label={`${label} smaller`} onClick={() => step(-0.1)} disabled={value <= min}
         className="h-8 w-8 rounded-md text-[12px] font-bold text-neutral-300 hover:text-white disabled:opacity-40">A&minus;</button>
       <button type="button" title="Reset size" onClick={() => onChange(1)} className="h-8 min-w-[3rem] px-1 text-[12px] font-semibold tabular-nums text-neutral-400 hover:text-white">{Math.round(value * 100)}%</button>
-      <button type="button" aria-label={`${label} bigger`} onClick={() => step(0.1)} disabled={value >= 2.5}
+      <button type="button" aria-label={`${label} bigger`} onClick={() => step(0.1)} disabled={value >= max}
         className="h-8 w-8 rounded-md text-[15px] font-bold text-neutral-300 hover:text-white disabled:opacity-40">A+</button>
     </div>
   );
@@ -1211,6 +1211,49 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       return clampBox({ ...next, h: next.h ? Math.max(next.h, L1.h) : undefined, at: { x: L0.x0 + L1.w / 2, y: L0.y0 + L1.h / 2 } });
     }));
   }
+  // v9.2: free sizing for anything on the photo — scroll wheel / trackpad pinch over the item, or the Size stepper.
+  // Everything shares one scale (ts): symbols, numbers, text, measurements, lines and shapes.
+  function scaledShape(x: Shape, f: number): Shape {
+    const ts = Math.max(0.3, Math.min(6, Math.round((x.ts || 1) * f * 100) / 100));
+    if (x.type === "text" && x.bg !== undefined) {
+      const before = { ...x, bg: x.bg ?? bg }, L0 = textLayout(before, base);
+      const next: Shape = { ...before, ts };
+      const L1 = textLayout(next, base);
+      return clampBox({ ...next, h: next.h ? Math.max(next.h, L1.h) : undefined, at: { x: L0.x0 + L1.w / 2, y: L0.y0 + L1.h / 2 } });
+    }
+    return { ...x, ts };
+  }
+  const wheelBatch = useRef<{ id: string; t: number } | null>(null);
+  function resizeShape(id: string, f: number) {
+    const cur = shapesRef.current;
+    const next = cur.map((x) => (x.id === id ? scaledShape(x, f) : x));
+    const wb = wheelBatch.current, now = Date.now();
+    // one undo step per burst of scrolling on the same item
+    if (wb && wb.id === id && now - wb.t < 700) setShapes(next); else commit(next, cur);
+    wheelBatch.current = { id, t: now };
+  }
+  function setShapeScale(id: string, v: number) {
+    commit(shapes.map((x) => (x.id === id ? scaledShape(x, v / (x.ts || 1)) : x)));
+  }
+  const wheelRef = useRef<(e: WheelEvent) => void>(() => {});
+  wheelRef.current = (e: WheelEvent) => {
+    if (!img || !canvasRef.current) return;
+    const r = canvasRef.current.getBoundingClientRect();
+    const p = { x: (e.clientX - r.left) / scale, y: (e.clientY - r.top) / scale };
+    const under = [...shapesRef.current].reverse().find((s) => hit(s, p, tolImg, base));
+    const target = under?.id;   // only what's under the mouse — empty photo lets the page scroll
+    if (!target) return;
+    e.preventDefault();
+    const f = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015));
+    resizeShape(target, Math.max(0.8, Math.min(1.25, f)));
+    if (sel !== target) setSel(target);
+  };
+  useEffect(() => {
+    const c = canvasRef.current; if (!c) return;
+    const h = (e: WheelEvent) => wheelRef.current(e);
+    c.addEventListener("wheel", h, { passive: false });
+    return () => c.removeEventListener("wheel", h);
+  }, [img]);
   function fitBox() {
     if (!(sel && selIsText)) return;
     commit(shapes.map((x) => (x.id === sel ? clampBox({ ...x, w: undefined, h: undefined }) : x)));
@@ -1301,10 +1344,10 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const hint =
     leaderFor ? "Tap the spot this box points at — drag its round end later to move it"
     : tool === "path" ? (draft ? `${draft.points?.length} point${draft.points?.length === 1 ? "" : "s"} · tap to add more · tap the first point to close it · Done to finish` : "Tap to drop each point — lines connect as you go")
-    : tool === "select" ? (selShape ? (selShape.type === "text" ? (isBox(selShape) ? "Tap again to edit the words · drag to move · drag a corner dot to resize" : "Tap again to edit the words · drag to move · restyle below") : "Drag to move · drag a white dot to reshape · color and size buttons restyle it · Duplicate makes a copy") : "Tap any box or mark to select it · tap a selected box again to edit its words")
+    : tool === "select" ? (selShape ? (selShape.type === "text" ? (isBox(selShape) ? "Tap again to edit the words · drag to move · drag a corner dot to resize" : "Tap again to edit the words · drag to move · restyle below") : "Drag to move · scroll the mouse wheel over it to size it · drag a white dot to reshape · Duplicate makes a copy") : "Tap any box or mark to select it · scroll the mouse wheel over anything to size it")
     : tool === "dim" ? "Drag from one end to the other, then type the measurement"
     : tool === "text" ? "Tap empty space for a new box (or drag to size it) · tap an existing box to edit it"
-    : tool === "sym" ? `Tap to drop ${SYMS.find((x) => x.k === symKind)?.label.toLowerCase()}${symKind === "tag" ? ` (next: ${nextTag(shapes)})` : symKind === "struct" ? ` "${structText.toUpperCase() || "DW"}"` : ""} · each kind shows up in the legend`
+    : tool === "sym" ? `Tap to drop ${SYMS.find((x) => x.k === symKind)?.label.toLowerCase()}${symKind === "tag" ? ` (next: ${nextTag(shapes)})` : symKind === "struct" ? ` "${structText.toUpperCase() || "DW"}"` : ""} · each kind shows up in the legend · scroll over one to size it`
     : tool === "num" ? `Tap to drop numbered dots (next: ${nextNum(shapes)})${pinNotes ? " · type a note and it goes in a box beside the dot" : ""}`
     : tool === "pen" ? "Draw with your finger" : "Drag to draw";
 
@@ -1542,6 +1585,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           </>
         ) : selShape ? (
           <>
+            <SizeStepper value={selShape.ts || 1} min={0.3} max={6} onChange={(v) => setShapeScale(selShape.id, v)} label="Size" />
             {selShape.type === "text" || selShape.type === "dim" ? <Button variant="outline" size="sm" onClick={editSelText}>Edit {selShape.type === "dim" ? "measurement" : "text"}</Button> : null}
             {selShape.num != null ? <Button variant="outline" size="sm" onClick={editSelNum}>Change #{selShape.num}</Button> : null}
             {isBox(selShape) ? (selShape.to
