@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SignBar, signNeed } from "@/components/siteline/SignBar";
-import TmTab from "@/components/siteline/TmTab";
+import TmTab, { photosOf } from "@/components/siteline/TmTab";
 import { Shell, Label, Pill, PhaseTrack, DataCard, YellowButton, Section, PHONE, TEL, Y, YD, HEAD, dayDate, midDate, isToday, money } from "@/components/siteline/ui";
 
 /* Isola SiteLine — the client's no-login project page (/site/<token>). Every job has one.
@@ -161,7 +161,7 @@ export default function PublicSiteLine({ token }: { token: string }) {
         <a href={`sms:${TEL}`} className="mt-3 block text-center text-[12px] font-bold text-[#555] underline decoration-[#CCC] underline-offset-4">or send a text</a>
       </div>
 
-      {d.tm ? <div className="mt-6"><TmTab tm={d.tm} /></div> : null}
+      {d.tm ? <div className="mt-6"><TmTab tm={d.tm} updates={updates} /></div> : null}
 
       {scopeLines.length ? (
         <Section title="The work">
@@ -183,7 +183,7 @@ export default function PublicSiteLine({ token }: { token: string }) {
               <div key={u.id}>
                 <div className="text-[12px] font-bold" style={{ color: YD }}>{isToday(u.date) ? "Today" : dayDate(u.date)}</div>
                 <p className="mt-1 whitespace-pre-wrap text-[14px] leading-relaxed text-[#222]">{u.body}</p>
-                {u.photo ? <Photo src={u.photo} /> : null}
+                {photosOf(u).map((src, i) => <Photo key={i} src={src} />)}
               </div>
             ))}
           </div>

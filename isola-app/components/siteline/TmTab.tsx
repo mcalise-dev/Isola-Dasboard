@@ -12,7 +12,35 @@ const hrs = (h: number) => {
   return min ? `${whole} hr ${min} min` : `${whole} hr${whole === 1 ? "" : "s"}`;
 };
 
-export default function TmTab({ tm }: { tm: any }) {
+function Thumbs({ srcs }: { srcs: string[] }) {
+  const [big, setBig] = useState<string | null>(null);
+  if (!srcs.length) return null;
+  return (
+    <>
+      <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+        {srcs.map((src, i) => (
+          <button key={i} type="button" onClick={() => setBig(src)} className="block aspect-square overflow-hidden border border-[#DDD]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={src} alt="Photo from the site" className="h-full w-full object-cover" />
+          </button>
+        ))}
+      </div>
+      {big ? (
+        <div onClick={() => setBig(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={big} alt="Photo from the site" className="max-h-full max-w-full" />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+export const photosOf = (u: any): string[] => {
+  const arr: string[] = Array.isArray(u?.photos) ? u.photos.filter(Boolean) : [];
+  return arr.length ? arr : u?.photo ? [u.photo] : [];
+};
+
+export default function TmTab({ tm, updates = [] }: { tm: any; updates?: any[] }) {
   const [all, setAll] = useState(false);
   if (!tm) return null;
   const days: any[] = tm.days ?? [];
@@ -22,9 +50,11 @@ export default function TmTab({ tm }: { tm: any }) {
 
   return (
     <>
-      {tm.next_plan ? (
-        <DataCard icon="→" label="Next plan" value={<span className="whitespace-pre-wrap text-[15px] font-semibold">{tm.next_plan}</span>}
-          note={tm.next_plan_updated_at ? `Updated ${midDate(tm.next_plan_updated_at)}` : null} />
+      {tm.next_plan || (tm.next_plan_photos ?? []).length ? (
+        <DataCard icon="→" label="Next plan" value={tm.next_plan ? <span className="whitespace-pre-wrap text-[15px] font-semibold">{tm.next_plan}</span> : undefined}
+          note={tm.next_plan_updated_at ? `Updated ${midDate(tm.next_plan_updated_at)}` : null}>
+          <Thumbs srcs={(tm.next_plan_photos ?? []).filter(Boolean)} />
+        </DataCard>
       ) : null}
 
       <Section title="Time & material tab">
@@ -56,6 +86,7 @@ export default function TmTab({ tm }: { tm: any }) {
                 {x.invoiced ? <span className="text-[#888]">· Invoiced</span> : <span className="text-[#111]">· On current tab</span>}
               </div>
               {x.work ? <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-[#222]">{x.work}</p> : null}
+              <Thumbs srcs={updates.filter((u) => String(u.date).slice(0, 10) === String(x.date).slice(0, 10)).flatMap(photosOf)} />
               <div className="mt-2.5 space-y-1 border-t border-[#EEE] pt-2 text-[13px] text-[#444]">
                 {Number(x.labor) || Number(x.hours) ? (
                   <div className="flex justify-between gap-3"><span>Labor{Number(x.hours) ? ` · ${hrs(Number(x.hours))}` : ""}</span><span className="tabular-nums">{money(x.labor) ?? "$0"}</span></div>

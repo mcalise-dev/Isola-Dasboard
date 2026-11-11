@@ -23,7 +23,8 @@ import { stampSafe } from "@/lib/stamp";
    box land here too (marked "From daily log"). */
 
 type Share = { token: string; created_at: string; viewed_at: string | null; last_viewed_at: string | null; view_count: number };
-type Update = { id: string; update_date: string; body: string; photo_b64: string | null; daily_log_id: string | null; created_at: string };
+type Update = { id: string; update_date: string; body: string; photo_b64: string | null; photos: string[] | null; daily_log_id: string | null; created_at: string };
+const updPhotos = (u: Update) => (u.photos?.length ? u.photos : u.photo_b64 ? [u.photo_b64] : []);
 
 const errMsg = (e: any) => (e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
 const ago = (iso: string | null) => {
@@ -40,7 +41,7 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
   const [share, setShare] = useState<Share | null>(null);
   const [rows, setRows] = useState<Update[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [form, setForm] = useState({ date: todayISO(), body: "", photo: "" });
+  const [form, setForm] = useState<{ date: string; body: string; photos: string[] }>({ date: todayISO(), body: "", photos: [] });
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -48,7 +49,7 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
     try {
       const [s, u] = await withTimeout(Promise.all([
         sb.from("siteline_shares").select("token,created_at,viewed_at,last_viewed_at,view_count").eq("job_id", jobId).maybeSingle(),
-        sb.from("siteline_updates").select("id,update_date,body,photo_b64,daily_log_id,created_at").eq("job_id", jobId)
+        sb.from("siteline_updates").select("id,update_date,body,photo_b64,photos,daily_log_id,created_at").eq("job_id", jobId)
           .order("update_date", { ascending: false }).order("created_at", { ascending: false }),
       ]));
       const e = firstError(s, u);
@@ -90,14 +91,14 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
   }
 
   async function post() {
-    if (!form.body.trim()) return showError("Write what got done today.");
+    if (!form.body.trim() && !form.photos.length) return showError("Write what got done today, or add photos.");
     setBusy(true);
     const { error } = await sb.from("siteline_updates").insert({
-      job_id: jobId, update_date: form.date || todayISO(), body: form.body.trim(), photo_b64: form.photo || null,
+      job_id: jobId, update_date: form.date || todayISO(), body: form.body.trim(), photo_b64: form.photos[0] ?? null, photos: form.photos,
     });
     setBusy(false);
     if (error) return showError("Couldn't post: " + error.message);
-    setForm({ date: todayISO(), body: "", photo: "" });
+    setForm({ date: todayISO(), body: "", photos: [] });
     showToast(share ? "Posted to SiteLine" : "Saved — make a link to share it");
     load();
   }
@@ -158,10 +159,26 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
             </div>
           </Field>
           <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border text-sm text-neutral-300">
-            <ImagePlus size={16} /> {form.photo ? "Photo attached — tap to change" : "Add a photo (optional)"}
-            <input type="file" accept="image/*" className="hidden"
-              onChange={async (e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) { const p = await stampSafe(await compressImage(f)); setForm((x) => ({ ...x, photo: p })); } }} />
+            <ImagePlus size={16} /> {form.photos.length ? `${form.photos.length} photo${form.photos.length === 1 ? "" : "s"} attached — tap to add more` : "Add photos of the work (optional)"}
+            <input type="file" accept="image/*" multiple className="hidden"
+              onChange={async (e) => {
+                const files = Array.from(e.target.files ?? []); e.currentTarget.value = "";
+                const ps: string[] = [];
+                for (const f of files) ps.push(await stampSafe(await compressImage(f)));
+                setForm((x) => ({ ...x, photos: [...x.photos, ...ps].slice(0, 12) }));
+              }} />
           </label>
+          {form.photos.length ? (
+            <div className="flex flex-wrap gap-1.5">
+              {form.photos.map((src, i) => (
+                <button key={i} type="button" title="Remove photo" onClick={() => setForm((x) => ({ ...x, photos: x.photos.filter((_, k) => k !== i) }))} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt="" className="h-16 w-16 rounded-md border border-border object-cover" />
+                  <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-neutral-900 text-[10px] text-white">✕</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <p className="text-xs text-neutral-500">Dollar amounts are stripped out before the client sees an update.</p>
           <Button className="h-11 w-full" onClick={post} disabled={busy}>{busy ? "Posting…" : "Post update"}</Button>
         </Card>
@@ -185,11 +202,15 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
                   </div>
                   <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" aria-label="Remove update" onClick={() => remove(u)}><Trash2 size={15} /></Button>
                 </div>
-                {u.photo_b64 ? (
-                  <button type="button" className="mt-2" onClick={() => openImage(u.photo_b64!)}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={u.photo_b64} alt="" className="h-20 w-20 rounded-md border border-border object-cover" />
-                  </button>
+                {updPhotos(u).length ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {updPhotos(u).map((src, i) => (
+                      <button key={i} type="button" onClick={() => openImage(src)}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={src} alt="" className="h-20 w-20 rounded-md border border-border object-cover" />
+                      </button>
+                    ))}
+                  </div>
                 ) : null}
               </Card>
             ))}
@@ -284,30 +305,42 @@ function NextPlanCard({ jobId }: { jobId: string }) {
   const sb = useMemo(() => createClient(), []);
   const [plan, setPlan] = useState("");
   const [saved, setSaved] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
   const [tm, setTm] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
       const [st, jb] = await Promise.all([
-        sb.from("siteline_settings").select("next_plan").eq("job_id", jobId).maybeSingle(),
+        sb.from("siteline_settings").select("next_plan,next_plan_photos").eq("job_id", jobId).maybeSingle(),
         sb.from("jobs").select("billing_type").eq("id", jobId).maybeSingle(),
       ]);
       setPlan(st.data?.next_plan ?? "");
       setSaved(st.data?.next_plan ?? "");
+      setPhotos(Array.isArray(st.data?.next_plan_photos) ? st.data.next_plan_photos : []);
       setTm(jb.data?.billing_type === "tm");
     })();
   }, [jobId, sb]);
 
   if (!tm) return null;
-  async function save() {
+  async function save(nextPhotos: string[] = photos, msg = "Next plan saved — the client sees it on SiteLine") {
     setBusy(true);
     const v = plan.trim() || null;
-    const { error } = await sb.from("siteline_settings").upsert({ job_id: jobId, next_plan: v, next_plan_updated_at: v ? new Date().toISOString() : null, updated_at: new Date().toISOString() });
+    const any = !!v || nextPhotos.length > 0;
+    const { error } = await sb.from("siteline_settings").upsert({ job_id: jobId, next_plan: v, next_plan_photos: nextPhotos, next_plan_updated_at: any ? new Date().toISOString() : null, updated_at: new Date().toISOString() });
     setBusy(false);
-    if (error) { showError("Couldn't save: " + error.message); return; }
+    if (error) { showError("Couldn't save: " + error.message); return false; }
     setSaved(plan.trim());
-    showToast("Next plan saved — the client sees it on SiteLine");
+    setPhotos(nextPhotos);
+    showToast(msg);
+    return true;
+  }
+  async function addPhotos(e: any) {
+    const files: File[] = Array.from(e.target.files ?? []); e.currentTarget.value = "";
+    if (!files.length) return;
+    const ps: string[] = [];
+    for (const f of files) ps.push(await stampSafe(await compressImage(f)));
+    await save([...photos, ...ps].slice(0, 8), `${ps.length} photo${ps.length === 1 ? "" : "s"} added to the next plan`);
   }
   return (
     <>
@@ -316,7 +349,24 @@ function NextPlanCard({ jobId }: { jobId: string }) {
         <Field label="What's next — shows on the client's Time & material tab">
           <Textarea rows={3} placeholder="Back Thursday to finish repointing the starter wall, then seal the cap." value={plan} onChange={(e) => setPlan(e.target.value)} />
         </Field>
-        <Button variant="outline" className="h-10" disabled={busy || plan.trim() === saved.trim()} onClick={save}>{busy ? "Saving…" : "Save next plan"}</Button>
+        <Button variant="outline" className="h-10" disabled={busy || plan.trim() === saved.trim()} onClick={() => save()}>{busy ? "Saving…" : "Save next plan"}</Button>
+        <div>
+          <div className="mb-1 text-[13px] font-semibold text-neutral-400">Photos of what&apos;s next (optional)</div>
+          {photos.length ? (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {photos.map((src, i) => (
+                <button key={i} type="button" title="Remove photo" disabled={busy} onClick={() => save(photos.filter((_, k) => k !== i), "Photo removed")} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt="" className="h-16 w-16 rounded-md border border-border object-cover" />
+                  <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-neutral-900 text-[10px] text-white">✕</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <Button asChild variant="outline" className="h-11 w-full border-dashed">
+            <label className="cursor-pointer"><ImagePlus size={16} /> {busy ? "Saving…" : "Add photos of what's next"}<input type="file" accept="image/*" multiple className="hidden" onChange={addPhotos} /></label>
+          </Button>
+        </div>
       </Card>
     </>
   );
