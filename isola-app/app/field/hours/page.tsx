@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Timer } from "lucide-react";
 import { Empty, iso, addDays } from "@/components/field/shared";
+import CrewClockCard from "@/components/field/CrewClockCard";
 
 // A crew member's own clock punches, plus their balance owed (job, date, amount — no rates).
 type Punch = { id: string; job_name: string | null; clock_in: string; clock_out: string | null; hours: number };
@@ -18,10 +19,11 @@ export default function FieldHours() {
   const thisMon = weekStart(new Date());
   const lastMon = addDays(thisMon, -7);
 
-  useEffect(() => {
+  function reload() {
     supabase.rpc("crew_hours", { p_from: iso(lastMon), p_to: iso(new Date()) }).then(({ data }) => setRows((data as Punch[]) ?? []));
     supabase.rpc("crew_balance_owed").then(({ data }) => setOwed((data as any) ?? null));
-  }, []);
+  }
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, []);
 
   const t = (s: string) => new Date(s).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   const d = (s: string) => new Date(s).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -31,7 +33,7 @@ export default function FieldHours() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-white">My hours</h1>
-      <Link href="/clock" className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-brand text-neutral-950 min-h-[52px] font-bold"><Timer size={20} /> Clock in / out</Link>
+      <CrewClockCard onChange={reload} />
       {owed ? (
         <section className="mt-6">
           <div className="flex items-baseline justify-between mb-2">

@@ -7,6 +7,7 @@ import { CheckRow, Empty, H, iso, addDays, dayLabel } from "@/components/field/s
 import { showError } from "@/components/Toaster";
 import { Ring } from "@/components/field/jobkit";
 import { cn } from "@/lib/utils";
+import CrewClockCard from "@/components/field/CrewClockCard";
 
 // v5.6 crew Today, Jobber/ServiceTitan style: each scheduled day on a job is a "visit".
 // Today's visits on top (what we're doing, what to load), then what's coming up, then punch list / tasks.
@@ -64,12 +65,11 @@ export default function FieldToday() {
         {visits === null ? " " : todays.length ? `${todays.length} visit${todays.length > 1 ? "s" : ""} today` : nextDate ? `Nothing today · next visit ${dayLabel(nextDate)}` : "Nothing on the schedule"}
       </p>
 
-      <div className="grid grid-cols-2 gap-2 mt-4">
-        <Link href="/clock" className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand text-neutral-950 min-h-[52px] font-bold"><Timer size={20} /> Clock in / out</Link>
-        {route ? (
-          <a href={route} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-600 text-white min-h-[52px] font-semibold"><Navigation size={18} /> Start the route</a>
-        ) : <span className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.08] text-neutral-500 min-h-[52px] font-semibold"><Navigation size={18} /> No stops today</span>}
-      </div>
+      <CrewClockCard />
+
+      {route ? (
+        <a href={route} target="_blank" rel="noreferrer" className="mt-2 flex items-center justify-center gap-2 rounded-xl border border-neutral-600 text-white min-h-[52px] font-semibold"><Navigation size={18} /> Start the route</a>
+      ) : null}
 
       <H>Today's visits</H>
       {visits === null ? <div className="h-44 rounded-2xl skeleton" />
