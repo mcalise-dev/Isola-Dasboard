@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SignBar, signNeed } from "@/components/siteline/SignBar";
+import TmTab from "@/components/siteline/TmTab";
 import { Shell, Label, Pill, PhaseTrack, DataCard, YellowButton, Section, PHONE, TEL, Y, YD, HEAD, dayDate, midDate, isToday, money } from "@/components/siteline/ui";
 
 /* Isola SiteLine — the client's no-login project page (/site/<token>). Every job has one.
@@ -159,6 +160,8 @@ export default function PublicSiteLine({ token }: { token: string }) {
         <YellowButton href={`tel:${TEL}`}>Contact project lead ↗</YellowButton>
         <a href={`sms:${TEL}`} className="mt-3 block text-center text-[12px] font-bold text-[#555] underline decoration-[#CCC] underline-offset-4">or send a text</a>
       </div>
+
+      {d.tm ? <div className="mt-6"><TmTab tm={d.tm} /></div> : null}
 
       {scopeLines.length ? (
         <Section title="The work">

@@ -145,6 +145,7 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
         </Card>
 
         <WelcomeCard jobId={jobId} />
+        <NextPlanCard jobId={jobId} />
 
         <SectionTitle>Post an update</SectionTitle>
         <Card className="space-y-3 p-4">
@@ -272,6 +273,50 @@ function WelcomeCard({ jobId }: { jobId: string }) {
             </Button>
           )}
         </div>
+      </Card>
+    </>
+  );
+}
+
+/* v7.6: "Next plan" — what's coming next, shown at the top of the client's Time & material tab.
+   Kept in siteline_settings.next_plan; next_plan_updated_at shows the client how fresh it is. */
+function NextPlanCard({ jobId }: { jobId: string }) {
+  const sb = useMemo(() => createClient(), []);
+  const [plan, setPlan] = useState("");
+  const [saved, setSaved] = useState("");
+  const [tm, setTm] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const [st, jb] = await Promise.all([
+        sb.from("siteline_settings").select("next_plan").eq("job_id", jobId).maybeSingle(),
+        sb.from("jobs").select("billing_type").eq("id", jobId).maybeSingle(),
+      ]);
+      setPlan(st.data?.next_plan ?? "");
+      setSaved(st.data?.next_plan ?? "");
+      setTm(jb.data?.billing_type === "tm");
+    })();
+  }, [jobId, sb]);
+
+  if (!tm) return null;
+  async function save() {
+    setBusy(true);
+    const v = plan.trim() || null;
+    const { error } = await sb.from("siteline_settings").upsert({ job_id: jobId, next_plan: v, next_plan_updated_at: v ? new Date().toISOString() : null, updated_at: new Date().toISOString() });
+    setBusy(false);
+    if (error) { showError("Couldn't save: " + error.message); return; }
+    setSaved(plan.trim());
+    showToast("Next plan saved — the client sees it on SiteLine");
+  }
+  return (
+    <>
+      <SectionTitle>Next plan (time &amp; material)</SectionTitle>
+      <Card className="space-y-3 p-4">
+        <Field label="What's next — shows on the client's Time & material tab">
+          <Textarea rows={3} placeholder="Back Thursday to finish repointing the starter wall, then seal the cap." value={plan} onChange={(e) => setPlan(e.target.value)} />
+        </Field>
+        <Button variant="outline" className="h-10" disabled={busy || plan.trim() === saved.trim()} onClick={save}>{busy ? "Saving…" : "Save next plan"}</Button>
       </Card>
     </>
   );
