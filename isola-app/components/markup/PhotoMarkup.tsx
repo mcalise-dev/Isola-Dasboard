@@ -48,7 +48,8 @@ type Tool = "select" | Shape["type"];
 // v5.4: caption = "what we're looking at", saved as the photo's caption and (optionally) printed along the bottom
 type Panel = { side: "right" | "bottom"; title: string; items: string[]; titleScale?: number; colors?: Record<number, string> };
 // v8.2: colors = step number -> the color of numbered dot N on the photo, so the panel dots match
-type Markup = { v: 1; w: number; h: number; shapes: Shape[]; caption?: string; showCap?: boolean; capScale?: number; panel?: Panel | null; brand?: Brand; legend?: LegendCfg | null };
+type CapPos = "tl" | "tr" | "bl" | "br";
+type Markup = { v: 1; w: number; h: number; shapes: Shape[]; caption?: string; showCap?: boolean; capScale?: number; capPos?: CapPos; panel?: Panel | null; brand?: Brand; legend?: LegendCfg | null };
 // v7.4 (11/2/26): the corner logo is picked per markup, and the steps panel + caption accent follow that brand's colors
 type Theme = { bg: string; bar: string; title: string; dot: string; text: string; note: string; rule: string; accent: string };
 const THEMES: Record<Brand, Theme> = {
@@ -419,18 +420,24 @@ function drawTextBox(ctx: CanvasRenderingContext2D, s: Shape, base: number) {
   ctx.restore();
 }
 // caption strip along the bottom of the photo, kept left of the Isola logo (same size/margin as lib/stamp)
-function drawCaption(ctx: CanvasRenderingContext2D, text: string, W: number, H: number, scale = 1, th: Theme = THEMES.isola) {
+// v9.2: the caption can sit in any corner; bottom-right sits above the logo badge
+const capMaxW = (W: number, short: number, pos: CapPos) => {
+  const D = Math.max(40, Math.min(220, short * 0.14)), m = short * 0.025, gap = short * 0.015;
+  return pos === "bl" ? W - m - D - gap - m : W - m * 2;
+};
+function drawCaption(ctx: CanvasRenderingContext2D, text: string, W: number, H: number, scale = 1, th: Theme = THEMES.isola, pos: CapPos = "bl") {
   const t = text.trim(); if (!t) return;
   const short = Math.min(W, H), D = Math.max(40, Math.min(220, short * 0.14)), m = short * 0.025, gap = short * 0.015;
   const f = Math.max(14, short * 0.038) * scale, padX = f * 0.7, padY = f * 0.45, lh = f * 1.25;
-  const maxW = W - m - D - gap - m;
+  const maxW = capMaxW(W, short, pos);
   ctx.save();
   ctx.font = `700 ${f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
   let lines = wrapLines(ctx, t.split("\n"), maxW - padX * 2);
   if (lines.length > 3) { lines = lines.slice(0, 3); lines[2] = lines[2].replace(/\s*\S*$/, "") + "…"; }
   const w = Math.min(maxW, Math.max(...lines.map((l) => ctx.measureText(l).width)) + padX * 2);
   const h = lines.length * lh + padY * 2;
-  const x = m, y = H - m - Math.max(h, 0);
+  const x = pos.endsWith("r") ? W - m - w : m;
+  const y = pos.startsWith("t") ? m : pos === "br" ? H - m - D - gap - h : H - m - h;
   ctx.shadowColor = "rgba(0,0,0,0.35)"; ctx.shadowBlur = f * 0.4;
   rrect(ctx, x, y, w, h, f * 0.3); ctx.fillStyle = "rgba(11,13,14,0.80)"; ctx.fill();
   ctx.shadowColor = "transparent";
@@ -573,17 +580,17 @@ function drawLegendSample(ctx: CanvasRenderingContext2D, e: LegEntry, x: number,
   }
   ctx.restore();
 }
-function captionBoxH(text: string, W: number, H: number, scale = 1) {
+function captionBoxH(text: string, W: number, H: number, scale = 1, pos: CapPos = "bl") {
   const t = text.trim(); if (!t) return 0;
   const c = (measureCtx ??= document.createElement("canvas").getContext("2d")!);
-  const short = Math.min(W, H), D = Math.max(40, Math.min(220, short * 0.14)), m = short * 0.025, gap = short * 0.015;
+  const short = Math.min(W, H);
   const f = Math.max(14, short * 0.038) * scale, padX = f * 0.7, padY = f * 0.45, lh = f * 1.25;
   c.save(); c.font = `700 ${f}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
-  const n = Math.min(3, wrapLines(c, t.split("\n"), W - m - D - gap - m - padX * 2).length); c.restore();
+  const n = Math.min(3, wrapLines(c, t.split("\n"), capMaxW(W, short, pos) - padX * 2).length); c.restore();
   return n * lh + padY * 2;
 }
 // white legend box in a corner of the photo — kept clear of the logo badge and the caption strip
-function drawLegend(ctx: CanvasRenderingContext2D, cfg: LegendCfg, shapes: Shape[], W: number, H: number, capH = 0) {
+function drawLegend(ctx: CanvasRenderingContext2D, cfg: LegendCfg, shapes: Shape[], W: number, H: number, capH = 0, capPos: CapPos = "bl") {
   if (!cfg.on) return;
   const rows = legendEntries(shapes).filter((e) => !cfg.hide.includes(e.key));
   const note = (cfg.note || "").trim();
@@ -608,8 +615,10 @@ function drawLegend(ctx: CanvasRenderingContext2D, cfg: LegendCfg, shapes: Shape
   const m = short * 0.025, D = Math.max(40, Math.min(220, short * 0.14)), cg = short * 0.015;
   let x0 = cfg.pos.endsWith("r") ? W - m - bw : m;
   let y0 = cfg.pos.startsWith("t") ? m : H - m - bh;
-  if (cfg.pos === "br") y0 = H - m - D - cg - bh;            // sit above the logo badge
-  if (cfg.pos === "bl" && capH) y0 = H - m - capH - cg - bh;  // sit above the caption strip
+  const shareCap = capH && cfg.pos === capPos;                 // caption in the same corner: stack clear of it
+  if (cfg.pos === "br") y0 = H - m - D - cg - bh - (shareCap ? capH + cg : 0);   // above the logo badge (and caption)
+  if (cfg.pos === "bl" && shareCap) y0 = H - m - capH - cg - bh;                 // above the caption strip
+  if (cfg.pos.startsWith("t") && shareCap) y0 = m + capH + cg;                   // below the caption
   y0 = Math.max(m, y0); x0 = Math.max(m, x0);
   ctx.shadowColor = "rgba(0,0,0,0.35)"; ctx.shadowBlur = f * 0.6; ctx.shadowOffsetY = f * 0.1;
   rrect(ctx, x0, y0, bw, bh, f * 0.45); ctx.fillStyle = "rgba(255,255,255,0.96)"; ctx.fill();
@@ -755,6 +764,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const [caption, setCaption] = useState("");
   const [showCap, setShowCap] = useState(true);
   const [capScale, setCapScale] = useState(1);     // caption text size (1 = default)
+  const [capPos, setCapPos] = useState<CapPos>("bl"); // which corner the caption sits in
   const [titleScale, setTitleScale] = useState(1); // steps-panel title size (1 = default)
   const [brand, setBrand] = useState<Brand>("isola"); // logo in the corner + steps panel colors
   const theme = THEMES[brand];
@@ -880,7 +890,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           setImg(await loadImg(orig.photo_b64));
           setSrcPhoto(orig); setEditRow(row); reset((row.markup as Markup).shapes || []);
           const mk = row.markup as Markup;
-          setCaption(mk.caption ?? (row.caption && row.caption !== "Marked up" ? row.caption : "")); setShowCap(mk.showCap ?? true); setCapScale(mk.capScale ?? 1); setBrand(mk.brand ?? "isola"); loadPanel(mk.panel); setLegend(mk.legend ?? null);
+          setCaption(mk.caption ?? (row.caption && row.caption !== "Marked up" ? row.caption : "")); setShowCap(mk.showCap ?? true); setCapScale(mk.capScale ?? 1); setCapPos(mk.capPos ?? "bl"); setBrand(mk.brand ?? "isola"); loadPanel(mk.panel); setLegend(mk.legend ?? null);
           // v8.x: reopening a saved markup lands in Move so a tap selects an existing box instead of drawing a new mark
           setTool("select");
           return;
@@ -945,8 +955,8 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
     ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
     shapes.forEach((s) => drawShape(ctx, s, base));
-    if (showCap && caption.trim()) drawCaption(ctx, caption, img.naturalWidth, img.naturalHeight, capScale, theme);
-    if (legend) drawLegend(ctx, legend, draft ? [...shapes, draft] : shapes, img.naturalWidth, img.naturalHeight, showCap ? captionBoxH(caption, img.naturalWidth, img.naturalHeight, capScale) : 0);
+    if (showCap && caption.trim()) drawCaption(ctx, caption, img.naturalWidth, img.naturalHeight, capScale, theme, capPos);
+    if (legend) drawLegend(ctx, legend, draft ? [...shapes, draft] : shapes, img.naturalWidth, img.naturalHeight, showCap ? captionBoxH(caption, img.naturalWidth, img.naturalHeight, capScale, capPos) : 0, capPos);
     if (draft) {
       if (draft.type === "path" && hover && draft.points?.length) {
         const last = draft.points[draft.points.length - 1];
@@ -972,7 +982,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       const pctx = pc.getContext("2d")!; pctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
       drawPanel(pctx, panel, img.naturalWidth, img.naturalHeight, 0, 0, theme);
     }
-  }, [img, view, shapes, draft, hover, sel, scale, base, caption, showCap, capScale, panelOn, panelSide, panelText, panelTitle, titleScale, brand, legend]);
+  }, [img, view, shapes, draft, hover, sel, scale, base, caption, showCap, capScale, capPos, panelOn, panelSide, panelText, panelTitle, titleScale, brand, legend]);
 
   function toImg(e: React.PointerEvent): P {
     const r = canvasRef.current!.getBoundingClientRect();
@@ -1293,8 +1303,8 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     ctx.drawImage(img!, 0, 0);
     const all = draft && draft.type === "path" && (draft.points?.length || 0) >= 2 ? [...shapes, draft] : shapes;
     all.forEach((s) => drawShape(ctx, s, base));
-    if (showCap && caption.trim()) drawCaption(ctx, caption, W, H, capScale, theme);
-    if (legend) drawLegend(ctx, legend, all, W, H, showCap ? captionBoxH(caption, W, H, capScale) : 0);
+    if (showCap && caption.trim()) drawCaption(ctx, caption, W, H, capScale, theme, capPos);
+    if (legend) drawLegend(ctx, legend, all, W, H, showCap ? captionBoxH(caption, W, H, capScale, capPos) : 0, capPos);
     await drawStamp(ctx, W, H, brand).catch(() => {}); // chosen badge, bottom-right of the photo, on top of the markup
     if (PL) drawPanel(ctx, panel!, W, H, panel!.side === "right" ? W : 0, panel!.side === "right" ? 0 : H, theme);
     return c.toDataURL("image/jpeg", 0.85);
@@ -1311,7 +1321,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     try {
       const all = draft && draft.type === "path" && (draft.points?.length || 0) >= 2 ? [...shapes, draft] : shapes;
       const cap = caption.trim();
-      const markup: Markup = { v: 1, w: img!.naturalWidth, h: img!.naturalHeight, shapes: all, caption: cap, showCap, capScale, panel, brand, legend };
+      const markup: Markup = { v: 1, w: img!.naturalWidth, h: img!.naturalHeight, shapes: all, caption: cap, showCap, capScale, capPos, panel, brand, legend };
       const out = await render();
       let source = srcPhoto;
       if (!source || source.job_id !== jobId) {
@@ -1695,8 +1705,18 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           placeholder="e.g. Chimney crown — cracked cap, open joints at flue tiles"
           className="w-full resize-none rounded-md border border-white/[0.09] bg-neutral-950 px-3 py-2 text-[15px] text-white placeholder:text-neutral-600 focus:border-brand focus:outline-none" />
         <div className="mt-1 flex flex-wrap items-center gap-2">
-          <p className="text-xs text-neutral-500">Saved as the photo&apos;s caption{showCap ? " and printed along the bottom of the photo" : ""}.</p>
-          {showCap ? <SizeStepper className="ml-auto" value={capScale} onChange={setCapScale} label="Caption text size" /> : null}
+          <p className="text-xs text-neutral-500">Saved as the photo&apos;s caption{showCap ? " and printed on the photo" : ""}.</p>
+          {showCap ? (
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg border border-border bg-neutral-950 p-0.5" aria-label="Caption position">
+                {([["tl", "Top left"], ["tr", "Top right"], ["bl", "Bottom left"], ["br", "Bottom right"]] as const).map(([k, l]) => (
+                  <button key={k} onClick={() => setCapPos(k)}
+                    className={cn("h-8 rounded-md px-2.5 text-[12px] font-semibold", capPos === k ? "bg-brand text-neutral-950" : "text-neutral-300")}>{l}</button>
+                ))}
+              </div>
+              <SizeStepper value={capScale} onChange={setCapScale} label="Caption text size" />
+            </div>
+          ) : null}
         </div>
       </div>
 
