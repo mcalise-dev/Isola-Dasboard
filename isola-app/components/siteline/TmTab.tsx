@@ -88,6 +88,18 @@ export default function TmTab({ tm, updates = [] }: { tm: any; updates?: any[] }
                 {(x.jobs ?? []).map((n: string) => <span key={n} className="ml-1 bg-[#111] px-1.5 py-[1px] text-[10px] font-extrabold uppercase tracking-[0.08em] text-white">{n}</span>)}
               </div>
               {x.work ? <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-[#222]">{x.work}</p> : null}
+              {isToday(x.date) && (tm.today_punches ?? []).length ? (
+                <div className="mt-2.5 space-y-1 border-t border-[#EEE] pt-2 text-[13px]">
+                  {(tm.today_punches as any[]).map((p, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-2 font-semibold text-[#111]">
+                        {!p.clock_out ? <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#2E7D32]" /> : null}{p.name}
+                      </span>
+                      <span className="tabular-nums text-[#444]">{p.clock_in} – {p.clock_out ?? "—"}{!p.clock_out ? <span className="ml-1.5 text-[11px] font-bold text-[#2E7D32]">On the clock</span> : null}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               <Thumbs srcs={updates.filter((u) => String(u.date).slice(0, 10) === String(x.date).slice(0, 10)).flatMap(photosOf)} />
               <div className="mt-2.5 space-y-1 border-t border-[#EEE] pt-2 text-[13px] text-[#444]">
                 {Number(x.labor) || Number(x.hours) ? (
