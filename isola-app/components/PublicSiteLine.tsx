@@ -70,7 +70,7 @@ export default function PublicSiteLine({ token }: { token: string }) {
     ? { icon: "✓", label: "Finished", value: d?.completed_date ? dayDate(d.completed_date) : "Complete", note: "Thanks for working with Isola." }
     : working
       ? { icon: "▣", label: "Next on site", value: next.length ? (isToday(next[0]) ? "Today" : dayDate(next[0])) : "Being scheduled",
-          note: next.length > 1 ? `Then ${next.slice(1, 3).map(midDate).join(", ")}${next.length > 3 ? "…" : ""}` : d?.last_on_site ? `Last on site ${midDate(d.last_on_site)}` : null }
+          note: next.length > 1 ? `Then ${next.slice(1, 3).map(midDate).join(", ")}${next.length > 3 ? "…" : ""}` : next.length && isToday(next[0]) ? "Crew is on site today." : d?.last_on_site ? `Last on site ${midDate(d.last_on_site)}` : null }
       : scheduled
         ? { icon: "▣", label: "Start date", value: d?.start_date ? dayDate(d.start_date) : "Coming soon", note: d?.start_date ? "Weather can move this. We'll let you know." : null }
         : { icon: "▣", label: "Estimated start", value: d?.start_date ? dayDate(d.start_date) : "Set once you sign", note: null };
