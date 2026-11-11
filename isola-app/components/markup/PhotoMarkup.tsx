@@ -856,6 +856,16 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   }, [jobId, img, sb]);
   const pickThumbs = useSignedUrls("job-photos", (jobPhotos ?? []).map((p: any) => p.thumb_path));
   const pickFallback = useFallbackImages((jobPhotos ?? []).map((p: any) => ({ id: p.id, thumb: p.thumb_path })), "job_photos", "photo_b64");
+  async function renamePickPhoto(p: any) {
+    const cur = p.caption && p.caption !== "Marked up" && p.caption !== "Original" ? p.caption : "";
+    const t = await askText({ title: "Name this photo", initial: cur, confirm: "Save" });
+    if (t === null || t === undefined) return;
+    const caption = t.trim() || null;
+    setJobPhotos((r) => (r ?? []).map((x: any) => (x.id === p.id ? { ...x, caption } : x)));
+    const { error } = await sb.from("job_photos").update({ caption }).eq("id", p.id);
+    if (error) showError("Couldn't rename: " + error.message);
+    else window.dispatchEvent(new Event("isola:changed"));
+  }
   // v9.2: quick delete from the photo list — Undo on the toast brings it back
   function deletePickPhoto(p: any) {
     const prev = jobPhotos ?? [];
@@ -1439,6 +1449,10 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
                       <button onClick={() => openJobPhoto(p.id)} className="group relative block w-full overflow-hidden rounded-lg border border-white/[0.08] hover:border-brand">
                         {pickSrc(p) ? <img src={pickSrc(p)} alt={p.phase} loading="lazy" className="h-28 w-full object-cover" /> : <div className="skeleton h-28 w-full" />}
                         <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 text-xs font-semibold capitalize text-neutral-200">{p.source_photo_id ? "Marked up" : p.phase}</span>
+                      </button>
+                      <button onClick={() => renamePickPhoto(p)} title="Tap to name this photo"
+                        className={cn("mt-1 line-clamp-2 min-h-[2.4rem] w-full rounded px-1 text-left text-[12px] leading-tight hover:bg-white/[0.05]", p.caption && p.caption !== "Marked up" && p.caption !== "Original" ? "font-semibold text-neutral-200" : "italic text-neutral-500")}>
+                        {p.caption && p.caption !== "Marked up" && p.caption !== "Original" ? p.caption : "Tap to name"}
                       </button>
                       <button onClick={() => deletePickPhoto(p)} aria-label="Delete photo" title="Delete photo"
                         className="absolute right-1 top-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/75 text-neutral-200 hover:bg-red-600 hover:text-white">

@@ -15,6 +15,7 @@ import { Camera, Images, HardHat, Trash2, Plus, Receipt, CalendarPlus, FileSprea
 import { stampSafe } from "@/lib/stamp";
 import ScheduleItemDialog from "@/components/schedule/ScheduleItemDialog";
 import PhotoMarkup from "@/components/markup/PhotoMarkup";
+import { askText } from "@/components/Dialogs";
 import { fullImage, isStored, kickMediaSync, useFallbackImages, useSignedUrls } from "@/lib/media";
 import { ITEM_TYPES, NEXT_STATUS, SCHED_STATUS, byTime, detailLine, isOutside, timeWindow, typeOf, whoOn, type SchedItem } from "@/lib/schedule";
 
@@ -409,6 +410,15 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
     setRows((r) => (r ?? []).map((x) => (x.id === p.id ? { ...x, phase: next } : x)));
     await sb.from("job_photos").update({ phase: next }).eq("id", p.id);
   }
+  // v9.2: a name on every photo so the grid isn't a wall of look-alike brick
+  async function rename(p: any) {
+    const t = await askText({ title: "Name this photo", initial: p.caption && p.caption !== "Marked up" && p.caption !== "Original" ? p.caption : "", confirm: "Save" });
+    if (t === null || t === undefined) return;
+    const caption = t.trim() || null;
+    setRows((r) => (r ?? []).map((x) => (x.id === p.id ? { ...x, caption } : x)));
+    const { error } = await sb.from("job_photos").update({ caption }).eq("id", p.id);
+    if (error) { showError("Couldn't rename: " + error.message); load(); }
+  }
   function remove(p: any) {
     const prev = rows ?? [];
     undoable({ text: "Photo deleted", hide: () => setRows(prev.filter((x) => x.id !== p.id)), restore: () => setRows(prev), commit: async () => { const { error } = await sb.from("job_photos").delete().eq("id", p.id); if (error) { load(); throw error; } } });
@@ -437,8 +447,12 @@ export function PhotosPanel({ jobId }: { jobId: string }) {
                   <div key={p.id} className="group relative">
                     <button onClick={() => openBig(p)} className="block w-full">{thumbOf(p) ? <img src={thumbOf(p)} alt={p.phase} loading="lazy" className="h-28 w-full rounded-lg border border-white/[0.08] object-cover" /> : <div className="skeleton h-28 w-full rounded-lg" />}</button>
                     <button onClick={() => remove(p)} aria-label="Delete photo" title="Delete photo" className="absolute right-1 top-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/75 text-neutral-200 hover:bg-red-600 hover:text-white"><Trash2 size={15} /></button>
-                    <button onClick={() => cycle(p)} className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 text-xs font-semibold capitalize text-neutral-200">{p.phase}</button>
-                    <button onClick={() => setMark({ photoId: p.id })} aria-label="Mark up photo" className="absolute bottom-1 right-1 inline-flex min-h-[24px] items-center gap-1 rounded bg-brand px-1.5 text-xs font-bold text-neutral-950"><PenTool size={11} />{p.source_photo_id ? "Edit" : "Mark up"}</button>
+                    <button onClick={() => cycle(p)} className="absolute bottom-[2.9rem] left-1 rounded bg-black/70 px-1.5 text-xs font-semibold capitalize text-neutral-200">{p.phase}</button>
+                    <button onClick={() => setMark({ photoId: p.id })} aria-label="Mark up photo" className="absolute bottom-[2.9rem] right-1 inline-flex min-h-[24px] items-center gap-1 rounded bg-brand px-1.5 text-xs font-bold text-neutral-950"><PenTool size={11} />{p.source_photo_id ? "Edit" : "Mark up"}</button>
+                    <button onClick={() => rename(p)} title="Tap to name this photo"
+                      className={cn("mt-1 line-clamp-2 min-h-[2.4rem] w-full rounded px-1 text-left text-[12px] leading-tight hover:bg-white/[0.05]", p.caption ? "font-semibold text-neutral-200" : "italic text-neutral-500")}>
+                      {p.caption || "Tap to name"}
+                    </button>
                   </div>
                 ))}
               </div>
