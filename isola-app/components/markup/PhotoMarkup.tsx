@@ -805,6 +805,8 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     }); setPanelOn(true);
   }
   const [draft, setDraft] = useState<Shape | null>(null);
+  const draftRef = useRef<Shape | null>(null);
+  draftRef.current = draft;
   const [hover, setHover] = useState<P | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -849,7 +851,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     if (!jobId || img) { setJobPhotos(null); return; }
     setJobPhotos(null);
     // v7.5: the picker shows Storage thumbnails; the editor still loads the one full photo it opens
-    sb.from("job_photos").select("id,phase,caption,thumb_path,source_photo_id,created_at").eq("job_id", jobId).order("created_at", { ascending: false })
+    sb.from("job_photos").select("id,phase,caption,thumb_path,source_photo_id,created_at").eq("job_id", jobId).order("created_at")
       .then(({ data, error }) => { if (error) showError(error.message); setJobPhotos(data ?? []); });
   }, [jobId, img, sb]);
   const pickThumbs = useSignedUrls("job-photos", (jobPhotos ?? []).map((p: any) => p.thumb_path));
@@ -908,13 +910,37 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
       setImg(await loadImg(b64)); setSrcPhoto(null); setEditRow(null); reset([]); setCaption(""); setShowCap(true); setCapScale(1); setBrand("isola"); loadPanel(null); setLegend(null);
     } catch { showError("Could not open that photo."); } finally { setBusy(false); }
   }
-  function reset(s: Shape[]) { setShapes(s); setPast([]); setFuture([]); setDraft(null); setSel(null); setLeaderFor(null); }
-  async function startOver() {
-    if ((shapes.length || draft) && !(await ask({ title: "Close this photo?", body: "Anything not saved will be lost.", confirm: "Close", danger: true }))) return;
+  function reset(s: Shape[]) { setShapes(s); setPast([]); setFuture([]); setDraft(null); setSel(null); setLeaderFor(null); savedShapes.current = s; }
+  // v9.2: closing a photo (Close button or the phone/browser back button) goes back to this job's photos
+  // so you can pick the next one — it only asks if there are changes that haven't been saved.
+  const savedShapes = useRef<Shape[]>([]);
+  const dirty = () => shapesRef.current !== savedShapes.current || !!draftRef.current;
+  function toPicker() {
     setImg(null); setSrcPhoto(null); setEditRow(null); reset([]);
-    if (embedded) { onClose?.(); return; }
-    if (window.location.search) window.history.replaceState(null, "", "/markup");
+    if (!embedded && window.location.search) window.history.replaceState(window.history.state, "", "/markup");
   }
+  async function startOver() {
+    if (dirty() && !(await ask({ title: "Close this photo?", body: "Anything not saved will be lost.", confirm: "Close", danger: true }))) return;
+    toPicker();
+    if (window.history.state?.isolaMarkup) window.history.back();   // drop the entry we pushed when the photo opened
+  }
+  // push a history entry while a photo is open, so Back returns to the photo list instead of leaving the page
+  const imgOpen = !!img;
+  useEffect(() => {
+    if (!imgOpen) return;
+    if (!window.history.state?.isolaMarkup) window.history.pushState({ ...(window.history.state || {}), isolaMarkup: 1 }, "");
+    const onPop = async () => {
+      if (window.history.state?.isolaMarkup) return;
+      if (dirty() && !(await ask({ title: "Leave this photo?", body: "Anything not saved will be lost.", confirm: "Leave", danger: true }))) {
+        window.history.pushState({ ...(window.history.state || {}), isolaMarkup: 1 }, "");
+        return;
+      }
+      toPicker();
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imgOpen]);
 
   // history
   function commit(next: Shape[], before = shapes) { setPast((p) => [...p.slice(-60), before]); setFuture([]); setShapes(next); }
@@ -1339,6 +1365,8 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
         if (error) throw error;
         setEditRow(data);
       }
+      savedShapes.current = all;
+      setTimeout(() => { savedShapes.current = shapesRef.current; }, 0);
       window.dispatchEvent(new Event("isola:changed"));
       kickMediaSync();
       showToast("Saved to " + (jobs.find((j) => j.id === jobId)?.job_name || "the job"));
