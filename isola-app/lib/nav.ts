@@ -41,6 +41,8 @@ export const GROUPS: NavGroup[] = [
   {
     key: "work", label: "Run the business", icon: Briefcase, home: "/",
     items: [
+      // v9.0 (11/16/26): Mike's own day plan — Immediate / Short term / Long term, separate from Tasks.
+      { key: "rundown", href: "/rundown", label: "My rundown", icon: Sun },
       // Leads · Awaiting quote · Sent · Booked · In progress · Complete · Future (stage strip on the page)
       { key: "pipeline", href: "/", label: "Pipeline", icon: Workflow, badge: "leads", tabs: [
         { href: "/", label: "Pipeline", icon: Workflow, badge: "leads" },
