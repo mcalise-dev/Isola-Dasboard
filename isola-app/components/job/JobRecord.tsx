@@ -17,6 +17,7 @@ import { NativeSelect, Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import JobChecklist from "@/components/JobChecklist";
 import CrewSetup from "@/components/job/CrewSetup";
+import JobPlaces from "@/components/job/JobPlaces";
 import MyClock from "@/components/MyClock";
 import { TmJobBill, computeBill } from "@/components/TmBilling";
 import { CostsPanel, LaborPanel, TasksPanel, PhotosPanel, SchedulePanel, JobbookCard, ActivityPanel } from "@/components/job/panels";
@@ -444,6 +445,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
               <Fold id="sec-crew" title="Crew app — who's on it, notes & full step list" hint="What the crew sees on their phones">
                 <div className="space-y-6">
                   <CrewSetup jobId={job.id} crewNotes={job.crew_notes ?? null} onSaved={load} />
+                  <JobPlaces jobId={job.id} jobLocation={job.location ?? null} />
                   <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5"><JobChecklist jobId={job.id} jobType={job.job} /></section>
                 </div>
               </Fold>

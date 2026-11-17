@@ -8,6 +8,7 @@ import { showError, undoable } from "@/components/Toaster";
 import { PlanView, LoadOut, Ring, splitPhase, phaseTitle, isHeadsUp, Pill, DayPicker, pickDefaultDay, dayTitle, fmtTime, type DayKey } from "@/components/field/jobkit";
 import { cn } from "@/lib/utils";
 import CrewPhases from "@/components/field/CrewPhases";
+import PlacesCard from "@/components/field/PlacesCard";
 
 // v5.4 crew job screen: Plan / Materials / Tools / Info tabs.
 // Plan of action grouped by phase with progress; materials & tools as a load-out checklist
@@ -153,6 +154,9 @@ export default function FieldJob() {
             className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand text-neutral-950 min-h-[50px] font-bold"><Navigation size={18} /> Directions</a>
         ) : null}
       </div>
+
+      {/* v8.8: job site, dump, pickup — tap for directions */}
+      <PlacesCard places={d.places ?? []} />
 
       {/* v7.3: timed steps coming up (concrete truck, inspection, delivery) — can't be missed */}
       {(() => {
