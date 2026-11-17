@@ -17,7 +17,8 @@ export default function FieldTabBar() {
   // THM partner (Tyler) also gets a Receipts tab for materials he paid for
   const [thm, setThm] = useState(false);
   useEffect(() => { createClient().rpc("crew_is_thm").then(({ data }) => setThm(!!data)); }, []);
-  const tabs = thm ? [...TABS, { href: "/field/thm", label: "THM jobs", icon: Truck }, { href: "/field/receipts", label: "Receipts", icon: Receipt }] : TABS;
+  // THM doesn't clock in or get crew pay, so My hours and Payments are swapped for THM jobs and Receipts
+  const tabs = thm ? [...TABS.filter((t) => t.href !== "/field/hours" && t.href !== "/field/payments"), { href: "/field/thm", label: "THM jobs", icon: Truck }, { href: "/field/receipts", label: "Receipts", icon: Receipt }] : TABS;
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-md border-t border-white/[0.08] pb-[env(safe-area-inset-bottom)]">
       <div className={`mx-auto max-w-2xl grid ${tabs.length === 6 ? "grid-cols-6" : "grid-cols-4"}`}>

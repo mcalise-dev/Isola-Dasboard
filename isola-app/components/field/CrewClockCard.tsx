@@ -26,6 +26,10 @@ export default function CrewClockCard({ onChange }: { onChange?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [, tick] = useState(0);
+  const [thm, setThm] = useState(false);
+
+  // THM partner (Tyler) doesn't clock in, so no time clock for him
+  useEffect(() => { supabase.rpc("crew_is_thm").then(({ data }) => setThm(!!data)); }, []);
 
   async function load() {
     const { data, error } = await supabase.rpc("crew_clock_status");
@@ -62,6 +66,7 @@ export default function CrewClockCard({ onChange }: { onChange?: () => void }) {
     setNote(""); flash(`Clocked out — ${Number(r.hours).toFixed(2)} hrs`); load(); onChange?.();
   }
 
+  if (thm) return null;
   if (!st) return <div className="mt-4 h-40 rounded-2xl skeleton" />;
   const open = st.open;
 
