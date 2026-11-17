@@ -1,5 +1,5 @@
 "use client";
-// "Subs payroll" — every unpaid Labor cost (crew, subs) grouped by person, then by job.
+// "Subs payroll" — every unpaid Labor cost (crew, subs) plus crew material reimbursements, grouped by person, then by job.
 // Source of truth is job_costs.paid = false. Paying someone flips their lines to paid.
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -13,6 +13,9 @@ import { PageHeader, SectionTitle, Stat, Empty, ListSkeleton } from "@/component
 import { ChevronDown, ChevronRight, HandCoins, Plus, RotateCcw } from "lucide-react";
 
 type Line = { id: string; job_id: string | null; entry_date: string; worker: string | null; vendor: string | null; category: string | null; hours: number | null; rate: number | null; amount: number; notes: string | null; paid: boolean; updated_at: string };
+
+const CREW_OWED = "category.eq.Labor,and(category.eq.Materials,worker.not.is.null)";
+const isReimb = (l: Line) => l.category === "Materials";
 
 const who = (l: Line) => (l.worker || l.vendor || "Unnamed").trim();
 
@@ -34,9 +37,10 @@ export default function OwedTab() {
   async function load() {
     const since = new Date(Date.now() - 14 * 86400000).toISOString();
     const [o, r, j, w] = await Promise.all([
-      // Labor only — vendor bills (rentals, materials, dump, fuel) never belong on payroll.
-      sb.from("job_costs").select(cols).eq("paid", false).eq("category", "Labor").gt("amount", 0).order("entry_date"),
-      sb.from("job_costs").select(cols).eq("paid", true).eq("category", "Labor").gte("updated_at", since).order("updated_at", { ascending: false }).limit(40),
+      // Labor, plus materials a crew member bought and gets reimbursed for (those carry a worker).
+      // Vendor bills (rentals, materials, dump, fuel) have no worker and never belong on payroll.
+      sb.from("job_costs").select(cols).eq("paid", false).or(CREW_OWED).gt("amount", 0).order("entry_date"),
+      sb.from("job_costs").select(cols).eq("paid", true).or(CREW_OWED).gte("updated_at", since).order("updated_at", { ascending: false }).limit(40),
       sb.from("jobs").select("id,job_name,customer,location,job,status").order("job_name"),
       sb.from("workers").select("name").eq("active", true).eq("is_owner", false).order("name"),
     ]);
@@ -186,7 +190,8 @@ export default function OwedTab() {
                               <div key={l.id} className="flex items-center gap-2 pl-2 text-xs">
                                 <span className="w-16 shrink-0 text-neutral-500">{fmtDate(l.entry_date)}</span>
                                 <span className="min-w-0 flex-1 truncate text-neutral-400">
-                                  {l.hours != null ? `${Number(l.hours)}h${l.rate != null ? ` @ $${Number(l.rate)}` : ""}` : (l.category ?? "")}
+                                  {isReimb(l) ? <span className="font-semibold text-sky-300">Materials reimbursement</span>
+                                    : l.hours != null ? `Labor · ${Number(l.hours)}h${l.rate != null ? ` @ $${Number(l.rate)}` : ""}` : (l.category ?? "")}
                                   {l.notes ? ` · ${l.notes}` : ""}
                                 </span>
                                 <span className="tabular-nums text-neutral-200">{money(Number(l.amount || 0))}</span>
