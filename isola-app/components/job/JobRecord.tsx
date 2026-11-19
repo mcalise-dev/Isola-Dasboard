@@ -30,6 +30,7 @@ import BudgetPanel from "@/components/field/BudgetPanel";
 import DocStudioPanel from "@/components/docs/DocStudio";
 import PhasePlan from "@/components/job/PhasePlan";
 import PunchTab from "@/components/job/PunchTab";
+import CloseOutCard from "@/components/job/CloseOutCard";
 import { cn } from "@/lib/utils";
 import { ask } from "@/components/Dialogs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -511,6 +512,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
                 <div className={cn("text-lg font-semibold tabular-nums", mPct == null ? "text-neutral-500" : mPct < 10 ? "text-red-300" : mPct < 30 ? "text-amber-300" : "text-emerald-300")}>{margin == null ? "—" : `${mPct}%`}</div></div>
             </div>
             {priceN ? <><Progress className="mt-3" value={usedPct} tone={usedPct >= 90 ? "bad" : usedPct >= 70 ? "warn" : "ok"} /><p className="mt-1 text-xs text-neutral-500">{usedPct}% of {isTm ? "the billing" : "the price"} spent{margin != null ? ` · $${Math.round(margin).toLocaleString()} left` : ""}</p></> : null}
+            {!partner ? <CloseOutCard job={job} refreshKey={costs} /> : null}
             <div className="mt-3 flex gap-2">
               <Button size="sm" variant={job.invoiced_date ? "secondary" : "outline"} className="flex-1" onClick={() => pickStep("invoiced")}>{job.invoiced_date ? `Invoiced ${fmtDate(job.invoiced_date).replace(/^\w+, /, "")}` : "Mark invoiced"}</Button>
               <Button size="sm" variant={job.paid_date ? "success" : "outline"} className="flex-1" onClick={() => pickStep("paid")}>{job.paid_date ? `Paid ${fmtDate(job.paid_date).replace(/^\w+, /, "")}` : "Mark paid"}</Button>

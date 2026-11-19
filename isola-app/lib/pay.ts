@@ -1,28 +1,38 @@
 // v52 — Owner pay: what the COMPANY keeps vs what MIKE makes per day.
+// v89 (11/19/26): Isola takes a flat $200 per working day on every job (Mike's rule; replaces the
+// old monthly-bills ÷ billable-days figure and the 18% he'd used before). Profit is told three ways:
+//   Isola made = Mike's days × $200
+//   Mike made  = share − Isola made          (everything left after all job costs, THM's split and Isola)
+//   Together   = share                       (Isola and Mike are the same pocket)
+// The monthly bills list stays, but only Cash flow uses it now (real money going out each month).
 //
 // Per completed job:
 //   share      = contract − direct costs            (solo job)
 //              = (contract − direct costs) ÷ 2      (THM SPLIT job — 50% of NET, Isola keeps half)
 //              = contract − direct costs            (THM REIMBURSE job — THM's time + equipment is already a
 //                                                    cost line, Isola keeps all of the rest)
-//   overhead   = Mike's days × overhead per day     (fixed monthly costs ÷ billable days)
+//   overhead   = Mike's days × Isola per day ($200)  ← "Isola made"
 //   per day    = (share − overhead) ÷ Mike's days   ← "what you're making per day"
-//   company    = share − overhead − days × target   ← what's left after paying Mike his target
+//   company    = overhead                            ← kept for older callers; same as Isola made
 //
-// Fuel lives in overhead, so job-logged Fuel is NOT counted again as a direct cost.
+// Fuel is covered by Isola's $200/day, so job-logged Fuel is NOT counted again as a direct cost.
 // A job only counts toward the headline once it has costs logged AND Mike's days entered —
 // a job with no costs would look like pure profit and inflate the number.
 import { parseJSON } from "@/lib/settings";
 import { parsePrice } from "@/lib/format";
 
 export type OverheadLine = { label: string; monthly: number };
-export type PayModel = { owner_day_target: number; work_days_per_month: number; overhead: OverheadLine[] };
+export type PayModel = { owner_day_target: number; work_days_per_month: number; overhead: OverheadLine[]; isola_per_day: number };
+
+/** What Isola takes for the business on every job, per working day. */
+export const ISOLA_PER_DAY = 200;
 
 export const PAY_KEY = "pay_model";
 
 export const DEFAULT_PAY: PayModel = {
   owner_day_target: 500,
   work_days_per_month: 16,
+  isola_per_day: ISOLA_PER_DAY,
   overhead: [
     { label: "Truck payment", monthly: 700 },
     { label: "Fuel", monthly: 550 },
@@ -38,17 +48,22 @@ export function parsePayModel(raw: string | null | undefined): PayModel {
     owner_day_target: Number(p.owner_day_target) || DEFAULT_PAY.owner_day_target,
     work_days_per_month: Number(p.work_days_per_month) || DEFAULT_PAY.work_days_per_month,
     overhead: Array.isArray(p.overhead) ? p.overhead.map((o) => ({ label: String(o.label ?? ""), monthly: Number(o.monthly) || 0 })) : DEFAULT_PAY.overhead,
+    // older saved models have no isola_per_day: they get the $200 rule
+    isola_per_day: Number(p.isola_per_day) > 0 ? Number(p.isola_per_day) : ISOLA_PER_DAY,
   };
 }
 
 export const overheadMonthly = (m: PayModel) => m.overhead.reduce((a, o) => a + (Number(o.monthly) || 0), 0);
-export const overheadPerDay = (m: PayModel) => overheadMonthly(m) / Math.max(1, Number(m.work_days_per_month) || 1);
+/** Isola's take per working day ($200 unless changed on Money → My pay). */
+export const overheadPerDay = (m: PayModel) => Number(m.isola_per_day) > 0 ? Number(m.isola_per_day) : ISOLA_PER_DAY;
 
 export type PayRow = {
   id: string; name: string; customer: string; completed_date: string | null;
   price: number; direct: number; partner: string | null; split: boolean; isolaPct: number; share: number;
   days: number | null; est: boolean; hasCosts: boolean;
   overhead: number; available: number; perDay: number | null; myPay: number; company: number;
+  /** close-out: what Isola made ($200 × days), what Mike made (the rest), and the two together */
+  isola: number; mike: number; together: number;
   counted: boolean; reason: string | null;
 };
 
@@ -79,12 +94,13 @@ export function payRows(model: PayModel, jobs: any[], costs: any[]): PayRow[] {
     const available = share - overhead;
     const perDay = days ? available / days : null;
     const myPay = days ? days * tgt : 0;
-    const company = available - myPay;
+    const company = overhead; // Isola's $200/day — the company's take now
+    const isola = overhead, mike = available, together = share;
     const reason = !hasCosts ? "No costs logged" : !days ? "Add your days" : null;
     return {
       id: j.id, name: j.job_name || j.customer || "Job", customer: j.customer ?? "", completed_date: j.completed_date ?? null,
       price, direct, partner: j.partner ?? null, split, isolaPct, share, days, est: !!j.mike_days_est, hasCosts,
-      overhead, available, perDay, myPay, company, counted: !reason, reason,
+      overhead, available, perDay, myPay, company, isola, mike, together, counted: !reason, reason,
     };
   });
 }
@@ -98,15 +114,16 @@ export function payTotals(rows: PayRow[]) {
   const myPay = s((r) => r.myPay);
   const company = s((r) => r.company);
   const overhead = s((r) => r.overhead);
+  const isola = s((r) => r.isola), mike = s((r) => r.mike), together = s((r) => r.together);
   return {
-    jobs: c.length, days, revenue, overhead, available, myPay, company,
+    jobs: c.length, days, revenue, overhead, available, myPay, company, isola, mike, together,
     perDay: days ? available / days : null,
     companyPct: revenue ? company / revenue : null,
     waiting: rows.length - c.length,
   };
 }
 
-/** Minimum price that pays Mike his target and covers overhead, then marked up to a company margin. */
+/** Minimum price that pays Mike his target and Isola its $200/day, then marked up to a company margin. */
 export function priceCheck(model: PayModel, direct: number, days: number, marginPct: number) {
   const floor = direct + days * (overheadPerDay(model) + (Number(model.owner_day_target) || 0));
   const m = Math.min(90, Math.max(0, marginPct)) / 100;
