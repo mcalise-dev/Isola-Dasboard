@@ -22,6 +22,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { editJob } from "@/components/job/JobForm";
 import PeopleList from "@/components/PeopleList";
+import PortalAccessCard from "@/components/customers/PortalAccessCard";
 import { showToast, undoable, showError } from "@/components/Toaster";
 import {
   ContactDialog, EditCustomerDialog, PropertyDialog, StageChip, TYPES,
@@ -271,6 +272,8 @@ export default function CustomerRecord({ id }: { id: string }) {
               {!billing && contacts.length ? <p className="pt-1 text-xs text-neutral-500">No billing contact set — edit a person to mark one.</p> : null}
             </CardContent>
           </Card>
+
+          <PortalAccessCard supabase={supabase} customer={c} props={props} jobs={jobs} />
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
