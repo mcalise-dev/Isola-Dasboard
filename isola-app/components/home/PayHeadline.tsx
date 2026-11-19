@@ -12,15 +12,15 @@ const f$ = (n: number) => (n < 0 ? "-$" : "$") + Math.abs(Math.round(n)).toLocal
 
 export default function PayHeadline() {
   const sb = useMemo(() => createClient(), []);
-  const [v, setV] = useState<{ perDay: number | null; target: number; ohd: number; company: number; pct: number | null; days: number } | null>(null);
+  const [v, setV] = useState<{ perDay: number | null; target: number; ohd: number; isola: number; mike: number; together: number; days: number } | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let live = true;
-    withTimeout(loadPay(sb)).then(({ model, jobs, costs }) => {
+    withTimeout(loadPay(sb)).then(({ model, jobs, costs, owners }) => {
       if (!live) return;
-      const t = payTotals(payRows(model, jobs, costs));
-      setV({ perDay: t.perDay, target: model.owner_day_target, ohd: overheadPerDay(model), company: t.company, pct: t.companyPct, days: t.days });
+      const t = payTotals(payRows(model, jobs, costs, owners));
+      setV({ perDay: t.perDay, target: model.owner_day_target, ohd: overheadPerDay(model), isola: t.isola, mike: t.mike, together: t.together, days: t.days });
     }).catch(() => live && setFailed(true));
     return () => { live = false; };
   }, [sb]);
@@ -38,7 +38,7 @@ export default function PayHeadline() {
           <span className="text-sm text-neutral-400">/ day · target {f$(v.target)}</span>
         </div>
         <div className="mt-0.5 truncate text-xs text-neutral-500">
-          Company kept {f$(v.company)}{v.pct != null ? ` (${Math.round(v.pct * 100)}%)` : ""} over {v.days} days · after {f$(v.ohd)}/day overhead
+          Isola {f$(v.isola)} · you {f$(v.mike)} · together {f$(v.together)} over {v.days} days ({f$(v.ohd)}/day to Isola)
         </div>
       </div>
       <ChevronRight size={18} className="shrink-0 text-neutral-500" />

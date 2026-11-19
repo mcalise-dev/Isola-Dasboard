@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { withTimeout, firstError } from "@/lib/load";
 import { revenueOf, todayISO } from "@/lib/format";
-import { parsePayModel, overheadMonthly, PAY_KEY } from "@/lib/pay";
+import { parsePayModel, overheadPerDay, PAY_KEY } from "@/lib/pay";
 import { PageHeader, SectionTitle, Stat, ListSkeleton, LoadError } from "@/components/ui/bits";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp } from "lucide-reac
    MONTHLY REVIEW (v6.9, 10/22/26) — one page per month.
    Finished work (by completed_date): revenue, job costs, gross profit,
    what Isola keeps after THM's 50% of net on split jobs, and what's
-   left after a month of fixed overhead. Plus proposals sent / won /
+   left after Isola's per-day take (v89). Plus proposals sent / won /
    lost, cash collected, best and worst job.
    Same rules as Reports and My pay: THM-held jobs count only Mike's
    cut; fuel is overhead, not a job cost; a job with no costs logged
@@ -45,7 +45,7 @@ export default function MonthlyReview() {
     setErr(null);
     try {
       const r = await withTimeout(Promise.all([
-        supabase.from("jobs").select("id,job_name,customer,job,status,price,price_amount,contract_holder,isola_cut,partner,thm_deal,quoted_date,won_date,lost_date,lost_reason,completed_date,paid_date,paid_amount"),
+        supabase.from("jobs").select("id,job_name,customer,job,status,price,price_amount,contract_holder,isola_cut,partner,thm_deal,quoted_date,won_date,lost_date,lost_reason,completed_date,paid_date,paid_amount,mike_days"),
         supabase.from("job_costs").select("job_id,category,amount,entry_date"),
         supabase.from("payments").select("job_id,amount,payment_date"),
         supabase.from("change_orders").select("job_id,amount,status"),
@@ -71,7 +71,7 @@ export default function MonthlyReview() {
   for (const c of d.costs) if (c.job_id && !isFuel(c)) costBy.set(c.job_id, (costBy.get(c.job_id) ?? 0) + (Number(c.amount) || 0));
   const coBy = new Map<string, number>();
   for (const c of d.cos) if (c.status === "approved") coBy.set(c.job_id, (coBy.get(c.job_id) ?? 0) + (Number(c.amount) || 0));
-  const ohMo = overheadMonthly(parsePayModel(d.payRaw));
+  const ohd = overheadPerDay(parsePayModel(d.payRaw)); // v89: Isola's take per working day
 
   function monthStats(m: string) {
     const rows = d.jobs.filter((j: any) => j.status === "complete" && inMo(j.completed_date, m)).map((j: any) => {
@@ -94,7 +94,8 @@ export default function MonthlyReview() {
     const sent = d.jobs.filter((j: any) => inMo(j.quoted_date, m));
     const won = d.jobs.filter((j: any) => inMo(j.won_date, m));
     const lost = d.jobs.filter((j: any) => j.status === "lost" && inMo(j.lost_date, m));
-    return { rows, costed, rev, cRev, cNet, keep, collected, sent, won, lost, margin: cRev ? cNet / cRev : null };
+    const days = costed.reduce((a: number, r: any) => a + (Number(r.j.mike_days) || 0), 0);
+    return { rows, costed, rev, cRev, cNet, keep, days, collected, sent, won, lost, margin: cRev ? cNet / cRev : null };
   }
 
   const s = monthStats(mo);
@@ -109,7 +110,8 @@ export default function MonthlyReview() {
     const Icon = up ? TrendingUp : TrendingDown;
     return <span className={cn("inline-flex items-center gap-1", up ? "text-emerald-400/80" : "text-red-300/80")}><Icon size={12} />{f0(Math.abs(a - b))} vs {monthLabel(shiftMonth(mo, -1), false)}</span>;
   };
-  const afterOH = s.keep - ohMo;
+  const isolaMo = s.days * ohd;
+  const afterOH = s.keep - isolaMo;
 
   return (
     <div className="pb-28 space-y-5">
@@ -128,7 +130,7 @@ export default function MonthlyReview() {
         <Stat label="Work finished" value={f0(s.rev)} hint={<>{s.rows.length} job{s.rows.length === 1 ? "" : "s"} {delta(s.rev, prev.rev)}</>} />
         <Stat label="Gross profit" value={s.costed.length ? f0(s.cNet) : "—"} hint={s.costed.length ? `${pct(s.margin)} margin` : "no costs logged"} tone={s.margin != null && s.margin < 0.25 ? "warn" : undefined} />
         <Stat label="Isola keeps" value={s.costed.length ? f0(s.keep) : "—"} hint="after THM's 50% on split jobs" tone="ok" />
-        <Stat label="After overhead" value={s.costed.length ? f0(afterOH) : "—"} hint={`${f0(ohMo)} fixed this month`} tone={s.costed.length ? (afterOH < 0 ? "bad" : "ok") : undefined} />
+        <Stat label="You made" value={s.costed.length ? f0(afterOH) : "—"} hint={`after Isola's ${f0(isolaMo)} (${f0(ohd)} × ${s.days} days)`} tone={s.costed.length ? (afterOH < 0 ? "bad" : "ok") : undefined} />
         <Stat label="Cash collected" value={f0(s.collected)} hint={delta(s.collected, prev.collected)} />
         <Stat label="Proposals sent" value={String(s.sent.length)} hint={f0(s.sent.reduce((a: number, j: any) => a + revenueOf(j), 0))} />
         <Stat label="Won" value={String(s.won.length)} hint={f0(s.won.reduce((a: number, j: any) => a + revenueOf(j), 0))} tone={s.won.length ? "ok" : undefined} />
@@ -178,7 +180,7 @@ export default function MonthlyReview() {
       </section>
 
       <p className="text-xs leading-relaxed text-neutral-500">
-        Months are by the job's completed date. Overhead is the fixed monthly total from Money → My pay; fuel is in it, so fuel receipts aren't counted again as job costs.
+        Months are by the job's completed date. "You made" is what Isola keeps minus Isola's take per working day (Money → My pay) for your days on those jobs; fuel is covered by that take, so fuel receipts aren't counted again as job costs.
       </p>
     </div>
   );

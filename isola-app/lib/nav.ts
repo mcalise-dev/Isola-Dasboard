@@ -77,6 +77,7 @@ export const GROUPS: NavGroup[] = [
         { href: "/costs", label: "Costs", icon: Receipt, badge: "costs" },
         { href: "/billing", label: "Billing", icon: CreditCard, hidden: true },
         { href: "/tm", label: "T&M billing", icon: Clock },
+        { href: "/money/performance", label: "Performance", icon: TrendingUp },
         { href: "/reports", label: "Reports", icon: BarChart3 },
         { href: "/money/cashflow", label: "Cash flow", icon: TrendingUp, hidden: true },
         { href: "/money/review", label: "Monthly review", icon: CalendarCheck, hidden: true },
