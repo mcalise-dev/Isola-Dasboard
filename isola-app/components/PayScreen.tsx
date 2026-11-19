@@ -27,6 +27,7 @@ export default function PayScreen() {
   const [draft, setDraft] = useState<PayModel>(DEFAULT_PAY);
   const [jobs, setJobs] = useState<any[] | null>(null);
   const [costs, setCosts] = useState<any[]>([]);
+  const [owners, setOwners] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [showOH, setShowOH] = useState(false);
   const [busy, setBusy] = useState("");
@@ -36,7 +37,7 @@ export default function PayScreen() {
     setErr(null);
     try {
       const r = await withTimeout(loadPay(sb));
-      setModel(r.model); setDraft(r.model); setJobs(r.jobs); setCosts(r.costs);
+      setModel(r.model); setDraft(r.model); setJobs(r.jobs); setCosts(r.costs); setOwners(r.owners);
     } catch (e: any) {
       setErr(e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
     }
@@ -44,8 +45,8 @@ export default function PayScreen() {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   const rows = useMemo(
-    () => payRows(model, jobs ?? [], costs).sort((a, b) => ((a.completed_date ?? "") < (b.completed_date ?? "") ? 1 : -1)),
-    [model, jobs, costs]
+    () => payRows(model, jobs ?? [], costs, owners).sort((a, b) => ((a.completed_date ?? "") < (b.completed_date ?? "") ? 1 : -1)),
+    [model, jobs, costs, owners]
   );
   const t = payTotals(rows);
   const ohd = overheadPerDay(model);
@@ -178,7 +179,7 @@ export default function PayScreen() {
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-3 text-xs text-neutral-400">
                     <span className="min-w-0">
-                      Costs {f$(r.direct)}{r.split ? ` · your half ${f$(r.share)}` : ` · left ${f$(r.share)}`}
+                      Costs {f$(r.direct)}{r.split ? ` · fee ${f$(r.fee)} · THM ${f$(r.thm)}` : ""}
                       {r.days ? <> · Isola {f$(r.isola)} · <span className={r.mike >= 0 ? "text-emerald-300" : "text-red-300"}>you {f$(r.mike)}</span> · together {f$(r.together)}</> : null}
                     </span>
                     <label className="flex shrink-0 items-center gap-1.5">
@@ -194,7 +195,7 @@ export default function PayScreen() {
           </div>
         )}
         <p className="mt-2 text-xs text-neutral-500">
-          Isola made = {f$(ohd)} × your days. You made = contract − direct costs (halved on THM 50/50 jobs) − Isola. Per day = you made ÷ your days. Job-logged fuel isn't counted — Isola's per-day take covers it.
+          Isola made = {f$(ohd)} × your days, a job expense. On THM 50/50 jobs the $500 management fee is also an expense, the rest splits with THM, and the fee comes back to you. Your own labor is never a cost; crew pay is. Per day = you made ÷ your days. Job-logged fuel isn't counted — Isola's per-day take covers it.
           "est" days were estimated from crew time on that job; correct any that are off and the numbers update.
         </p>
       </section>

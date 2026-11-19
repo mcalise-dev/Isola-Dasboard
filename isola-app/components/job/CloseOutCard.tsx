@@ -1,6 +1,7 @@
 "use client";
 // v89 (11/19/26) — Close-out summary on a job's Money card: after every job cost and THM's split,
 // what Isola made ($ per working day × Mike's days), what Mike made (the rest), and the two together.
+// THM 50/50 jobs also take the $500 management fee as an expense and THM's half out (lib/pay.ts).
 // Same math as Money → My pay (lib/pay.ts payRows), so the numbers match there.
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -18,11 +19,12 @@ export default function CloseOutCard({ job, refreshKey }: { job: any; refreshKey
     Promise.all([
       sb.from("app_settings").select("value").eq("key", PAY_KEY).maybeSingle(),
       sb.from("job_financials").select("contract_total").eq("job_id", job.id).maybeSingle(),
-      sb.from("job_costs").select("job_id,category,amount").eq("job_id", job.id),
-    ]).then(([s, f, c]: any[]) => {
+      sb.from("job_costs").select("job_id,category,amount,worker").eq("job_id", job.id),
+      sb.from("workers").select("name").eq("is_owner", true),
+    ]).then(([s, f, c, w]: any[]) => {
       if (!live || s.error || f.error || c.error) return;
       const model = parsePayModel(s.data?.value);
-      const [row] = payRows(model, [{ ...job, contract_total: f.data?.contract_total ?? null }], c.data ?? []);
+      const [row] = payRows(model, [{ ...job, contract_total: f.data?.contract_total ?? null }], c.data ?? [], (w.data ?? []).map((x: any) => String(x.name ?? "")));
       setV({ row, ohd: overheadPerDay(model) });
     });
     return () => { live = false; };
@@ -48,7 +50,7 @@ export default function CloseOutCard({ job, refreshKey }: { job: any; refreshKey
         <p className="mt-1 text-xs text-neutral-500">Enter your days on this job (Money → My pay) and Isola's {f$(ohd)} a day comes out first.</p>
       )}
       <p className="mt-1.5 text-xs text-neutral-500">
-        {f$(row.price)} − costs {f$(row.direct)}{row.split ? (Number(job.partner_share) > 0 ? ` − THM ${f$(Number(job.partner_share))}` : " ÷ 2 (THM 50/50)") : ""}{row.days ? ` − Isola ${f$(ohd)} × ${row.days}` : ""}
+        {f$(row.price)} − costs {f$(row.direct)}{row.days ? ` − Isola ${f$(ohd)} × ${row.days}` : ""}{row.split ? ` − fee ${f$(row.fee)} − THM ${f$(row.thm)} + fee back to you` : ""}
         {!row.hasCosts ? " · no costs logged yet" : ""}
       </p>
     </div>

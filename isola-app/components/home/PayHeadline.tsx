@@ -17,9 +17,9 @@ export default function PayHeadline() {
 
   useEffect(() => {
     let live = true;
-    withTimeout(loadPay(sb)).then(({ model, jobs, costs }) => {
+    withTimeout(loadPay(sb)).then(({ model, jobs, costs, owners }) => {
       if (!live) return;
-      const t = payTotals(payRows(model, jobs, costs));
+      const t = payTotals(payRows(model, jobs, costs, owners));
       setV({ perDay: t.perDay, target: model.owner_day_target, ohd: overheadPerDay(model), isola: t.isola, mike: t.mike, together: t.together, days: t.days });
     }).catch(() => live && setFailed(true));
     return () => { live = false; };
