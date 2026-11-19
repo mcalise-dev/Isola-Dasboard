@@ -24,6 +24,7 @@ import { CostsPanel, LaborPanel, TasksPanel, PhotosPanel, SchedulePanel, Jobbook
 import { MoneyPanel, ProposalPanel, DocsPanel } from "@/components/job/hub";
 import { JobBuild } from "@/components/BuildTab";
 import ThmPanel from "@/components/job/ThmPanel";
+import { ThmJobOwed } from "@/components/field/ThmStatement";
 import SiteLinePanel from "@/components/job/SiteLinePanel";
 import JobTimeline from "@/components/job/JobTimeline";
 import BudgetPanel from "@/components/field/BudgetPanel";
@@ -400,7 +401,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
                 </button>
               </section>
               <section id="sec-tasks" className="scroll-mt-24"><TasksPanel jobId={job.id} /></section>
-              <section id="sec-activity" className="scroll-mt-24"><ActivityPanel job={job} extra={{ costs, visits }} /></section>
+              <section id="sec-activity" className="scroll-mt-24"><ActivityPanel job={job} extra={{ costs: partner ? [] : costs, visits }} /></section>
             </TabsContent>
 
             <TabsContent value="photos" className="space-y-8">
@@ -457,6 +458,14 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
 
             {/* v8.2: one Money tab — budget, materials & costs, labor (was the Costs tab), then payments and THM */}
             <TabsContent value="money" className="space-y-8">
+              {/* Tyler (partner) sees only what THM is owed: his split and what's paid back. No price, no job costs, no Isola numbers. */}
+              {partner ? (
+                <section id="sec-thm" className="scroll-mt-24 space-y-3">
+                  <h2 className="text-[17px] font-semibold text-white">What THM is owed</h2>
+                  <ThmJobOwed jobId={job.id} />
+                  <ThmPanel job={job} onChange={load} partner />
+                </section>
+              ) : (<>
               {/* T&M: the running customer bill sits right where costs are logged; re-keyed so it refreshes on every entry */}
               {isTm ? <TmJobBill key={`${(costs ?? []).length}-${tmBilled ?? 0}`} jobId={job.id} onChanged={load} /> : null}
               <BudgetPanel job={job} onChange={load} />
@@ -481,6 +490,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
                   <ThmPanel job={job} onChange={load} showBill={!partner && job.billing_type === "tm"} />
                 </section>
               ) : null}
+              </>)}
             </TabsContent>
 
           </Tabs>
@@ -502,6 +512,12 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             </button>
           ) : null}
 
+          {partner ? (
+            <Card className="p-4">
+              <h3 className="mb-2 text-[15px] font-semibold text-white">What THM is owed</h3>
+              <ThmJobOwed jobId={job.id} />
+            </Card>
+          ) : (
           <Card className="p-4">
             <h3 className="mb-2 text-[15px] font-semibold text-white">Money</h3>
             <div className="grid grid-cols-3 gap-2">
@@ -520,6 +536,7 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
             {job.contract_holder === "thm" ? <KV k="Contract holder">THM</KV> : null}
             {withThm ? <KV k="THM deal"><button className="hover:underline" onClick={() => setTab("thm")}>{job.thm_deal === "split" ? (job.partner_share ? `50/50 of net · THM $${Math.round(Number(job.partner_share)).toLocaleString()}` : "50/50 of net") : "Reimburse time + equipment"}</button></KV> : null}
           </Card>
+          )}
 
           <Card className="p-4">
             <h3 className="mb-1 text-[15px] font-semibold text-white">Customer</h3>
