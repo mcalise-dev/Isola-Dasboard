@@ -21,6 +21,7 @@ create table if not exists public.siteline_contact_portals (
   property_ids     uuid[] not null default '{}',
   include_job_ids  uuid[] not null default '{}',
   exclude_job_ids  uuid[] not null default '{}',
+  pending_job_ids  uuid[] not null default '{}',  -- shown as "Pending" on this portal
   recent_days      int not null default 60,    -- completed jobs stay listed this long
   active           boolean not null default true,
   created_at       timestamptz not null default now(),
@@ -70,14 +71,16 @@ begin
     'title', coalesce(nullif(btrim(coalesce(cp.title, '')), ''), 'Your projects'),
     'jobs', coalesce((select jsonb_agg(x.p order by x.rank, x.sort_date desc nulls last) from (
       select
-        case j.status when 'progress' then 0 when 'booked' then 1 when 'future' then 1 when 'awaiting' then 2
-                      when 'complete' then 4 else 3 end as rank,
+        case when j.id = any(cp.pending_job_ids) then 3
+             else case j.status when 'progress' then 0 when 'booked' then 1 when 'future' then 1 when 'awaiting' then 2
+                      when 'complete' then 4 else 3 end end as rank,
         coalesce(j.start_date, j.created_at::date) as sort_date,
         jsonb_build_object(
           'token', s.token,
           'job_name', coalesce(nullif(btrim(j.job_name), ''), j.location, 'Project'),
           'location', j.location,
           'property', coalesce(nullif(btrim(pr.label), ''), ''),
+          'pending', j.id = any(cp.pending_job_ids),
           'phase', case j.status when 'complete' then 'Complete' when 'progress' then 'In progress'
                      when 'booked' then 'Scheduled' when 'future' then 'Scheduled' when 'awaiting' then 'Awaiting approval'
                      when 'lost' then 'Closed' else 'Planning' end,

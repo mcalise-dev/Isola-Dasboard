@@ -12,7 +12,7 @@ import { Shell, Label, Pill, YellowButton, PHONE, TEL, Y, HEAD, midDate, isToday
    open job in the address bar so the phone's back button returns to the list. */
 
 type J = { token: string; job_name: string; location?: string; property?: string; phase: string; start_date?: string;
-  completed_date?: string; next_day?: string; needs_signature?: boolean; last_update?: string };
+  completed_date?: string; next_day?: string; needs_signature?: boolean; last_update?: string; pending?: boolean };
 
 const short = (j: J) => {
   const p = (j.property ?? "").trim();
@@ -26,6 +26,7 @@ const short = (j: J) => {
 
 function line(j: J) {
   if (j.needs_signature) return "Waiting on your signature";
+  if (j.pending) return "Pending";
   if (j.phase === "Complete") return j.completed_date ? `Finished ${midDate(j.completed_date)}` : "Finished";
   if (j.phase === "In progress") return j.next_day ? `Next on site: ${isToday(j.next_day) ? "today" : midDate(j.next_day)}` : "Work underway";
   if (j.phase === "Scheduled") return j.start_date ? `Starts ${midDate(j.start_date)}` : "Start date coming soon";
@@ -178,7 +179,7 @@ export default function ContactPortal({ token }: { token: string }) {
                     <div className="text-[15px] font-bold leading-snug text-[#111]">{grouped ? short(j) : j.job_name}</div>
                     {j.location ? <div className="mt-0.5 truncate text-[13px] text-[#686868]">{j.location}</div> : null}
                   </div>
-                  <Pill tone={done ? "gray" : "yellow"}>{j.needs_signature ? "Sign" : j.phase}</Pill>
+                  <Pill tone={done || j.pending ? "gray" : "yellow"}>{j.needs_signature ? "Sign" : j.pending ? "Pending" : j.phase}</Pill>
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-3 text-[13px]">
                   <span className={j.needs_signature ? "font-bold text-[#111]" : "text-[#555]"}>
