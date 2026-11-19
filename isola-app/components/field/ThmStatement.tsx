@@ -6,8 +6,8 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 
 // Tyler's statement: what THM is owed, job by job, every line itemized.
 // 50/50 jobs show the split math (price − costs = net ÷ 2) plus anything paid back on top.
-type Line = { kind: string; label: string; detail: string | null; amount: number; estimate: boolean; pending?: boolean };
-type Job = {
+export type Line = { kind: string; label: string; detail: string | null; amount: number; estimate: boolean; pending?: boolean };
+export type Job = {
   id: string; name: string; location: string | null; status: string; holder: string; deal: string;
   direction: "isola_owes_thm" | "thm_owes_isola"; settled: boolean; estimate: boolean; lines: Line[]; total: number;
 };
@@ -70,7 +70,7 @@ export default function ThmStatement({ owner = false }: { owner?: boolean }) {
   );
 }
 
-function JobCard({ j, owner }: { j: Job; owner?: boolean }) {
+export function JobCard({ j, owner }: { j: Job; owner?: boolean }) {
   const toThm = j.direction === "isola_owes_thm";
   return (
     <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
@@ -104,4 +104,16 @@ function JobCard({ j, owner }: { j: Job; owner?: boolean }) {
       </div>
     </div>
   );
+}
+
+// One job's card from Tyler's statement — used on his job page in place of the job's full money.
+export function ThmJobOwed({ jobId }: { jobId: string }) {
+  const sb = useMemo(() => createClient(), []);
+  const [j, setJ] = useState<Job | null | undefined>(undefined);
+  useEffect(() => {
+    sb.rpc("crew_thm_statement").then(({ data }) => setJ(((data as Data | null)?.jobs ?? []).find((x) => x.id === jobId) ?? null));
+  }, [sb, jobId]);
+  if (j === undefined) return <div className="text-sm text-neutral-500">Loading what you're owed…</div>;
+  if (!j || j.lines.length === 0) return <div className="rounded-xl border border-white/10 p-4 text-sm text-neutral-400">Nothing owed on this job yet.</div>;
+  return <JobCard j={j} />;
 }

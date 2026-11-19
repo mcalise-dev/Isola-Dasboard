@@ -40,7 +40,7 @@ const num = (v: any) => { const n = Number(String(v ?? "").replace(/[^0-9.]/g, "
 
 // showBill: owner view of a T&M job — each THM line can also be billed to the customer
 // (thm_job_items.bill_rate; the DB sync puts qty x bill_rate on job_costs.bill_amount).
-export default function ThmPanel({ job, onChange, showBill = false }: { job: any; onChange?: () => void; showBill?: boolean }) {
+export default function ThmPanel({ job, onChange, showBill = false, partner = false }: { job: any; onChange?: () => void; showBill?: boolean; partner?: boolean }) {
   const sb = useMemo(() => createClient(), []);
   const [items, setItems] = useState<Item[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -151,10 +151,10 @@ export default function ThmPanel({ job, onChange, showBill = false }: { job: any
                 : "No profit split. Add Tyler's truck, machine and labor time; it counts as a job cost and goes on the running tab."}
             </p>
           </div>
-          <div className="flex gap-2">
+          {partner ? null : <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => editJob(job)}><Pencil size={14} /> Change deal</Button>
             <Button variant="ghost" size="sm" asChild><Link href="/thm">THM tab</Link></Button>
-          </div>
+          </div>}
         </div>
         {items.length ? (
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-sm sm:grid-cols-5">
