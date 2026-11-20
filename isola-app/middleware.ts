@@ -59,6 +59,13 @@ export async function middleware(request: NextRequest) {
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
+  // v91: client logins (SiteLine accounts) never see the dashboard: they go to their portal.
+  if (user?.app_metadata?.role === "client") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/siteline/account";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
   // v4.4: crew logins only ever see the crew app under /field
   const crew = user?.app_metadata?.role === "crew";
   if (user && isLogin) {
