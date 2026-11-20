@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { SignBar, signNeed } from "@/components/siteline/SignBar";
 import TmTab, { photosOf } from "@/components/siteline/TmTab";
 import { Label, Pill, PhaseTrack, DataCard, YellowButton, Section, TEL, Y, YD, HEAD, dayDate, midDate, isToday, money } from "@/components/siteline/ui";
@@ -31,7 +32,66 @@ function Photo({ src }: { src: string }) {
   );
 }
 
-export default function SiteLineJobBody({ d, embedded = false }: { d: any; embedded?: boolean }) {
+/* v90 (11/20/26): reports and files Isola ticked "Show on SiteLine" in Docs. The list comes from
+   public_siteline_files(token) with no file data; a tap fetches that one file with
+   public_siteline_file(token, id), which only returns it for this job's token. */
+function ClientFiles({ token }: { token: string }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [files, setFiles] = useState<any[]>([]);
+  const [opening, setOpening] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let live = true;
+    supabase.rpc("public_siteline_files", { p_token: token }).then(({ data }) => { if (live && Array.isArray(data)) setFiles(data); });
+    return () => { live = false; };
+  }, [supabase, token]);
+  if (!files.length) return null;
+
+  async function open(f: any) {
+    setErr(""); setOpening(f.id);
+    const w = window.open("", "_blank");
+    const { data, error } = await supabase.rpc("public_siteline_file", { p_token: token, p_doc: f.id });
+    setOpening(null);
+    if (error || !data?.ok || !data.file_b64) { w?.close(); setErr("Couldn't open that file. Try again."); return; }
+    const blob = await (await fetch(data.file_b64)).blob();
+    const url = URL.createObjectURL(blob);
+    if (w) w.location.href = url;
+    else {
+      const a = document.createElement("a");
+      a.href = url; a.download = `${(data.title || "Isola document").replace(/[\\/:*?"<>|]+/g, "")}${blob.type === "application/pdf" ? ".pdf" : ""}`;
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
+  return (
+    <Section title="Reports & files">
+      <p className="-mt-1 mb-3 text-[13px] text-[#666]">Tap to open or download.</p>
+      <div className="space-y-2.5">
+        {files.map((f) => (
+          <button key={f.id} type="button" onClick={() => open(f)} disabled={opening === f.id}
+            className="flex w-full items-center gap-3 border border-[#E2E2E2] bg-white px-3.5 py-3 text-left transition-colors hover:border-[#111] active:bg-[#F7F7F7]">
+            <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center bg-[#F3F3F3]">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h5" />
+              </svg>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[14px] font-bold leading-snug text-[#111]">{f.title}</span>
+              <span className="block text-[12px] text-[#777]">{f.mime_type === "application/pdf" ? "PDF" : "Photo"}{f.issued_on ? ` · ${midDate(f.issued_on)}` : ""}</span>
+            </span>
+            <span className="flex h-9 shrink-0 items-center gap-1 px-3 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#111]" style={{ background: Y }}>
+              {opening === f.id ? "Opening…" : <>Open <span aria-hidden>→</span></>}
+            </span>
+          </button>
+        ))}
+      </div>
+      {err ? <p className="mt-2 text-[13px] text-[#B00020]">{err}</p> : null}
+    </Section>
+  );
+}
+
+export default function SiteLineJobBody({ d, embedded = false, token }: { d: any; embedded?: boolean; token?: string }) {
   const [allUpdates, setAllUpdates] = useState(false);
   const updates: any[] = d?.updates ?? [];
   const next: string[] = d?.next_days ?? [];
@@ -154,6 +214,8 @@ export default function SiteLineJobBody({ d, embedded = false }: { d: any; embed
           ) : null}
         </Section>
       ) : null}
+
+      {token ? <ClientFiles token={token} /> : null}
 
       {filed.length ? (
         <Section title="Your documents">

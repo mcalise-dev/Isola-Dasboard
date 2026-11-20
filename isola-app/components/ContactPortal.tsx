@@ -126,7 +126,7 @@ export default function ContactPortal({ token }: { token: string }) {
         ) : null}
         <div className="mt-4">
           {jd ? (
-            <SiteLineJobBody key={current.token} d={jd} embedded />
+            <SiteLineJobBody key={current.token} d={jd} embedded token={current.token} />
           ) : detailErr ? (
             <div>
               <p className="text-[14px] text-[#555]">{detailErr}</p>

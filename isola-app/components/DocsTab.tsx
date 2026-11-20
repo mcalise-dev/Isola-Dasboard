@@ -54,7 +54,7 @@ export default function DocsTab() {
       const [d, c, j] = await withTimeout(Promise.all([
         // never select * — file_b64 would ship every document on load
         supabase.from("documents")
-          .select("id,doc_type,title,customer_id,job_id,issuer,reference,issued_on,expires_at,amount,mime_type,notes,created_at")
+          .select("id,doc_type,title,customer_id,job_id,issuer,reference,issued_on,expires_at,amount,mime_type,notes,client_visible,created_at")
           .order("expires_at", { ascending: true, nullsFirst: false }),
         supabase.from("customers").select("id,name").eq("archived", false).order("name"),
         supabase.from("jobs").select("id,job_name,customer").order("created_at", { ascending: false }).limit(60),
@@ -93,6 +93,8 @@ export default function DocsTab() {
       expires_at: editing.expires_at || null,
       amount: editing.amount === "" || editing.amount == null ? null : Number(editing.amount),
       notes: editing.notes || null,
+      // v90: only a document filed to a job and ticked here shows on that job's SiteLine page
+      client_visible: !!editing.job_id && !!editing.client_visible,
       updated_at: new Date().toISOString(),
     };
     if (editing.file_b64) { row.file_b64 = editing.file_b64; row.mime_type = editing.mime_type; }
@@ -231,6 +233,7 @@ export default function DocsTab() {
                 <div className="text-xs text-neutral-400">
                   {d.issued_on ? `Issued ${fmtDate(d.issued_on)}` : ""}
                   {d.expires_at ? `${d.issued_on ? " · " : ""}Expires ${fmtDate(d.expires_at)}` : ""}
+                  {d.client_visible && d.job_id ? `${d.issued_on || d.expires_at ? " · " : ""}On SiteLine` : ""}
                 </div>
                 <div className="mt-auto flex items-center gap-1.5 pt-1">
                   <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => view(d)}><Eye size={14} /> View</Button>
@@ -288,6 +291,13 @@ export default function DocsTab() {
                   </NativeSelect>
                 </Field>
               </div>
+
+              {editing.job_id ? (
+                <label className="flex cursor-pointer items-start gap-2 text-sm text-neutral-200">
+                  <input type="checkbox" className="mt-1 h-4 w-4" checked={!!editing.client_visible} onChange={(e) => set("client_visible", e.target.checked)} />
+                  <span>Show on the client's SiteLine page<span className="block text-xs text-neutral-400">The customer can open and download it from their project link.</span></span>
+                </label>
+              ) : null}
 
               <Field label="Amount — coverage limit or fee">
                 <MoneyInput className="h-10 w-full rounded-lg border border-input bg-neutral-950 px-3 text-sm text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-white/40" value={editing.amount ?? ""} onChange={(v) => set("amount", v)} />

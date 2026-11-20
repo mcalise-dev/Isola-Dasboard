@@ -54,7 +54,7 @@ export default function PublicSiteLine({ token }: { token: string }) {
 
   return (
     <Shell>
-      <SiteLineJobBody d={d} />
+      <SiteLineJobBody d={d} token={token} />
     </Shell>
   );
 }
