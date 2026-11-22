@@ -1,3 +1,7 @@
 {
-  "crons": [{ "path": "/api/push/cron", "schedule": "0 12 * * *" }]
+  "crons": [
+    { "path": "/api/push/cron", "schedule": "0 12 * * *" },
+    { "path": "/api/siteline/six-pm", "schedule": "0 22 * * *" },
+    { "path": "/api/siteline/six-pm?run=2", "schedule": "0 23 * * *" }
+  ]
 }

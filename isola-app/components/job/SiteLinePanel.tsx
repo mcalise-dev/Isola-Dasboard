@@ -23,7 +23,9 @@ import { stampSafe } from "@/lib/stamp";
    box land here too (marked "From daily log"). */
 
 type Share = { token: string; created_at: string; viewed_at: string | null; last_viewed_at: string | null; view_count: number };
-type Update = { id: string; update_date: string; body: string; photo_b64: string | null; photos: string[] | null; daily_log_id: string | null; created_at: string };
+type Update = { id: string; update_date: string; body: string; photo_b64: string | null; photos: string[] | null; daily_log_id: string | null; created_at: string; publish_at: string | null };
+// v9.3: with "Post at 6 PM" on (app_settings siteline_6pm.schedule), new updates wait until 6 PM Eastern.
+const waiting = (u: Update) => !!u.publish_at && new Date(u.publish_at).getTime() > Date.now();
 const updPhotos = (u: Update) => (u.photos?.length ? u.photos : u.photo_b64 ? [u.photo_b64] : []);
 
 const errMsg = (e: any) => (e?.message === "timeout" ? "No response — check your signal." : e?.message ?? String(e));
@@ -43,13 +45,20 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [form, setForm] = useState<{ date: string; body: string; photos: string[] }>({ date: todayISO(), body: "", photos: [] });
   const [busy, setBusy] = useState(false);
+  const [sixPm, setSixPm] = useState(false);
+
+  useEffect(() => {
+    sb.from("app_settings").select("value").eq("key", "siteline_6pm").maybeSingle().then(({ data }) => {
+      try { setSixPm(!!JSON.parse(data?.value ?? "{}").schedule); } catch { setSixPm(false); }
+    });
+  }, [sb]);
 
   async function load() {
     setErr(null);
     try {
       const [s, u] = await withTimeout(Promise.all([
         sb.from("siteline_shares").select("token,created_at,viewed_at,last_viewed_at,view_count").eq("job_id", jobId).maybeSingle(),
-        sb.from("siteline_updates").select("id,update_date,body,photo_b64,photos,daily_log_id,created_at").eq("job_id", jobId)
+        sb.from("siteline_updates").select("id,update_date,body,photo_b64,photos,daily_log_id,created_at,publish_at").eq("job_id", jobId)
           .order("update_date", { ascending: false }).order("created_at", { ascending: false }),
       ]));
       const e = firstError(s, u);
@@ -93,13 +102,23 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
   async function post() {
     if (!form.body.trim() && !form.photos.length) return showError("Write what got done today, or add photos.");
     setBusy(true);
-    const { error } = await sb.from("siteline_updates").insert({
+    // the database holds it for 6 PM when the schedule is on (trigger siteline_schedule, v93)
+    const { data: ins, error } = await sb.from("siteline_updates").insert({
       job_id: jobId, update_date: form.date || todayISO(), body: form.body.trim(), photo_b64: form.photos[0] ?? null, photos: form.photos,
-    });
+    }).select("publish_at").single();
+    const publish_at = (ins as { publish_at: string | null } | null)?.publish_at ?? null;
     setBusy(false);
     if (error) return showError("Couldn't post: " + error.message);
     setForm({ date: todayISO(), body: "", photos: [] });
-    showToast(share ? "Posted to SiteLine" : "Saved — make a link to share it");
+    showToast(!share ? "Saved — make a link to share it" : publish_at ? "Saved — it goes live at 6 PM" : "Posted to SiteLine");
+    load();
+  }
+
+  async function postNow(u: Update) {
+    if (!(await ask({ title: "Post this update now?", body: "It shows on the client's page right away instead of at 6 PM. The 6 PM email skips it.", confirm: "Post now" }))) return;
+    const { error } = await sb.from("siteline_updates").update({ publish_at: new Date().toISOString(), notified_at: new Date().toISOString() }).eq("id", u.id);
+    if (error) return showError("Couldn't post it: " + error.message);
+    showToast("Posted to SiteLine");
     load();
   }
 
@@ -180,7 +199,8 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
             </div>
           ) : null}
           <p className="text-xs text-neutral-500">Dollar amounts are stripped out before the client sees an update.</p>
-          <Button className="h-11 w-full" onClick={post} disabled={busy}>{busy ? "Posting…" : "Post update"}</Button>
+          {sixPm ? <p className="text-xs text-neutral-500">Updates go live on the client's page at 6 PM.</p> : null}
+          <Button className="h-11 w-full" onClick={post} disabled={busy}>{busy ? "Posting…" : sixPm ? "Save for 6 PM" : "Post update"}</Button>
         </Card>
       </section>
 
@@ -197,10 +217,14 @@ export default function SiteLinePanel({ jobId }: { jobId: string }) {
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="font-semibold text-white">{fmtDate(u.update_date)}</span>
                       {u.daily_log_id ? <Badge variant="muted">From daily log</Badge> : null}
+                      {waiting(u) ? <Badge variant="warning">Goes live 6 PM</Badge> : null}
                     </div>
                     <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-300">{u.body}</p>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" aria-label="Remove update" onClick={() => remove(u)}><Trash2 size={15} /></Button>
+                  <div className="flex shrink-0 items-center">
+                    {waiting(u) ? <Button variant="ghost" size="sm" className="h-10" onClick={() => postNow(u)}>Post now</Button> : null}
+                    <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="Remove update" onClick={() => remove(u)}><Trash2 size={15} /></Button>
+                  </div>
                 </div>
                 {updPhotos(u).length ? (
                   <div className="mt-2 flex flex-wrap gap-1.5">
