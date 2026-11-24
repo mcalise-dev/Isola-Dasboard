@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { SignBar, signNeed } from "@/components/siteline/SignBar";
 import TmTab, { photosOf } from "@/components/siteline/TmTab";
+import DocPhotos from "@/components/siteline/DocPhotos";
 import { Label, Pill, PhaseTrack, DataCard, YellowButton, Section, TEL, Y, YD, HEAD, dayDate, midDate, isToday, money } from "@/components/siteline/ui";
 
 /* One job's SiteLine content (v89, 11/18/26). Shared by /site/<token> (PublicSiteLine) and the
@@ -91,6 +92,7 @@ export default function SiteLineJobBody({ d, embedded = false }: { d: any; embed
               <div className="text-[17px] font-extrabold leading-snug" style={HEAD}><span className="capitalize">{word}</span>: {doc.title}</div>
               {doc.price != null ? <div className="shrink-0 text-[20px] font-extrabold tabular-nums" style={HEAD}>{money(doc.price)}</div> : null}
             </div>
+            <DocPhotos token={doc.token} dark />
             <a href={`/p/${doc.token}`} className="mt-4 flex h-14 items-center justify-center gap-2 bg-[#111] text-[13px] font-extrabold uppercase tracking-[0.1em] text-white">
               Review &amp; sign <span aria-hidden className="text-[18px] leading-none" style={{ color: Y }}>→</span>
             </a>
@@ -163,7 +165,8 @@ export default function SiteLineJobBody({ d, embedded = false }: { d: any; embed
               const signed = doc.status === "approved";
               const status = signed ? `Signed ${midDate(doc.approved_at)}` : doc.status === "declined" ? "Declined" : doc.status === "expired" ? "Expired" : "Not signed";
               return (
-                <a key={doc.token} href={`/p/${doc.token}`}
+                <div key={doc.token}>
+                <a href={`/p/${doc.token}`}
                   className="flex items-center gap-3 border border-[#E2E2E2] bg-white px-3.5 py-3 transition-colors hover:border-[#111] active:bg-[#F7F7F7]">
                   <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center bg-[#F3F3F3]">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -178,6 +181,8 @@ export default function SiteLineJobBody({ d, embedded = false }: { d: any; embed
                     View <span aria-hidden>→</span>
                   </span>
                 </a>
+                <DocPhotos token={doc.token} />
+                </div>
               );
             })}
           </div>
