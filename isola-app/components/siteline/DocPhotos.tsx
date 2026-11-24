@@ -56,7 +56,7 @@ export default function DocPhotos({ token, dark = false }: { token: string; dark
       </div>
 
       {cur ? (
-        <div className="fixed inset-0 z-50 flex flex-col bg-black/95 text-white"
+        <div className="fixed inset-0 z-[100] flex flex-col bg-black text-white"
           onTouchStart={(e) => setTouchX(e.touches[0].clientX)}
           onTouchEnd={(e) => {
             if (touchX === null) return;
