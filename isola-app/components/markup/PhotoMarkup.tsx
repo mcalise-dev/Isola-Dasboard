@@ -41,7 +41,7 @@ type Shape = {
   nodots?: boolean;   // Points line without the corner dots
   to?: P;             // text box pointer line tip
 };
-type SymKind = "tiein" | "cleanout" | "struct" | "warn" | "tag" | "dot" | "replace" | "repoint";
+type SymKind = "tiein" | "cleanout" | "struct" | "warn" | "tag" | "dot" | "replace" | "repoint" | "rr";
 // v9.0: legend box drawn on the photo — entries build themselves from what's drawn; labels are editable
 type LegendCfg = { on: boolean; pos: "tl" | "tr" | "bl" | "br"; title: string; labels: Record<string, string>; hide: string[]; note: string; scale: number };
 type Tool = "select" | Shape["type"];
@@ -237,8 +237,9 @@ function flowArrows(ctx: CanvasRenderingContext2D, pts: P[], n: number, lw: numb
   }
   ctx.restore();
 }
-const symR = (s: Shape, base: number) => base * ({ tiein: 3.2, cleanout: 2.4, struct: 4.6, warn: 3.8, tag: 3.4, dot: 2.6, replace: 3.6, repoint: 3.6 } as Record<SymKind, number>)[s.sym || "dot"] * (0.6 + (s.size || 2) * 0.2) * (s.ts || 1);
+const symR = (s: Shape, base: number) => base * ({ tiein: 3.2, cleanout: 2.4, struct: 4.6, warn: 3.8, tag: 3.4, dot: 2.6, replace: 3.6, repoint: 3.6, rr: 3.6 } as Record<SymKind, number>)[s.sym || "dot"] * (0.6 + (s.size || 2) * 0.2) * (s.ts || 1);
 const SYMS: { k: SymKind; label: string; color: string; text?: string }[] = [
+  { k: "rr", label: "Remove & replace", color: "#EF4444" },
   { k: "replace", label: "Replace brick", color: "#EF4444" },
   { k: "repoint", label: "Repoint", color: "#F2C230" },
   { k: "tiein", label: "Tie-in X", color: "#F2C230" },
@@ -299,6 +300,17 @@ function drawSym(ctx: CanvasRenderingContext2D, k: SymKind, x: number, y: number
       rrect(ctx, x - w / 2, y - h / 2, w, h, fs * 0.28); ctx.fillStyle = color; ctx.fill();
       ctx.shadowColor = "transparent"; ctx.lineWidth = Math.max(1.2, fs * 0.09); ctx.strokeStyle = contrast(color); ctx.stroke();
       ctx.fillStyle = contrast(color); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(t, x, y + fs * 0.05);
+      break;
+    }
+    case "rr": {
+      // general remove & replace badge: solid rounded box with white "R&R"
+      const bw = r * 2.7, bh = r * 1.5;
+      rrect(ctx, x - bw / 2, y - bh / 2, bw, bh, r * 0.32);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.shadowColor = "transparent"; ctx.lineWidth = lw; ctx.strokeStyle = "#FFFFFF"; ctx.stroke();
+      const fs = bh * 0.6;
+      ctx.font = sans(fs, 900); ctx.fillStyle = contrast(color); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(text || "R&R", x, y + fs * 0.05);
       break;
     }
     case "replace":
@@ -553,7 +565,7 @@ function legendEntries(shapes: Shape[]): LegEntry[] {
       const k = s.sym || "dot", t = (s.text || "").toUpperCase();
       if (k === "struct") add({ key: `S|struct|${t}|${s.color}`, kind: "sym", sym: k, color: s.color, text: s.text, def: STRUCT_NAMES[t] ?? (t ? `${t} structure` : "Structure") });
       else if (k === "tag") add({ key: `S|tag|${s.color}`, kind: "sym", sym: k, color: s.color, text: (s.text || "").replace(/\d+$/, "#") || "#", def: "Tags" });
-      else add({ key: `S|${k}|${s.color}`, kind: "sym", sym: k, color: s.color, text: s.text, def: { tiein: "Tie in to existing", cleanout: "Cleanout", warn: "Repair / problem spot", dot: "Point of interest", replace: "Remove & replace brick", repoint: "Repoint mortar joints" }[k as "tiein"] ?? "Symbol" });
+      else add({ key: `S|${k}|${s.color}`, kind: "sym", sym: k, color: s.color, text: s.text, def: { tiein: "Tie in to existing", cleanout: "Cleanout", warn: "Repair / problem spot", dot: "Point of interest", rr: "Remove & replace", replace: "Remove & replace brick", repoint: "Repoint mortar joints" }[k as "tiein"] ?? "Symbol" });
     }
   }
   return out;
@@ -575,7 +587,7 @@ function drawLegendSample(ctx: CanvasRenderingContext2D, e: LegEntry, x: number,
     ctx.lineWidth = Math.max(1.5, f * 0.16); ctx.strokeStyle = isDark(e.color) || e.color === "#FFFFFF" ? "#0B0D0E" : e.color;
     ctx.strokeRect(x + 1, cy - h / 2, w - 2, h);
   } else {
-    const r = f * (e.sym === "struct" ? 0.62 : e.sym === "cleanout" ? 0.42 : e.sym === "tag" ? 0.55 : e.sym === "replace" || e.sym === "repoint" ? 0.48 : 0.5);
+    const r = f * (e.sym === "struct" ? 0.62 : e.sym === "cleanout" ? 0.42 : e.sym === "tag" ? 0.55 : e.sym === "rr" ? 0.42 : e.sym === "replace" || e.sym === "repoint" ? 0.48 : 0.5);
     drawSym(ctx, e.sym!, x + w / 2, cy, r, e.color, e.text || "");
   }
   ctx.restore();
@@ -1588,7 +1600,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
                 <button key={d.k} onClick={() => pickKind(d.k)}
                   className={cn("flex min-h-[52px] min-w-[68px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-2 text-[12px] font-semibold",
                     curK === d.k ? "border-brand bg-brand/15 text-white" : "border-white/[0.09] text-neutral-300 hover:text-white")}>
-                  <MiniCanvas w={30} h={26} deps={[d.k, structText]} draw={(c) => drawSym(c, d.k, 15, 13, d.k === "struct" ? 11 : d.k === "cleanout" ? 8 : d.k === "tag" ? 8 : d.k === "replace" || d.k === "repoint" ? 10 : 9, d.color, d.k === "struct" ? (structText.toUpperCase() || "DW") : d.k === "tag" ? "G1" : d.k === "warn" ? "!" : "")} />
+                  <MiniCanvas w={30} h={26} deps={[d.k, structText]} draw={(c) => drawSym(c, d.k, 15, 13, d.k === "struct" ? 11 : d.k === "cleanout" ? 8 : d.k === "tag" ? 8 : d.k === "rr" ? 9 : d.k === "replace" || d.k === "repoint" ? 10 : 9, d.color, d.k === "struct" ? (structText.toUpperCase() || "DW") : d.k === "tag" ? "G1" : d.k === "warn" ? "!" : "")} />
                   {d.label}
                 </button>
               ))}
