@@ -565,7 +565,7 @@ function legendEntries(shapes: Shape[]): LegEntry[] {
       const k = s.sym || "dot", t = (s.text || "").toUpperCase();
       if (k === "struct") add({ key: `S|struct|${t}|${s.color}`, kind: "sym", sym: k, color: s.color, text: s.text, def: STRUCT_NAMES[t] ?? (t ? `${t} structure` : "Structure") });
       else if (k === "tag") add({ key: `S|tag|${s.color}`, kind: "sym", sym: k, color: s.color, text: (s.text || "").replace(/\d+$/, "#") || "#", def: "Tags" });
-      else add({ key: `S|${k}|${s.color}`, kind: "sym", sym: k, color: s.color, text: s.text, def: { tiein: "Tie in to existing", cleanout: "Cleanout", warn: "Repair / problem spot", dot: "Point of interest", rr: "Remove & replace", replace: "Remove & replace brick", repoint: "Repoint mortar joints" }[k as "tiein"] ?? "Symbol" });
+      else add({ key: `S|${k}|${s.color}`, kind: "sym", sym: k, color: s.color, text: s.text, def: (({ tiein: "Tie in to existing", cleanout: "Cleanout", warn: "Repair / problem spot", dot: "Point of interest", rr: "Remove & replace", replace: "Remove & replace brick", repoint: "Repoint mortar joints" } as Record<string, string>)[k] ?? "Symbol") + (s.color !== SYMS.find((x) => x.k === k)?.color ? ` (${colorName(s.color).toLowerCase()})` : "") });
     }
   }
   return out;
@@ -767,6 +767,9 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
   const [pinNotes, setPinNotes] = useState(true);   // Number tool: ask for a note and drop a text box beside the dot
   // v9.0 legend-map tools
   const [symKind, setSymKind] = useState<SymKind>("tiein");
+  // color picked for each symbol kind (falls back to the kind's default color)
+  const [symColors, setSymColors] = useState<Partial<Record<SymKind, string>>>({});
+  const symColor = (k: SymKind) => symColors[k] ?? SYMS.find((x) => x.k === k)!.color;
   const [structText, setStructText] = useState("DW");
   const [lineDash, setLineDash] = useState(false);
   const [lineFlow, setLineFlow] = useState(0);
@@ -1142,7 +1145,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     if (tool === "sym") {
       const def = SYMS.find((x) => x.k === symKind)!;
       const text = symKind === "struct" ? (structText.trim().toUpperCase() || "DW") : symKind === "tag" ? nextTag(shapes) : symKind === "warn" ? "!" : undefined;
-      const mark: Shape = { id: uid(), type: "sym", sym: symKind, color: def.color, size, at: p, text };
+      const mark: Shape = { id: uid(), type: "sym", sym: symKind, color: symColor(def.k), size, at: p, text };
       commit([...shapes, mark]);
       if (!legend) setLegend(DEFAULT_LEGEND());   // first symbol turns the legend on
       return;
@@ -1337,7 +1340,13 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
     } else setNumbered((v) => !v);
   }
   // restyle the selected shape with the color / size buttons
-  function pickColor(c: string) { setColor(c); if (sel) commit(shapes.map((x) => (x.id === sel ? { ...x, color: c } : x))); }
+  function pickColor(c: string) {
+    const s = sel ? shapes.find((x) => x.id === sel) : undefined;
+    if (s?.type === "sym") setSymColors((m) => ({ ...m, [s.sym || "dot"]: c }));
+    else if (tool === "sym") setSymColors((m) => ({ ...m, [symKind]: c }));
+    else setColor(c);
+    if (sel) commit(shapes.map((x) => (x.id === sel ? { ...x, color: c } : x)));
+  }
   function pickSize(n: number) { setSize(n); if (sel) commit(shapes.map((x) => (x.id === sel ? { ...x, size: n } : x))); }
   async function clearAll() { if (!shapes.length) return; if (await ask({ title: "Clear all markup?", confirm: "Clear", danger: true })) { commit([]); setSel(null); } }
 
@@ -1504,7 +1513,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           {tool === "text" || selShape?.type === "text" ? <span className="mr-0.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">Text</span> : null}
           {COLORS.map((c) => (
             <button key={c.v} aria-label={c.n} onClick={() => pickColor(c.v)}
-              className={cn("h-8 w-8 rounded-full border-2", (selShape ? selShape.color : color) === c.v ? "border-white ring-2 ring-brand ring-offset-2 ring-offset-background" : "border-white/20")}
+              className={cn("h-8 w-8 rounded-full border-2", (selShape ? selShape.color : tool === "sym" ? symColor(symKind) : color) === c.v ? "border-white ring-2 ring-brand ring-offset-2 ring-offset-background" : "border-white/20")}
               style={{ background: c.v }} />
           ))}
         </div>
@@ -1586,7 +1595,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
           if (selShape?.type === "sym") {
             const d = SYMS.find((x) => x.k === k)!;
             const text = k === "struct" ? (structText.toUpperCase() || "DW") : k === "tag" ? (selShape.sym === "tag" ? selShape.text : nextTag(shapes)) : k === "warn" ? "!" : undefined;
-            commit(shapes.map((x) => (x.id === sel ? { ...x, sym: k, color: d.color, text } : x)));
+            commit(shapes.map((x) => (x.id === sel ? { ...x, sym: k, color: symColors[k] ?? d.color, text } : x)));
           }
         };
         const setLetters = (t: string) => {
@@ -1600,7 +1609,7 @@ export default function PhotoMarkup({ lockJobId, photoId, onClose }: { lockJobId
                 <button key={d.k} onClick={() => pickKind(d.k)}
                   className={cn("flex min-h-[52px] min-w-[68px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-2 text-[12px] font-semibold",
                     curK === d.k ? "border-brand bg-brand/15 text-white" : "border-white/[0.09] text-neutral-300 hover:text-white")}>
-                  <MiniCanvas w={30} h={26} deps={[d.k, structText]} draw={(c) => drawSym(c, d.k, 15, 13, d.k === "struct" ? 11 : d.k === "cleanout" ? 8 : d.k === "tag" ? 8 : d.k === "rr" ? 9 : d.k === "replace" || d.k === "repoint" ? 10 : 9, d.color, d.k === "struct" ? (structText.toUpperCase() || "DW") : d.k === "tag" ? "G1" : d.k === "warn" ? "!" : "")} />
+                  <MiniCanvas w={30} h={26} deps={[d.k, structText, symColor(d.k)]} draw={(c) => drawSym(c, d.k, 15, 13, d.k === "struct" ? 11 : d.k === "cleanout" ? 8 : d.k === "tag" ? 8 : d.k === "rr" ? 9 : d.k === "replace" || d.k === "repoint" ? 10 : 9, symColor(d.k), d.k === "struct" ? (structText.toUpperCase() || "DW") : d.k === "tag" ? "G1" : d.k === "warn" ? "!" : "")} />
                   {d.label}
                 </button>
               ))}
