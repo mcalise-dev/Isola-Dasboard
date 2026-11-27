@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { STATUS_META, LOST_REASONS, fmtDate, fmtPrice, parsePrice, todayISO, daysSince } from "@/lib/format";
+import { STATUS_META, LOST_REASONS, fmtDate, fmtPrice, parsePrice, todayISO, daysSince, money } from "@/lib/format";
 import { undoable, showToast, showError } from "@/components/Toaster";
 import { editJob, LEAD_SOURCES } from "@/components/job/JobForm";
 import { Button } from "@/components/ui/button";
@@ -210,6 +210,10 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
   const isTm = job.billing_type === "tm";
   const priceN = isTm ? (tmBilled ?? 0) : (Number(job.price_amount) || parsePrice(job.price));
   const spent = costs.reduce((a, c) => a + Number(c.amount ?? 0), 0);
+  // T&M job still open after an earlier invoice was paid (e.g. Chemowa: CHEMOWA-1 paid, CHEMOWA-2 open):
+  // the headline is what's owed on the current invoice, not everything billed since day one.
+  const tmPrior = isTm && !job.paid_date ? Number(job.paid_amount) || 0 : 0;
+  const tmOpen = Math.max(0, Math.round(((Number(job.tm_invoice_total) || tmBilled || 0) - tmPrior) * 100) / 100);
   const margin = priceN ? priceN - spent : null;
   const mPct = priceN ? Math.round(((priceN - spent) / priceN) * 100) : null;
   const usedPct = priceN ? Math.round((spent / priceN) * 100) : 0;
@@ -521,7 +525,11 @@ export default function JobRecord({ id, partner = false }: { id: string; partner
           <Card className="p-4">
             <h3 className="mb-2 text-[15px] font-semibold text-white">Money</h3>
             <div className="grid grid-cols-3 gap-2">
+              {tmPrior > 0 ? (
+                <div><div className="truncate text-xs text-neutral-500">Owed{job.qbo_invoice_ref ? ` · #${job.qbo_invoice_ref}` : ""}</div><div className="truncate text-lg font-semibold tabular-nums text-white">{money(tmOpen)}</div><div className="truncate text-[11px] text-neutral-500">${Math.round(tmBilled ?? 0).toLocaleString()} billed to date</div></div>
+              ) : (
               <div><div className="text-xs text-neutral-500">{isTm ? "Billed (T&M)" : "Contract"}</div><div className="truncate text-lg font-semibold tabular-nums text-white">{isTm ? (tmBilled == null ? "—" : `$${Math.round(tmBilled).toLocaleString()}`) : fmtPrice(job.price) || "—"}</div></div>
+              )}
               <button onClick={() => setTab("money")} className="text-left hover:opacity-80"><div className="text-xs text-neutral-500">Spent</div><div className="text-lg font-semibold tabular-nums text-white underline-offset-4 hover:underline">${Math.round(spent).toLocaleString()}</div></button>
               <div><div className="text-xs text-neutral-500">Margin</div>
                 <div className={cn("text-lg font-semibold tabular-nums", mPct == null ? "text-neutral-500" : mPct < 10 ? "text-red-300" : mPct < 30 ? "text-amber-300" : "text-emerald-300")}>{margin == null ? "—" : `${mPct}%`}</div></div>

@@ -45,7 +45,7 @@ export default function MoneyTab() {
       const [m, t, j, c] = await withTimeout(Promise.all([
         supabase.from("money_snapshot").select("data,updated_at").eq("id", 1),
         supabase.from("thm_ledger").select("side,amount,bucket,is_open"),
-        supabase.from("jobs").select("id,job_name,customer,customer_id,location,job,price,status,completed_date,invoiced_date,paid_date,paid_amount,paid_method,qbo_invoice_ref,due_date,terms,contract_holder,isola_cut"),
+        supabase.from("jobs").select("id,job_name,customer,customer_id,location,job,price,status,billing_type,completed_date,invoiced_date,paid_date,paid_amount,paid_method,qbo_invoice_ref,due_date,terms,contract_holder,isola_cut"),
         supabase.from("customers").select("id,name,qbo_names,payment_terms"),
       ]));
       const e = firstError(m, t, j, c);
@@ -139,8 +139,9 @@ export default function MoneyTab() {
   const allInvoices = snap?.invoices ?? [];
   // v4.2: invoices written ahead in QuickBooks for jobs that aren't Complete yet are "billed ahead" —
   // not owed yet, so they stay out of the tiles, the aging bar and the overdue list.
+  // T&M jobs are the exception: a T&M invoice bills work already done (e.g. CHEMOWA-2 while Chemowa stays open), so it's owed.
   const openInv = allInvoices.filter((i) => { const j = jobFor(i); return !(j && j.paid_date); });
-  const billedAhead = openInv.filter((i) => { const j = i.ref ? jobs.find((x) => String(x.qbo_invoice_ref ?? "").split(/[,\s]+/).includes(String(i.ref))) : null; return j && j.status !== "complete"; });
+  const billedAhead = openInv.filter((i) => { const j = i.ref ? jobs.find((x) => String(x.qbo_invoice_ref ?? "").split(/[,\s]+/).includes(String(i.ref))) : null; return j && j.status !== "complete" && j.billing_type !== "tm"; });
   const invoices = openInv.filter((i) => !billedAhead.includes(i));
   const overdueList = invoices.filter((i) => i.days_overdue > 0).sort((a, b) => b.days_overdue - a.days_overdue);
   const currentList = invoices.filter((i) => i.days_overdue <= 0).sort((a, b) => (a.due < b.due ? -1 : 1));
