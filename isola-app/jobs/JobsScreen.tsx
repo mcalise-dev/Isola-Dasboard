@@ -40,6 +40,13 @@ type ViewKey = (typeof VIEWS)[number]["key"];
 const BAR: Record<string, string> = { lead: "bg-neutral-600", awaiting: "bg-neutral-400", booked: "bg-neutral-200", progress: "bg-white", complete: "bg-emerald-400", lost: "bg-red-400/60" };
 
 const price = (j: any) => Number(j.price_amount) || parsePrice(j.price);
+// T&M job still open after an earlier invoice was paid (e.g. Chemowa: CHEMOWA-1 paid, CHEMOWA-2 open):
+// show what's owed on the current invoice where the price would go.
+const owedNow = (j: any) => {
+  if (j.billing_type !== "tm" || j.paid_date || !(Number(j.paid_amount) > 0) || !(Number(j.tm_invoice_total) > 0)) return 0;
+  return Math.max(0, Math.round((Number(j.tm_invoice_total) - Number(j.paid_amount)) * 100) / 100);
+};
+const priceText = (j: any) => { const o = owedNow(j); return o ? `$${o.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : fmtPrice(j.price); };
 
 function StageChip({ s }: { s: string }) {
   return <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold whitespace-nowrap", STATUS_META[s]?.cls)}>{STATUS_META[s]?.label ?? s}</span>;
@@ -168,8 +175,8 @@ export default function JobsScreen() {
       },
     },
     {
-      id: "price", header: "Price", accessorFn: (j) => price(j),
-      cell: ({ row: { original: j } }) => j.price ? (price(j) ? <span className="font-semibold tabular-nums text-white">{fmtPrice(j.price)}</span> : <Badge variant="muted">{fmtPrice(j.price)}</Badge>) : <span className="text-neutral-600">—</span>,
+      id: "price", header: "Price", accessorFn: (j) => owedNow(j) || price(j),
+      cell: ({ row: { original: j } }) => owedNow(j) ? <div><span className="font-semibold tabular-nums text-white">{priceText(j)}</span><div className="text-[11px] text-neutral-500">owed{j.qbo_invoice_ref ? ` · #${j.qbo_invoice_ref}` : ""}</div></div> : j.price ? (price(j) ? <span className="font-semibold tabular-nums text-white">{fmtPrice(j.price)}</span> : <Badge variant="muted">{fmtPrice(j.price)}</Badge>) : <span className="text-neutral-600">—</span>,
     },
     {
       id: "margin", header: "Spent", accessorFn: (j) => ctx.spent[j.id] ?? 0,
@@ -290,7 +297,7 @@ export default function JobsScreen() {
                     {nx && j.status !== "lost" ? <div className={cn("mt-1 truncate text-xs", late ? "text-red-400" : "text-neutral-300")}>→ {nx.title}</div> : null}
                   </div>
                   <div className="shrink-0 text-right">
-                    {j.price ? <div className="text-[15px] font-semibold tabular-nums text-white">{fmtPrice(j.price)}</div> : null}
+                    {j.price ? <div className="text-[15px] font-semibold tabular-nums text-white">{priceText(j)}</div> : null}
                     {tag ? <div className={cn("mt-0.5 text-xs font-semibold", tag.cls)}>{tag.text}</div> : <div className="mt-0.5 text-xs text-neutral-500">{STATUS_META[j.status]?.label}</div>}
                   </div>
                 </div>
@@ -368,7 +375,7 @@ function Peek({ j, ctx, onMove, onPatch }: { j: any; ctx: Ctx; onMove: (j: any, 
           </div>
         </div>
         <div className="grid grid-cols-3 gap-3 rounded-xl border border-border p-3">
-          <div><div className="text-xs text-neutral-500">Contract</div><div className="truncate font-semibold tabular-nums text-white">{fmtPrice(j.price) || "—"}</div></div>
+          <div><div className="text-xs text-neutral-500">{owedNow(j) ? `Owed${j.qbo_invoice_ref ? ` · #${j.qbo_invoice_ref}` : ""}` : "Contract"}</div><div className="truncate font-semibold tabular-nums text-white">{priceText(j) || "—"}</div></div>
           <div><div className="text-xs text-neutral-500">Spent</div><div className="font-semibold tabular-nums text-white">${Math.round(s).toLocaleString()}</div></div>
           <div><div className="text-xs text-neutral-500">Margin</div><div className={cn("font-semibold tabular-nums", !p ? "text-neutral-500" : 100 - pct < 10 ? "text-red-300" : 100 - pct < 30 ? "text-amber-300" : "text-emerald-300")}>{p ? `${100 - pct}%` : "—"}</div></div>
           {p && s ? <Progress className="col-span-3" value={pct} tone={pct >= 90 ? "bad" : pct >= 70 ? "warn" : "ok"} /> : null}
@@ -436,7 +443,7 @@ function BoardCard({ j, ctx, onOpen }: { j: any; ctx: Ctx; onOpen: (j: any) => v
       </div>
       <div className="mt-2 flex items-center gap-2">
         {tag ? <span className={cn("text-xs font-semibold", tag.cls)}>{tag.text}</span> : null}
-        {j.price ? <span className="ml-auto text-sm font-semibold tabular-nums text-white">{fmtPrice(j.price)}</span> : null}
+        {j.price ? <span className="ml-auto text-sm font-semibold tabular-nums text-white">{priceText(j)}</span> : null}
       </div>
     </div>
   );
