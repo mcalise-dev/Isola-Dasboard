@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { showError, showToast } from "@/components/Toaster";
 import { ask } from "@/components/Dialogs";
 import JobPicker from "@/components/JobPicker";
+import MultiDayPicker from "@/components/schedule/MultiDayPicker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea, Field } from "@/components/ui/input";
@@ -34,14 +35,9 @@ export type ScheduleDialogProps = {
 };
 
 const blank = (date: string, jobId: string | null | undefined, type: string, company = "") => ({
-  date, days: 1, skip: true, item_type: type, job_id: jobId ?? "", label: "", company, phone: "",
+  date, picked: (date ? [date] : []) as string[], item_type: type, job_id: jobId ?? "", label: "", company, phone: "",
   start_time: type === "crew" ? "" : "07:00", end_time: "", qty: "", notes: "", status: "scheduled", crew: [] as string[],
 });
-
-function addDays(s: string, n: number) {
-  const d = new Date(s + "T12:00:00"); d.setDate(d.getDate() + n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 export default function ScheduleItemDialog({ open, onOpenChange, item, date, jobId, type = "crew", lockJob, company, jobs, crew, onSaved }: ScheduleDialogProps) {
   const sb = useMemo(() => createClient(), []);
@@ -53,7 +49,7 @@ export default function ScheduleItemDialog({ open, onOpenChange, item, date, job
     if (!open) return;
     if (item) {
       setF({
-        date: item.entry_date, days: 1, skip: true, item_type: item.item_type ?? "crew",
+        date: item.entry_date, picked: [item.entry_date] as string[], item_type: item.item_type ?? "crew",
         job_id: item.job_id ?? "", label: item.job_id ? "" : (item.label ?? ""),
         company: item.company ?? "", phone: "",
         start_time: item.start_time?.slice(0, 5) ?? "", end_time: item.end_time?.slice(0, 5) ?? "",
@@ -83,7 +79,7 @@ export default function ScheduleItemDialog({ open, onOpenChange, item, date, job
   }
 
   async function save() {
-    if (!f.date) { showError("Pick a date."); return; }
+    if (item ? !f.date : !f.picked.length) { showError(item ? "Pick a date." : "Pick at least one day."); return; }
     if (!f.job_id && !f.label.trim() && !f.company.trim()) { showError("Pick a job, or type what it is."); return; }
     if (f.end_time && f.start_time && f.end_time < f.start_time) { showError("The window ends before it starts."); return; }
     setBusy(true);
@@ -108,19 +104,13 @@ export default function ScheduleItemDialog({ open, onOpenChange, item, date, job
     if (item) {
       ({ error } = await sb.from("schedule_entries").update({ ...base, entry_date: f.date }).eq("id", item.id));
     } else {
-      const dates: string[] = [];
-      let d = f.date;
-      while (dates.length < Math.max(1, f.days)) {
-        const dow = new Date(d + "T12:00:00").getDay();
-        if (f.days === 1 || !f.skip || (dow !== 0 && dow !== 6)) dates.push(d);
-        d = addDays(d, 1);
-      }
+      const dates = [...new Set(f.picked)].sort();
       first = dates[0];
       ({ error } = await sb.from("schedule_entries").insert(dates.map((dt) => ({ ...base, entry_date: dt }))));
     }
     setBusy(false);
     if (error) { showError("Save failed: " + error.message); return; }
-    showToast(item ? "Saved" : f.days > 1 ? `${f.days} days added` : `${t.label} added`);
+    showToast(item ? "Saved" : f.picked.length > 1 ? `${f.picked.length} days added` : `${t.label} added`);
     window.dispatchEvent(new Event("isola:changed"));
     onOpenChange(false);
     onSaved(first, f.job_id || null);
@@ -171,27 +161,22 @@ export default function ScheduleItemDialog({ open, onOpenChange, item, date, job
             </Field>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={item ? "Date" : "Start date"}>
-              <Input type="date" value={f.date} onChange={(e) => set({ date: e.target.value })} />
-            </Field>
-            {item ? (
+          {item ? (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Date">
+                <Input type="date" value={f.date} onChange={(e) => set({ date: e.target.value })} />
+              </Field>
               <Field label="Status">
                 <NativeSelect value={f.status} onChange={(e) => set({ status: e.target.value })}>
                   {Object.entries(SCHED_STATUS).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}
                 </NativeSelect>
               </Field>
-            ) : (
-              <Field label="Days">
-                <NativeSelect value={f.days} onChange={(e) => set({ days: Number(e.target.value) })}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20].map((n) => <option key={n} value={n}>{n} day{n === 1 ? "" : "s"}</option>)}
-                </NativeSelect>
-              </Field>
-            )}
-          </div>
-          {!item && f.days > 1 ? (
-            <label className="-mt-2 flex items-center gap-2 text-xs text-neutral-400"><input type="checkbox" checked={f.skip} onChange={(e) => set({ skip: e.target.checked })} /> Skip weekends</label>
-          ) : null}
+            </div>
+          ) : (
+            <Field label="Days">
+              <MultiDayPicker value={f.picked} onChange={(v) => set({ picked: v, date: v[0] ?? "" })} start={date} />
+            </Field>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <Field label={outside ? "Arriving" : "Start (optional)"}>
@@ -241,7 +226,7 @@ export default function ScheduleItemDialog({ open, onOpenChange, item, date, job
         <DialogFooter>
           {item ? <Button variant="ghost" className="text-red-300 sm:mr-auto" onClick={remove}><Trash2 size={15} /> Remove</Button> : null}
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={save} disabled={busy}>{busy ? "Saving…" : item ? "Save" : f.days > 1 ? `Add ${f.days} days` : "Add"}</Button>
+          <Button onClick={save} disabled={busy}>{busy ? "Saving…" : item ? "Save" : f.picked.length > 1 ? `Add ${f.picked.length} days` : "Add"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -5,6 +5,7 @@
 //   Tasks (who's doing what) · Work days & crew · Tools & materials to bring · Vendors, subs & rentals.
 // Tasks are job_checklist rows (phase_id + "PHASE: text" label so the crew app groups them);
 // tools/materials are job_needs rows (phase_id) so they land on the crew's load-out.
+import MultiDayPicker from "@/components/schedule/MultiDayPicker";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { showError, showToast } from "@/components/Toaster";
@@ -57,7 +58,7 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
   const [workers, setWorkers] = useState<string[]>([]);
   const [crewFor, setCrewFor] = useState<string | null>(null);
   const [days, setDays] = useState<any[]>([]);
-  const [dayEdit, setDayEdit] = useState<{ phase_id: string; id?: string; date: string; people: string[]; start: string; end: string } | null>(null);
+  const [dayEdit, setDayEdit] = useState<{ phase_id: string; id?: string; date: string; dates?: string[]; people: string[]; start: string; end: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [edit, setEdit] = useState<(typeof BLANK & { id?: string; phase_id: string }) | null>(null);
   const [view, setView] = useState<"phases" | Kind>("phases");
@@ -124,20 +125,28 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
     const mine = days.filter((x) => x.phase_id === p.id).map((x) => x.entry_date).sort();
     const date = mine.length ? nextDay(mine[mine.length - 1]) : p.start_date || iso(new Date());
     const last = days.filter((x) => x.phase_id === p.id).slice(-1)[0];
-    setDayEdit({ phase_id: p.id, date, people: last?.assignees?.length ? [...last.assignees] : [...(p.crew ?? [])], start: last?.start_time?.slice(0, 5) ?? "", end: last?.end_time?.slice(0, 5) ?? "" });
+    setDayEdit({ phase_id: p.id, date, dates: [date], people: last?.assignees?.length ? [...last.assignees] : [...(p.crew ?? [])], start: last?.start_time?.slice(0, 5) ?? "", end: last?.end_time?.slice(0, 5) ?? "" });
   }
   async function saveDay() {
     if (!dayEdit) return;
-    if (!dayEdit.date) { showError("Pick a day."); return; }
+    const many = !dayEdit.id ? [...new Set(dayEdit.dates ?? [dayEdit.date])].filter(Boolean).sort() : [dayEdit.date];
+    if (!many.length || !many[0]) { showError("Pick a day."); return; }
     const ph = (phases ?? []).find((x) => x.id === dayEdit.phase_id);
-    const row: any = { entry_date: dayEdit.date, job_id: jobId, phase_id: dayEdit.phase_id, item_type: "crew", label: ph?.name ?? null,
+    const row: any = { entry_date: many[0], job_id: jobId, phase_id: dayEdit.phase_id, item_type: "crew", label: ph?.name ?? null,
       assignees: dayEdit.people, assignee: dayEdit.people[0] ?? null, start_time: dayEdit.start || null, end_time: dayEdit.end || null, updated_at: new Date().toISOString() };
-    const res = dayEdit.id ? await sb.from("schedule_entries").update(row).eq("id", dayEdit.id).select("*").single()
-      : await sb.from("schedule_entries").insert(row).select("*").single();
-    if (res.error) { showError(res.error.message); return; }
-    const list = dayEdit.id ? days.map((x) => (x.id === dayEdit.id ? res.data : x)) : [...days, res.data];
+    let list: any[];
+    if (dayEdit.id) {
+      const res = await sb.from("schedule_entries").update(row).eq("id", dayEdit.id).select("*").single();
+      if (res.error) { showError(res.error.message); return; }
+      list = days.map((x) => (x.id === dayEdit.id ? res.data : x));
+    } else {
+      // one schedule row per picked day, same crew and hours on each
+      const res = await sb.from("schedule_entries").insert(many.map((d) => ({ ...row, entry_date: d }))).select("*");
+      if (res.error) { showError(res.error.message); return; }
+      list = [...days, ...(res.data ?? [])];
+    }
     setDays(list); await syncPhase(dayEdit.phase_id, list);
-    showToast(`${fmtDate(dayEdit.date)} on the schedule`);
+    showToast(many.length > 1 ? `${many.length} days on the schedule` : `${fmtDate(many[0])} on the schedule`);
     setDayEdit(null);
   }
   async function delDay(id: string, phaseId: string) {
@@ -396,10 +405,11 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
                 {dayEdit && dayEdit.phase_id === p.id ? (
                   <div className="mt-2 space-y-2 rounded-xl border border-white/[0.1] bg-white/[0.02] p-3">
                     <div className="flex flex-wrap items-end gap-2">
-                      <Field label="Day"><Input type="date" value={dayEdit.date} onChange={(e) => setDayEdit({ ...dayEdit, date: e.target.value })} className="h-10 w-[160px]" /></Field>
+                      {dayEdit.id ? <Field label="Day"><Input type="date" value={dayEdit.date} onChange={(e) => setDayEdit({ ...dayEdit, date: e.target.value })} className="h-10 w-[160px]" /></Field> : null}
                       <Field label="Start"><Input type="time" value={dayEdit.start} onChange={(e) => setDayEdit({ ...dayEdit, start: e.target.value })} className="h-10 w-[120px]" /></Field>
                       <Field label="End"><Input type="time" value={dayEdit.end} onChange={(e) => setDayEdit({ ...dayEdit, end: e.target.value })} className="h-10 w-[120px]" /></Field>
                     </div>
+                    {!dayEdit.id ? <div className="max-w-sm"><MultiDayPicker value={dayEdit.dates ?? []} onChange={(v) => setDayEdit((de) => de && ({ ...de, dates: v, date: v[0] ?? "" }))} start={dayEdit.date} /></div> : null}
                     <div className="text-xs font-semibold text-neutral-400">Who's working ({dayEdit.people.length})</div>
                     <div className="flex flex-wrap gap-1.5">
                       {[...new Set([...workers, ...dayEdit.people])].map((n) => { const on = dayEdit.people.includes(n); return (
@@ -412,7 +422,7 @@ export default function PhasePlan({ jobId }: { jobId: string }) {
                         className="min-h-[36px] rounded-full border border-dashed border-white/20 px-3 text-xs text-neutral-400 hover:text-white">+ Other name</button>
                     </div>
                     <div className="flex flex-wrap gap-2 pt-1">
-                      <Button size="sm" onClick={saveDay}>{dayEdit.id ? "Save day" : "Add day"}</Button>
+                      <Button size="sm" onClick={saveDay}>{dayEdit.id ? "Save day" : (dayEdit.dates?.length ?? 0) > 1 ? `Add ${dayEdit.dates!.length} days` : "Add day"}</Button>
                       {dayEdit.id ? <Button size="sm" variant="ghost" onClick={() => delDay(dayEdit.id!, p.id)}><Trash2 size={14} className="mr-1" />Remove day</Button> : null}
                       <Button size="sm" variant="ghost" onClick={() => setDayEdit(null)}>Cancel</Button>
                     </div>
